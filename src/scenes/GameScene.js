@@ -8,6 +8,9 @@ import BuildSite from '../entities/towers/BuildSite.js';
 import { gameState } from '../config/GameState.js';
 import { TOWER_TYPES } from '../config/TowerStats.js';
 
+// --- ¡ESTA ES LA LÍNEA QUE FALTA PARA EL PRIMER ERROR! ---
+import Loot from '../entities/items/Loot.js';
+
 export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
@@ -43,9 +46,11 @@ export default class GameScene extends Phaser.Scene {
         this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: true });
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: true });
         this.buildSites = this.add.group();
+        this.loots = this.physics.add.group({ classType: Loot });
 
         this.createBuildSlots();
         this.createSpawnIndicator();
+
 
         // 4. Jugador
         this.player = new Player(this, 640, 360, gameState.selectedClass, this.enemies, this.projectiles);
