@@ -18,9 +18,7 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         this.hp = 100 * hpMult;
         this.maxHp = this.hp;
         
-        // --- CORRECCIÓN CRÍTICA DE VELOCIDAD ---
-        // Antes: (100 * speedMult) / 10000 -> Demasiado rápido (0.1s)
-        // Ahora: speedMult / 15000 -> Velocidad normal (unos 15 segundos en cruzar)
+        // Velocidad corregida (Lenta para que no parpadeen)
         this.speed = speedMult / 15000; 
 
         this.isBoss = isBoss;
@@ -67,8 +65,11 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     }
 
     checkAttackPlayer(time) {
+        // Verificar que la escena y el jugador existan
+        if (!this.scene || !this.scene.player) return;
+        
         const player = this.scene.player;
-        if (!player || !player.active || player.isDead) return;
+        if (!player.active || player.isDead) return;
 
         // Si toca al jugador, muerde
         const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
@@ -90,20 +91,30 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     }
 
     die(killedByPlayer) {
+        // --- CORRECCIÓN AQUÍ ---
+        // 1. Guardamos la referencia a la escena ANTES de destruirnos
+        const currentScene = this.scene; 
+
         this.hpBar.destroy();
+        
         if (killedByPlayer) {
-            // Premio por matar
-            if (this.scene.addEnemyReward) this.scene.addEnemyReward(this.coinReward);
-            if (this.scene.spawnLoot) this.scene.spawnLoot(this.x, this.y);
+            // Usamos currentScene por seguridad
+            if (currentScene && currentScene.addEnemyReward) currentScene.addEnemyReward(this.coinReward);
+            if (currentScene && currentScene.spawnLoot) currentScene.spawnLoot(this.x, this.y);
         } else {
             // Castigo por escapar (Daño a la base)
-            if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(1); 
+            if (currentScene && currentScene.onEnemyLeaks) currentScene.onEnemyLeaks(1); 
         }
+
+        // 2. Ahora sí nos destruimos
         this.destroy(); 
         
-        // Avisar a la escena para revisar si acabó la oleada
-        if (this.scene && this.scene.checkWaveStatus) {
-            this.scene.time.delayedCall(100, () => { this.scene.checkWaveStatus(); });
+        // 3. Avisar a la escena que alguien murió (usando la referencia guardada)
+        // Esto asegura que la oleada avance incluso si "this.scene" ya es null
+        if (currentScene && currentScene.checkWaveStatus) {
+            currentScene.time.delayedCall(100, () => { 
+                currentScene.checkWaveStatus(); 
+            });
         }
     }
 }
