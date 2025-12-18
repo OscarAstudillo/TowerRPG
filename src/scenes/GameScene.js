@@ -6,7 +6,7 @@ import Projectile from '../entities/projectiles/Projectile.js';
 import Tower from '../entities/towers/Tower.js';
 import BuildSite from '../entities/towers/BuildSite.js';
 import Loot from '../entities/items/Loot.js'; // Importación vital
-import { gameState } from '../config/GameState.js';
+import { gameState, updatePlayerStats } from '../config/GameState.js'
 import { TOWER_TYPES } from '../config/TowerStats.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -32,6 +32,7 @@ export default class GameScene extends Phaser.Scene {
         // Registro temporal de loot para el resumen final
         // Estructura: { "wood": { "common": 2, "rare": 1 }, ... }
         this.sessionLoot = {}; 
+        updatePlayerStats();
 
         // --- 2. Mapa ---
         const pathPoints = this.currentLevelData.path;

@@ -1,10 +1,14 @@
 // src/entities/player/Player.js
 import Phaser from 'phaser';
-import { gameState } from '../../config/GameState.js'; // <--- IMPORTANTE
+import { gameState } from '../../config/GameState.js'; 
 
 export default class Player extends Phaser.GameObjects.Rectangle {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
-        super(scene, x, y, 32, 32, 0xffff00); // Amarillo por defecto
+        // --- CORRECCIÓN: Usar color real ---
+        const stats = gameState.playerStats;
+        const color = stats.color || 0xffff00;
+
+        super(scene, x, y, 32, 32, color); 
         
         scene.add.existing(this);
         scene.physics.add.existing(this);
@@ -13,9 +17,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         this.enemiesGroup = enemiesGroup;
         this.projectilesGroup = projectilesGroup;
         this.lastAttackTime = 0;
-
-        // --- AHORA USAMOS LAS STATS GLOBALES ---
-        // Referencia directa al objeto global
         this.stats = gameState.playerStats; 
 
         this.cursors = scene.input.keyboard.addKeys({
@@ -28,9 +29,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     update(time) {
         if (!this.body) return;
-
         this.body.setVelocity(0);
-        // Usamos this.stats.moveSpeed que viene del GameState
         const speed = this.stats.moveSpeed;
 
         if (this.cursors.left.isDown) this.body.setVelocityX(-speed);
@@ -38,7 +37,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         if (this.cursors.up.isDown) this.body.setVelocityY(-speed);
         else if (this.cursors.down.isDown) this.body.setVelocityY(speed);
 
-        // Usamos this.stats.attackSpeed
         if (time > this.lastAttackTime + this.stats.attackSpeed) {
             this.findTargetAndAttack(time);
         }
@@ -47,8 +45,9 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     findTargetAndAttack(time) {
         let closestEnemy = null;
         let closestDistance = Infinity;
-        // Rango fijo por ahora, o podrías añadirlo a stats
-        const range = 200; 
+        
+        // --- CORRECCIÓN: Usar rango real (Melee 60 vs Ranged 200+) ---
+        const range = this.stats.range; 
 
         this.enemiesGroup.children.iterate((enemy) => {
             if (enemy && enemy.active) {
@@ -69,8 +68,8 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     fireProjectile(target) {
         const projectile = this.projectilesGroup.get(this.x, this.y);
         if (projectile) {
-            // Usamos this.stats.damage
-            projectile.fire(target, this.stats.damage, 0xffff00);
+            // Pasamos el color del héroe al proyectil también
+            projectile.fire(target, this.stats.damage, this.stats.color);
         }
     }
 }

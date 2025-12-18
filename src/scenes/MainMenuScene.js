@@ -1,14 +1,13 @@
 // src/scenes/MainMenuScene.js
 import Phaser from 'phaser';
 import { gameState, updatePlayerStats, RARITY } from '../config/GameState.js';
-import { CLASS_STATS } from '../entities/player/PlayerStats.js';
 import RPGSystem from '../systems/RPGSystem.js';
 
 export default class MainMenuScene extends Phaser.Scene {
     constructor() {
         super('MainMenuScene');
         this.currentTab = 'hero'; 
-        this.selectedItem = null; // Variable para saber qué item estamos mirando
+        this.selectedItem = null;
     }
 
     create() {
@@ -18,8 +17,8 @@ export default class MainMenuScene extends Phaser.Scene {
         this.goldText = this.add.text(1200, 40, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
         // BOTONES DE PESTAÑA
-        this.createTabButton(200, 100, 'HÉROE & CLASE', 'hero');
-        this.createTabButton(640, 100, 'MOCHILA & FUSIÓN', 'inventory');
+        this.createTabButton(200, 100, 'HÉROE', 'hero');
+        this.createTabButton(640, 100, 'MOCHILA', 'inventory');
         this.createTabButton(1080, 100, 'FORJA', 'forge');
 
         // CONTENEDORES
@@ -56,9 +55,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'forge') this.refreshForge();
     }
 
-    // ==========================================
-    //              PESTAÑA HÉROE
-    // ==========================================
+    // --- PESTAÑA HÉROE ---
     createHeroView() {
         this.heroStatsText = this.add.text(640, 320, '', { fontSize: '18px', align: 'center', lineHeight: 30 }).setOrigin(0.5);
         this.heroContainer.add(this.heroStatsText);
@@ -69,10 +66,12 @@ export default class MainMenuScene extends Phaser.Scene {
         classes.forEach(clsKey => {
             const btn = this.add.rectangle(startX, 160, 100, 30, 0x555555).setInteractive({ useHandCursor: true });
             const txt = this.add.text(startX, 160, clsKey.toUpperCase(), { fontSize: '12px' }).setOrigin(0.5);
+            
             btn.on('pointerdown', () => {
                 gameState.selectedClass = clsKey;
                 this.refreshHero(); 
             });
+
             this.heroContainer.add([btn, txt]);
             startX += 150;
         });
@@ -82,6 +81,8 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     refreshHero() {
+        // Forzamos actualización para asegurar que se lea la clase
+        updatePlayerStats(); 
         const s = gameState.playerStats;
         const eq = gameState.equipment;
         const clsName = gameState.selectedClass.toUpperCase();
@@ -90,7 +91,7 @@ export default class MainMenuScene extends Phaser.Scene {
         CLASE ACTUAL: [ ${clsName} ]
         
         Vida: ${Math.floor(s.hp)} / ${s.maxHp} | Daño: ${s.damage} | Defensa: ${s.defense}
-        Velocidad: ${s.moveSpeed} | Vel. Ataque: ${s.attackSpeed}ms
+        Velocidad: ${s.moveSpeed} | Rango: ${s.range}
         
         -- EQUIPAMIENTO --
         ⚔️ ${eq.weapon ? eq.weapon.name : 'Nada'}
@@ -99,55 +100,36 @@ export default class MainMenuScene extends Phaser.Scene {
         `);
     }
 
-    // ==========================================
-    //      PESTAÑA MOCHILA (INTERACTIVA)
-    // ==========================================
+    // --- PESTAÑA MOCHILA ---
     createInventoryView() {
-        // Columna Izquierda: Materiales
         this.invMatsText = this.add.text(50, 160, '', { fontSize: '14px', lineHeight: 20 });
         this.invContainer.add(this.invMatsText);
 
-        // Columna Central: Contenedor para la LISTA DE ITEMS
         this.invItemsContainer = this.add.container(400, 160);
         this.invContainer.add(this.invItemsContainer);
         
         const labelInv = this.add.text(400, 130, "EQUIPAMIENTO (Clic para ver)", { fontSize: '16px', color: '#aaa' });
         this.invContainer.add(labelInv);
 
-        // Columna Derecha: DETALLES Y ACCIONES
         this.itemDetailContainer = this.add.container(800, 160);
-        this.itemDetailContainer.setVisible(false); // Oculto al inicio
+        this.itemDetailContainer.setVisible(false);
         this.invContainer.add(this.itemDetailContainer);
 
-        // Fondo del detalle
         const bg = this.add.rectangle(150, 200, 300, 400, 0x000000, 0.8).setStrokeStyle(2, 0xffffff);
         this.itemDetailContainer.add(bg);
 
-        // Textos del detalle
         this.detailTitle = this.add.text(150, 40, "Nombre Item", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
         this.detailStats = this.add.text(150, 100, "Stats...", { fontSize: '16px', align: 'center', wordWrap: { width: 280 } }).setOrigin(0.5);
         this.itemDetailContainer.add([this.detailTitle, this.detailStats]);
 
-        // Botones de Acción (Equipar / Fusionar)
         this.equipBtn = this.createActionButton(150, 250, "EQUIPAR", () => this.actionEquip());
-        this.fuseBtn = this.createActionButton(150, 320, "FUSIONAR (Req. 2 iguales)", () => this.actionFuse());
+        this.fuseBtn = this.createActionButton(150, 320, "FUSIONAR (Req. 2)", () => this.actionFuse());
         
         this.itemDetailContainer.add(this.equipBtn);
         this.itemDetailContainer.add(this.fuseBtn);
     }
 
-    createActionButton(x, y, text, callback) {
-        const container = this.add.container(x, y);
-        const bg = this.add.rectangle(0, 0, 220, 40, 0x006400).setInteractive({ useHandCursor: true });
-        const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        bg.on('pointerdown', callback);
-        container.add([bg, txt]);
-        return container;
-    }
-
     refreshInventory() {
-        // 1. Mostrar Materiales (Texto plano a la izquierda)
         let matContent = "--- MATERIALES ---\n";
         ['wood', 'cloth', 'copper'].forEach(mat => {
             matContent += `\n${mat.toUpperCase()}:\n`;
@@ -158,8 +140,6 @@ export default class MainMenuScene extends Phaser.Scene {
         });
         this.invMatsText.setText(matContent);
 
-        // 2. Mostrar Items (BOTONES)
-        // Limpiamos la lista anterior para repintar
         this.invItemsContainer.removeAll(true);
         let yPos = 0;
 
@@ -168,37 +148,35 @@ export default class MainMenuScene extends Phaser.Scene {
         }
 
         gameState.inventory.forEach(item => {
-            // Creamos un contenedor por cada item
             const itemContainer = this.add.container(0, yPos);
-            
-            // Fondo interactivo (Botón)
             const bg = this.add.rectangle(150, 0, 300, 35, 0x333333).setInteractive({ useHandCursor: true });
-            
-            // Color del texto según rareza
             const colorHex = '#' + item.color.toString(16).padStart(6, '0');
             const nameTxt = this.add.text(10, 0, item.name, { fontSize: '14px', color: colorHex }).setOrigin(0, 0.5);
-            
-            // AL HACER CLIC -> Mostrar Detalles
             bg.on('pointerdown', () => this.selectItem(item));
-
             itemContainer.add([bg, nameTxt]);
             this.invItemsContainer.add(itemContainer);
-            yPos += 40; // Siguiente item más abajo
+            yPos += 40;
         });
-
         this.goldText.setText(`ORO: ${gameState.gold}`);
+    }
+
+    createActionButton(x, y, text, callback) {
+        const container = this.add.container(x, y);
+        const bg = this.add.rectangle(0, 0, 220, 40, 0x006400).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
+        bg.on('pointerdown', callback);
+        container.add([bg, txt]);
+        return container;
     }
 
     selectItem(item) {
         this.selectedItem = item;
         this.itemDetailContainer.setVisible(true);
-        
         const colorHex = '#' + item.color.toString(16).padStart(6, '0');
         this.detailTitle.setText(item.name);
         this.detailTitle.setColor(colorHex);
-
         this.detailStats.setText(
-            `Tipo: ${item.type.toUpperCase()}\n` +
+            `Tipo: ${item.type}\n` +
             `Rareza: ${RARITY[item.rarity].name}\n` +
             `Encantamiento: +${item.enchant}\n\n` +
             `STATS:\n${JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '')}`
@@ -207,117 +185,127 @@ export default class MainMenuScene extends Phaser.Scene {
 
     actionEquip() {
         if (!this.selectedItem) return;
-        
         const item = this.selectedItem;
-        const type = item.type;
-
-        // 1. Si ya hay algo equipado, lo mandamos al inventario
-        const currentEquip = gameState.equipment[type];
-        if (currentEquip) {
-            gameState.inventory.push(currentEquip);
-        }
-
-        // 2. Equipar el nuevo
-        gameState.equipment[type] = item;
-
-        // 3. Quitar del inventario
-        const index = gameState.inventory.indexOf(item);
-        if (index > -1) gameState.inventory.splice(index, 1);
-
-        // 4. Actualizar todo
+        const current = gameState.equipment[item.type];
+        if (current) gameState.inventory.push(current);
+        gameState.equipment[item.type] = item;
+        const idx = gameState.inventory.indexOf(item);
+        if (idx > -1) gameState.inventory.splice(idx, 1);
         updatePlayerStats();
         this.selectedItem = null;
         this.itemDetailContainer.setVisible(false);
-        this.refreshInventory(); // Repintar lista
+        this.refreshInventory();
     }
 
     actionFuse() {
         if (!this.selectedItem) return;
         const item1 = this.selectedItem;
-
-        // Buscar pareja idéntica en el inventario
-        const matchIndex = gameState.inventory.findIndex(i => 
-            i !== item1 && // No puede ser él mismo
-            i.type === item1.type &&
-            i.rarity === item1.rarity &&
+        const idx2 = gameState.inventory.findIndex(i => 
+            i !== item1 && 
+            i.type === item1.type && 
+            i.rarity === item1.rarity && 
             i.enchant === item1.enchant
         );
 
-        if (matchIndex === -1) {
-            this.detailStats.setText(this.detailStats.text + "\n\n[ERROR: Necesitas otro igual en la mochila]");
+        if (idx2 === -1) {
+            this.detailStats.setText(this.detailStats.text + "\n\n[ERROR: Necesitas otro igual]");
             return;
         }
 
-        const item2 = gameState.inventory[matchIndex];
-
-        // Intentar Fusión
+        const item2 = gameState.inventory[idx2];
         const newItem = RPGSystem.fuseItems(item1, item2);
 
         if (newItem) {
-            // Borrar los viejos
             const idx1 = gameState.inventory.indexOf(item1);
             if (idx1 > -1) gameState.inventory.splice(idx1, 1);
-            
-            const idx2 = gameState.inventory.indexOf(item2);
-            if (idx2 > -1) gameState.inventory.splice(idx2, 1);
+            const idx2Re = gameState.inventory.indexOf(item2);
+            if (idx2Re > -1) gameState.inventory.splice(idx2Re, 1);
 
-            // Añadir el nuevo (+1)
             gameState.inventory.push(newItem);
-
-            // Seleccionar el nuevo automáticamente
             this.selectItem(newItem);
             this.refreshInventory();
-            this.detailStats.setText(this.detailStats.text + "\n\n¡FUSIÓN EXITOSA!\nObjeto mejorado.");
+            this.detailStats.setText(this.detailStats.text + "\n\n¡FUSIÓN EXITOSA!");
         }
     }
 
-    // ==========================================
-    //              PESTAÑA FORJA
-    // ==========================================
+    // --- PESTAÑA FORJA (CORREGIDA Y ORGANIZADA) ---
     createForgeView() {
-        this.forgeMsg = this.add.text(640, 550, 'Selecciona una receta', { fontSize: '20px', color: '#ffffff', align: 'center' }).setOrigin(0.5);
+        // 1. Panel de Profesiones (Top)
+        this.profText = this.add.text(640, 140, '', { fontSize: '14px', align: 'center', color: '#aaaaaa' }).setOrigin(0.5);
+        this.forgeContainer.add(this.profText);
+
+        // 2. Mensaje de Estado
+        this.forgeMsg = this.add.text(640, 600, 'Selecciona receta', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.forgeContainer.add(this.forgeMsg);
 
-        this.createCraftButton(400, 300, 'FORJAR ARMA\n(Madera)', 'weapon', 'weaponsmith', 'wood', 5, 100);
-        this.createCraftButton(640, 300, 'COSER ARMADURA\n(Tela)', 'armor', 'armorsmith', 'cloth', 5, 100);
-        this.createCraftButton(880, 300, 'FUNDIR JOYA\n(Cobre)', 'accessory', 'jewelry', 'copper', 5, 100);
-    }
-    
-    refreshForge() {
-        this.goldText.setText(`ORO: ${gameState.gold}`);
+        // 3. Títulos de columnas
+        const t1 = this.add.text(300, 180, "ARMAS (Herrería)", { fontSize: '16px', color: '#ffa500' }).setOrigin(0.5);
+        const t2 = this.add.text(640, 180, "ARMADURAS (Sastrería)", { fontSize: '16px', color: '#00ffff' }).setOrigin(0.5);
+        const t3 = this.add.text(980, 180, "ACCESORIOS (Joyería)", { fontSize: '16px', color: '#ff00ff' }).setOrigin(0.5);
+        this.forgeContainer.add([t1, t2, t3]);
+
+        // 4. Botones por Categoría y Rareza
+        // Armas
+        this.createRecipeBtn(300, 230, 'Espada Común', 'weapon', 'weaponsmith', 'wood', 'common', 50);
+        this.createRecipeBtn(300, 300, 'Espada Verde', 'weapon', 'weaponsmith', 'wood', 'uncommon', 150);
+        this.createRecipeBtn(300, 370, 'Espada Azul', 'weapon', 'weaponsmith', 'wood', 'rare', 300);
+
+        // Armaduras
+        this.createRecipeBtn(640, 230, 'Túnica Común', 'armor', 'armorsmith', 'cloth', 'common', 50);
+        this.createRecipeBtn(640, 300, 'Túnica Verde', 'armor', 'armorsmith', 'cloth', 'uncommon', 150);
+        this.createRecipeBtn(640, 370, 'Túnica Azul', 'armor', 'armorsmith', 'cloth', 'rare', 300);
+
+        // Joyas
+        this.createRecipeBtn(980, 230, 'Anillo Común', 'accessory', 'jewelry', 'copper', 'common', 50);
+        this.createRecipeBtn(980, 300, 'Anillo Verde', 'accessory', 'jewelry', 'copper', 'uncommon', 150);
+        this.createRecipeBtn(980, 370, 'Anillo Azul', 'accessory', 'jewelry', 'copper', 'rare', 300);
     }
 
-    createCraftButton(x, y, label, type, profession, matType, matCost, goldCost) {
-        const btn = this.add.rectangle(x, y, 220, 80, 0x550000).setInteractive({ useHandCursor: true });
+    refreshForge() {
+        this.goldText.setText(`ORO: ${gameState.gold}`);
+        const p = gameState.professions;
+        this.profText.setText(
+            `HERRERÍA: Lvl ${p.weaponsmith.level} (${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP)\n` +
+            `SASTRERÍA: Lvl ${p.armorsmith.level} (${p.armorsmith.xp}/${p.armorsmith.maxXp} XP)\n` +
+            `JOYERÍA: Lvl ${p.jewelry.level} (${p.jewelry.xp}/${p.jewelry.maxXp} XP)`
+        );
+    }
+
+    createRecipeBtn(x, y, label, type, profKey, matType, rarity, goldCost) {
+        const rarityData = RARITY[rarity];
+        const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0');
         
-        const info = `${label}\nReq: ${matCost} ${matType} + ${goldCost} Oro`;
-        const txt = this.add.text(x, y, info, { fontSize: '14px', align: 'center', color: '#ffdddd' }).setOrigin(0.5);
-        
+        const btn = this.add.rectangle(x, y, 250, 50, 0x333333).setInteractive({ useHandCursor: true });
+        btn.setStrokeStyle(2, rarityData.color); // Borde según rareza
+
+        const txt = this.add.text(x, y, `${label}\nReq: 3 ${matType} (${rarityData.name}) + $${goldCost}`, { 
+            fontSize: '12px', align: 'center', color: hexColor 
+        }).setOrigin(0.5);
+
         btn.on('pointerdown', () => {
             if (gameState.gold < goldCost) {
-                this.forgeMsg.setText("¡No tienes suficiente Oro!");
+                this.forgeMsg.setText("¡Falta Oro!");
                 this.forgeMsg.setColor('#ff0000');
                 return;
             }
 
-            // Usa el sistema corregido que cobra materiales
-            const newItem = RPGSystem.craftItem(type, profession, matType, matCost);
+            // Llamada al sistema corregido
+            const result = RPGSystem.craftItem(type, profKey, matType, rarity);
             
-            if (newItem) {
+            if (result.success) {
                 gameState.gold -= goldCost;
-                gameState.inventory.push(newItem);
+                gameState.inventory.push(result.item);
                 
-                this.forgeMsg.setText(`¡OBJETO CREADO!\n${newItem.name}\n(Ve a MOCHILA para equiparlo)`);
-                const hexColor = '#' + newItem.color.toString(16).padStart(6, '0');
-                this.forgeMsg.setColor(hexColor);
-                
+                this.forgeMsg.setText(`¡FORJADO EXITO!\n${result.item.name}\n(+XP Profesional)`);
+                this.forgeMsg.setColor('#00ff00');
                 this.refreshForge();
             } else {
-                this.forgeMsg.setText(`¡Falta Material!\nNecesitas ${matCost} de ${matType} (Común)`);
+                this.forgeMsg.setText(`¡Faltan Materiales!\nRequieres 3 ${matType} de calidad ${rarityData.name}`);
                 this.forgeMsg.setColor('#ff0000');
             }
         });
 
+        // IMPORTANTE: Aquí se añade al contenedor, evitando el error anterior
         this.forgeContainer.add([btn, txt]);
     }
 }
