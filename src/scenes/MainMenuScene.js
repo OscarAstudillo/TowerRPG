@@ -2,15 +2,24 @@
 import Phaser from 'phaser';
 import { gameState, updatePlayerStats, RARITY } from '../config/GameState.js';
 import RPGSystem from '../systems/RPGSystem.js';
+import SaveSystem from '../systems/SaveSystem.js'; // <--- IMPORTAR
 
 export default class MainMenuScene extends Phaser.Scene {
     constructor() {
         super('MainMenuScene');
         this.currentTab = 'hero'; 
         this.selectedItem = null;
+        this.hasLoaded = false; // Para cargar solo una vez
     }
 
     create() {
+        // --- CARGAR PARTIDA AL INICIO ---
+        if (!this.hasLoaded) {
+            SaveSystem.load();
+            updatePlayerStats(); // Recalcular stats tras cargar
+            this.hasLoaded = true;
+        }
+
         this.add.rectangle(640, 360, 1280, 720, 0x1a1a1a);
         
         this.add.text(640, 40, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
@@ -36,6 +45,11 @@ export default class MainMenuScene extends Phaser.Scene {
         const playBtn = this.add.rectangle(640, 680, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
         this.add.text(640, 680, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
         playBtn.on('pointerdown', () => this.scene.start('WorldMapScene'));
+
+        // BOTÓN BORRAR PARTIDA (Pequeño, abajo a la izquierda)
+        const resetBtn = this.add.text(50, 680, '🗑️ Borrar Datos', { fontSize: '16px', color: '#ff4444' })
+            .setInteractive({ useHandCursor: true });
+        resetBtn.on('pointerdown', () => SaveSystem.reset());
     }
 
     createTabButton(x, y, text, tabKey) {
@@ -55,7 +69,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'forge') this.refreshForge();
     }
 
-    // --- PESTAÑA HÉROE ---
+    // --- HÉROE ---
     createHeroView() {
         this.heroStatsText = this.add.text(640, 320, '', { fontSize: '18px', align: 'center', lineHeight: 30 }).setOrigin(0.5);
         this.heroContainer.add(this.heroStatsText);
@@ -69,7 +83,9 @@ export default class MainMenuScene extends Phaser.Scene {
             
             btn.on('pointerdown', () => {
                 gameState.selectedClass = clsKey;
+                updatePlayerStats(); // Actualizar stats al cambiar clase
                 this.refreshHero(); 
+                SaveSystem.save(); // Guardar elección
             });
 
             this.heroContainer.add([btn, txt]);
@@ -81,8 +97,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     refreshHero() {
-        // Forzamos actualización para asegurar que se lea la clase
-        updatePlayerStats(); 
+        updatePlayerStats();
         const s = gameState.playerStats;
         const eq = gameState.equipment;
         const clsName = gameState.selectedClass.toUpperCase();
@@ -100,7 +115,7 @@ export default class MainMenuScene extends Phaser.Scene {
         `);
     }
 
-    // --- PESTAÑA MOCHILA ---
+    // --- MOCHILA ---
     createInventoryView() {
         this.invMatsText = this.add.text(50, 160, '', { fontSize: '14px', lineHeight: 20 });
         this.invContainer.add(this.invMatsText);
@@ -195,6 +210,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.selectedItem = null;
         this.itemDetailContainer.setVisible(false);
         this.refreshInventory();
+        SaveSystem.save(); // Guardar cambios
     }
 
     actionFuse() {
@@ -225,37 +241,31 @@ export default class MainMenuScene extends Phaser.Scene {
             this.selectItem(newItem);
             this.refreshInventory();
             this.detailStats.setText(this.detailStats.text + "\n\n¡FUSIÓN EXITOSA!");
+            SaveSystem.save(); // Guardar cambios
         }
     }
 
-    // --- PESTAÑA FORJA (CORREGIDA Y ORGANIZADA) ---
+    // --- FORJA ---
     createForgeView() {
-        // 1. Panel de Profesiones (Top)
         this.profText = this.add.text(640, 140, '', { fontSize: '14px', align: 'center', color: '#aaaaaa' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
 
-        // 2. Mensaje de Estado
         this.forgeMsg = this.add.text(640, 600, 'Selecciona receta', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.forgeContainer.add(this.forgeMsg);
 
-        // 3. Títulos de columnas
         const t1 = this.add.text(300, 180, "ARMAS (Herrería)", { fontSize: '16px', color: '#ffa500' }).setOrigin(0.5);
         const t2 = this.add.text(640, 180, "ARMADURAS (Sastrería)", { fontSize: '16px', color: '#00ffff' }).setOrigin(0.5);
         const t3 = this.add.text(980, 180, "ACCESORIOS (Joyería)", { fontSize: '16px', color: '#ff00ff' }).setOrigin(0.5);
         this.forgeContainer.add([t1, t2, t3]);
 
-        // 4. Botones por Categoría y Rareza
-        // Armas
         this.createRecipeBtn(300, 230, 'Espada Común', 'weapon', 'weaponsmith', 'wood', 'common', 50);
         this.createRecipeBtn(300, 300, 'Espada Verde', 'weapon', 'weaponsmith', 'wood', 'uncommon', 150);
         this.createRecipeBtn(300, 370, 'Espada Azul', 'weapon', 'weaponsmith', 'wood', 'rare', 300);
 
-        // Armaduras
         this.createRecipeBtn(640, 230, 'Túnica Común', 'armor', 'armorsmith', 'cloth', 'common', 50);
         this.createRecipeBtn(640, 300, 'Túnica Verde', 'armor', 'armorsmith', 'cloth', 'uncommon', 150);
         this.createRecipeBtn(640, 370, 'Túnica Azul', 'armor', 'armorsmith', 'cloth', 'rare', 300);
 
-        // Joyas
         this.createRecipeBtn(980, 230, 'Anillo Común', 'accessory', 'jewelry', 'copper', 'common', 50);
         this.createRecipeBtn(980, 300, 'Anillo Verde', 'accessory', 'jewelry', 'copper', 'uncommon', 150);
         this.createRecipeBtn(980, 370, 'Anillo Azul', 'accessory', 'jewelry', 'copper', 'rare', 300);
@@ -276,7 +286,7 @@ export default class MainMenuScene extends Phaser.Scene {
         const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0');
         
         const btn = this.add.rectangle(x, y, 250, 50, 0x333333).setInteractive({ useHandCursor: true });
-        btn.setStrokeStyle(2, rarityData.color); // Borde según rareza
+        btn.setStrokeStyle(2, rarityData.color);
 
         const txt = this.add.text(x, y, `${label}\nReq: 3 ${matType} (${rarityData.name}) + $${goldCost}`, { 
             fontSize: '12px', align: 'center', color: hexColor 
@@ -289,7 +299,6 @@ export default class MainMenuScene extends Phaser.Scene {
                 return;
             }
 
-            // Llamada al sistema corregido
             const result = RPGSystem.craftItem(type, profKey, matType, rarity);
             
             if (result.success) {
@@ -299,13 +308,13 @@ export default class MainMenuScene extends Phaser.Scene {
                 this.forgeMsg.setText(`¡FORJADO EXITO!\n${result.item.name}\n(+XP Profesional)`);
                 this.forgeMsg.setColor('#00ff00');
                 this.refreshForge();
+                SaveSystem.save(); // Guardar cambios
             } else {
                 this.forgeMsg.setText(`¡Faltan Materiales!\nRequieres 3 ${matType} de calidad ${rarityData.name}`);
                 this.forgeMsg.setColor('#ff0000');
             }
         });
 
-        // IMPORTANTE: Aquí se añade al contenedor, evitando el error anterior
         this.forgeContainer.add([btn, txt]);
     }
 }

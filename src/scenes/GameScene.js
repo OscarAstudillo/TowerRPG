@@ -8,6 +8,7 @@ import BuildSite from '../entities/towers/BuildSite.js';
 import Loot from '../entities/items/Loot.js'; // Importación vital
 import { gameState, updatePlayerStats } from '../config/GameState.js'
 import { TOWER_TYPES } from '../config/TowerStats.js';
+import SaveSystem from '../systems/SaveSystem.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -153,6 +154,7 @@ export default class GameScene extends Phaser.Scene {
         // Dar Oro Global
         const goldReward = this.currentLevelData.rewardGold || 100;
         gameState.gold += goldReward;
+        SaveSystem.save();
 
         // --- CREAR PANEL DE RESUMEN ---
         const bg = this.add.rectangle(640, 360, 500, 400, 0x000000, 0.9).setStrokeStyle(4, 0xffd700);
