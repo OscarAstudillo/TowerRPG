@@ -5,33 +5,39 @@ import { gameState, RARITY } from '../config/GameState.js';
 export default class RPGSystem {
     
     // --- 1. SISTEMA DE CRAFTEO (RNG según Profesión) ---
-    static craftItem(type, professionKey) {
+    // --- 1. SISTEMA DE CRAFTEO (COSTO MATERIALES + ORO) ---
+    static craftItem(type, professionKey, materialType, materialCost) {
+        // 1. Verificar Materiales
+        // Para simplificar, usamos materiales de rareza "common" para craftear,
+        // pero el resultado puede salir raro según tu profesión.
+        const userMats = gameState.materials[materialType].common;
+        
+        if (userMats < materialCost) return null; // No alcanza
+
+        // 2. Consumir Materiales
+        gameState.materials[materialType].common -= materialCost;
+
+        // 3. Lógica de Profesión (RNG)
         const profLevel = gameState.professions[professionKey];
         
-        // Probabilidades base según nivel de profesión (1-100)
         let chance = { common: 80, uncommon: 20, rare: 0, epic: 0, legendary: 0 };
-
         if (profLevel > 20) { chance.common = 60; chance.uncommon = 30; chance.rare = 10; }
         if (profLevel > 50) { chance.common = 40; chance.uncommon = 40; chance.rare = 15; chance.epic = 5; }
         if (profLevel > 90) { chance.common = 10; chance.uncommon = 40; chance.rare = 30; chance.epic = 15; chance.legendary = 5; }
 
-        // Determinar rareza final
         const roll = Math.random() * 100;
         let selectedRarity = 'common';
         let cumulative = 0;
 
-        // Algoritmo de ruleta simple
         if (roll < (cumulative += chance.common)) selectedRarity = 'common';
         else if (roll < (cumulative += chance.uncommon)) selectedRarity = 'uncommon';
         else if (roll < (cumulative += chance.rare)) selectedRarity = 'rare';
         else if (roll < (cumulative += chance.epic)) selectedRarity = 'epic';
         else selectedRarity = 'legendary';
 
-        // Generar Encantamiento Base (+0 a +3 según profesión)
         let enchantLevel = 0;
-        if (Math.random() < (profLevel / 200)) enchantLevel = 1; // Pequeña chance de salir +1 directo
+        if (Math.random() < (profLevel / 200)) enchantLevel = 1; 
 
-        // Subir experiencia de profesión
         this.gainProfessionXP(professionKey, selectedRarity);
 
         return this.generateItemObject(type, selectedRarity, enchantLevel);

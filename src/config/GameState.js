@@ -17,11 +17,11 @@ export const gameState = {
     selectedClass: 'paladin',
     levelsUnlocked: 1,
     
-    gold: 0, // Oro Global (se gana al ganar niveles)
+    gold: 50000, // Oro Global (se gana al ganar niveles)
 
     // Materiales ahora divididos por rareza
     materials: {
-        wood:   { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        wood:   { common: 8000, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cloth:  { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 }
     },
