@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 
 export default class Enemy extends Phaser.GameObjects.Rectangle {
     constructor(scene, path, speedMult, hpMult, isBoss) {
-        // Boss es más grande y rojo oscuro
+        // Boss es más grande y oscuro
         const size = isBoss ? 40 : 20; 
         const color = isBoss ? 0x880000 : 0xff0000;
         
@@ -17,16 +17,21 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         // Stats
         this.hp = 100 * hpMult;
         this.maxHp = this.hp;
-        this.speed = (100 * speedMult) / 10000; // Ajuste de velocidad
+        
+        // --- CORRECCIÓN CRÍTICA DE VELOCIDAD ---
+        // Antes: (100 * speedMult) / 10000 -> Demasiado rápido (0.1s)
+        // Ahora: speedMult / 15000 -> Velocidad normal (unos 15 segundos en cruzar)
+        this.speed = speedMult / 15000; 
+
         this.isBoss = isBoss;
         this.coinReward = 10;
 
         // Combate
-        this.damage = 15; // Daño al héroe
+        this.damage = 15; 
         this.lastAttackTime = 0;
-        this.attackRate = 1000; // Ataca cada 1 segundo
+        this.attackRate = 1000; 
 
-        // Barra de Vida visual
+        // Barra de Vida
         this.hpBar = scene.add.rectangle(this.x, this.y - 15, 30, 5, 0x00ff00);
     }
 
@@ -34,13 +39,14 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         // Movimiento por el camino
         this.follower.t += this.speed * delta;
         
+        // Si llega al final
         if (this.follower.t >= 1) {
             this.hpBar.destroy();
-            this.die(false); // Llegó al final (false = no matado por jugador)
+            this.die(false); // false = Se escapó (daño al castillo)
             return;
         }
 
-        // Calcular posición en la curva/camino
+        // Calcular posición en la ruta
         const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))];
         const p2 = this.path[Math.ceil(this.follower.t * (this.path.length - 1))];
         
@@ -56,7 +62,7 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         this.hpBar.width = 30 * hpPercent;
         this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00);
 
-        // --- LÓGICA DE ATAQUE AL HÉROE ---
+        // Lógica de ataque al héroe
         this.checkAttackPlayer(time);
     }
 
@@ -64,19 +70,14 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         const player = this.scene.player;
         if (!player || !player.active || player.isDead) return;
 
-        // Distancia para morder (30px)
+        // Si toca al jugador, muerde
         const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
         
         if (dist < 40) {
             if (time > this.lastAttackTime + this.attackRate) {
-                // ¡ATAQUE!
                 player.takeDamage(this.damage);
                 this.lastAttackTime = time;
-                
-                // Efecto visual de golpe
-                this.scene.tweens.add({
-                    targets: this, scale: 1.5, yoyo: true, duration: 100
-                });
+                this.scene.tweens.add({ targets: this, scale: 1.5, yoyo: true, duration: 100 });
             }
         }
     }
@@ -91,15 +92,16 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     die(killedByPlayer) {
         this.hpBar.destroy();
         if (killedByPlayer) {
+            // Premio por matar
             if (this.scene.addEnemyReward) this.scene.addEnemyReward(this.coinReward);
             if (this.scene.spawnLoot) this.scene.spawnLoot(this.x, this.y);
         } else {
-            // Se escapó -> Daño al castillo
+            // Castigo por escapar (Daño a la base)
             if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(1); 
         }
         this.destroy(); 
         
-        // Avisar al juego
+        // Avisar a la escena para revisar si acabó la oleada
         if (this.scene && this.scene.checkWaveStatus) {
             this.scene.time.delayedCall(100, () => { this.scene.checkWaveStatus(); });
         }
