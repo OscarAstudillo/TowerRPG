@@ -150,4 +150,68 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             this.lastAttackTime = time;
         }
     }
+
+    takeDamage(amount) {
+        if (this.isDead) return;
+
+        this.stats.hp -= amount;
+        
+        // Feedback visual (Parpadeo rojo)
+        this.scene.tweens.add({
+            targets: this, alpha: 0.2, yoyo: true, duration: 100, repeat: 1
+        });
+
+        // Actualizar UI global
+        // (En un juego real usaríamos eventos, pero esto funciona rápido)
+        this.scene.updateUI();
+
+        if (this.stats.hp <= 0) {
+            this.die();
+        }
+    }
+
+    die() {
+        this.isDead = true;
+        this.stats.hp = 0;
+        this.scene.updateUI();
+
+        // Convertirse en tumba
+        this.setFillStyle(0x555555); // Gris muerto
+        this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000}); // Icono temporal
+        
+        // Desactivar cuerpo físico (para que no le sigan pegando)
+        this.body.enable = false;
+        
+        // Mensaje de respawn
+        this.respawnText = this.scene.add.text(this.x, this.y - 30, "Reviviendo...", { 
+            fontSize: '14px', color: '#fff', backgroundColor: '#000' 
+        }).setOrigin(0.5);
+
+        console.log("¡Héroe caído! Reviviendo en 5s...");
+
+        // Timer para revivir (5 segundos)
+        this.scene.time.delayedCall(5000, () => {
+            this.respawn();
+        });
+    }
+
+    respawn() {
+        this.isDead = false;
+        this.stats.hp = this.stats.maxHp; // Vida llena
+        this.body.enable = true; // Activar físicas
+        
+        // Restaurar color original de la clase
+        this.setFillStyle(this.stats.color); 
+        
+        if (this.respawnText) this.respawnText.destroy();
+        
+        // Efecto de aparición
+        this.scene.tweens.add({
+            targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out'
+        });
+        
+        this.scene.updateUI();
+        console.log("¡Héroe revivido!");
+    }
+
 }

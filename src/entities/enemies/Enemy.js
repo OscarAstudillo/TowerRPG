@@ -2,114 +2,106 @@
 import Phaser from 'phaser';
 
 export default class Enemy extends Phaser.GameObjects.Rectangle {
-    constructor(scene, path, speedMultiplier = 1, hpMultiplier = 1, isBoss = false) {
-        // ... (Tu constructor sigue igual que antes) ...
+    constructor(scene, path, speedMult, hpMult, isBoss) {
+        // Boss es más grande y rojo oscuro
+        const size = isBoss ? 40 : 20; 
+        const color = isBoss ? 0x880000 : 0xff0000;
         
-        let color = 0xff0000; 
-        let size = 32;        
-        if (isBoss) {
-            color = 0x800080; 
-            size = 64;        
-        }
         super(scene, path[0].x, path[0].y, size, size, color);
-        
         scene.add.existing(this);
         scene.physics.add.existing(this);
-        
-        this.isBoss = isBoss;
-        let baseHp = 80;
-        if (isBoss) baseHp = 2000;
-
-        this.maxHp = baseHp * hpMultiplier;
-        this.hp = this.maxHp;
-
-        let baseSpeed = 50; 
-        if (isBoss) baseSpeed = 30; 
-
-        this.speed = baseSpeed * speedMultiplier;
-        if (this.speed > 160) this.speed = 160;
 
         this.path = path;
-        this.nextPointIndex = 1; 
-        this.target = this.path[this.nextPointIndex];
+        this.follower = { t: 0, vec: new Phaser.Math.Vector2() };
+        
+        // Stats
+        this.hp = 100 * hpMult;
+        this.maxHp = this.hp;
+        this.speed = (100 * speedMult) / 10000; // Ajuste de velocidad
+        this.isBoss = isBoss;
+        this.coinReward = 10;
 
-        this.hpBar = scene.add.rectangle(this.x, this.y - (size/2 + 10), size, 5, 0x00ff00);
+        // Combate
+        this.damage = 15; // Daño al héroe
+        this.lastAttackTime = 0;
+        this.attackRate = 1000; // Ataca cada 1 segundo
+
+        // Barra de Vida visual
+        this.hpBar = scene.add.rectangle(this.x, this.y - 15, 30, 5, 0x00ff00);
+    }
+
+    update(time, delta) {
+        // Movimiento por el camino
+        this.follower.t += this.speed * delta;
+        
+        if (this.follower.t >= 1) {
+            this.hpBar.destroy();
+            this.die(false); // Llegó al final (false = no matado por jugador)
+            return;
+        }
+
+        // Calcular posición en la curva/camino
+        const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))];
+        const p2 = this.path[Math.ceil(this.follower.t * (this.path.length - 1))];
+        
+        if (p1 && p2) {
+            const segmentT = (this.follower.t * (this.path.length - 1)) % 1;
+            this.x = Phaser.Math.Linear(p1.x, p2.x, segmentT);
+            this.y = Phaser.Math.Linear(p1.y, p2.y, segmentT);
+        }
+
+        // Actualizar barra de vida
+        this.hpBar.setPosition(this.x, this.y - 20);
+        const hpPercent = this.hp / this.maxHp;
+        this.hpBar.width = 30 * hpPercent;
+        this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00);
+
+        // --- LÓGICA DE ATAQUE AL HÉROE ---
+        this.checkAttackPlayer(time);
+    }
+
+    checkAttackPlayer(time) {
+        const player = this.scene.player;
+        if (!player || !player.active || player.isDead) return;
+
+        // Distancia para morder (30px)
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+        
+        if (dist < 40) {
+            if (time > this.lastAttackTime + this.attackRate) {
+                // ¡ATAQUE!
+                player.takeDamage(this.damage);
+                this.lastAttackTime = time;
+                
+                // Efecto visual de golpe
+                this.scene.tweens.add({
+                    targets: this, scale: 1.5, yoyo: true, duration: 100
+                });
+            }
+        }
     }
 
     takeDamage(amount) {
         this.hp -= amount;
-        
-        const hpPercent = this.hp / this.maxHp;
-        this.hpBar.width = (this.isBoss ? 64 : 32) * (hpPercent < 0 ? 0 : hpPercent);
-        
-        this.scene.tweens.add({
-            targets: this,
-            alpha: 0.5,
-            duration: 50,
-            yoyo: true,
-            repeat: 1
-        });
-
         if (this.hp <= 0) {
-            this.die(true); 
+            this.die(true);
         }
     }
 
-    // --- AQUÍ ESTÁ EL ARREGLO ---
     die(killedByPlayer) {
-        const scene = this.scene; 
-        if (this.hpBar) this.hpBar.destroy();
-        
+        this.hpBar.destroy();
         if (killedByPlayer) {
-            // Murió por disparos -> PREMIO
-            if (scene.addEnemyReward) {
-                const reward = this.coinReward || 20;
-                scene.addEnemyReward(reward);
-            }
-            // Loot
-            if (this.isBoss) {
-                for(let i=0; i<5; i++) {
-                    if (scene.spawnLoot) scene.spawnLoot(this.x + Phaser.Math.Between(-30,30), this.y + Phaser.Math.Between(-30,30));
-                }
-            } else {
-                if (scene.spawnLoot) scene.spawnLoot(this.x, this.y);
-            }
+            if (this.scene.addEnemyReward) this.scene.addEnemyReward(this.coinReward);
+            if (this.scene.spawnLoot) this.scene.spawnLoot(this.x, this.y);
         } else {
-            // --- CAMBIO: Murió por llegar al final -> CASTIGO ---
-            // Llamamos a la función de la escena para quitar vida
-            if (scene.onEnemyLeaks) {
-                scene.onEnemyLeaks(10); // Quitamos 10 de vida
-            }
+            // Se escapó -> Daño al castillo
+            if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(1); 
         }
-        
         this.destroy(); 
         
-        // Avisar que la oleada puede avanzar
-        if (scene && scene.checkWaveStatus) {
-            scene.time.delayedCall(100, () => { scene.checkWaveStatus(); });
+        // Avisar al juego
+        if (this.scene && this.scene.checkWaveStatus) {
+            this.scene.time.delayedCall(100, () => { this.scene.checkWaveStatus(); });
         }
-    }
-
-    update(time, delta) {
-        if (!this.active) return;
-        
-        const offset = this.isBoss ? 40 : 20;
-        if(this.hpBar) {
-            this.hpBar.x = this.x;
-            this.hpBar.y = this.y - offset;
-        }
-
-        const dist = Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y);
-
-        if (dist < 5) {
-            this.nextPointIndex++;
-            if (this.nextPointIndex >= this.path.length) {
-                this.die(false); 
-                return;
-            }
-            this.target = this.path[this.nextPointIndex];
-        }
-
-        this.scene.physics.moveToObject(this, this.target, this.speed);
     }
 }

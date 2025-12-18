@@ -46,6 +46,7 @@ export default class GameScene extends Phaser.Scene {
         this.waveInProgress = false;
         this.isWaitingNextWave = false;
         this.sessionLoot = {}; 
+        gameState.baseHp = 20;
 
         // Mapa
         const graphics = this.add.graphics();
@@ -246,18 +247,26 @@ export default class GameScene extends Phaser.Scene {
     }
 
     onEnemyLeaks(damage) {
-        gameState.playerStats.hp -= damage;
-        this.cameras.main.flash(200, 255, 0, 0);
+        // Ahora restamos a la BASE, no al jugador
+        gameState.baseHp -= 1; // Pierdes 1 vida por enemigo (o damage si prefieres)
+        
+        this.cameras.main.flash(200, 255, 0, 0); // Pantalla roja
         this.updateUI();
-        if (gameState.playerStats.hp <= 0) this.gameOver();
+
+        if (gameState.baseHp <= 0) {
+            this.gameOver();
+        }
     }
 
     gameOver() {
         this.physics.pause();
         if (this.spawnTimer) this.spawnTimer.remove();
-        this.waveText.setText("¡DERROTA!");
+        
+        this.waveText.setText("¡EL REINO HA CAÍDO!");
         this.waveText.setColor('#ff0000');
+        
         this.time.delayedCall(3000, () => {
+            // Restaurar todo y volver al menú
             gameState.playerStats.hp = gameState.playerStats.maxHp; 
             this.scene.start('MainMenuScene');
         });
@@ -385,12 +394,20 @@ export default class GameScene extends Phaser.Scene {
         this.skillBtnContainer.add([this.skillBtn, this.skillText]);
 
         this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill());
+
+        // --- PANEL SUPERIOR: VIDAS ---
+        this.livesText = this.add.text(20, 20, '', { fontSize: '24px', fontStyle: 'bold', color: '#ff4444' }).setScrollFactor(0);
+        this.livesText.setStroke('#000', 4);
     }
 
     updateUI() {
         const currentTower = TOWER_TYPES[this.selectedTowerType];
         this.economyText.setText(`MONEDAS: $${this.coins}`);
         this.buildText.setText(`SELECCIONADA:\n> ${currentTower.name.toUpperCase()} <\n\nCOSTE: $${currentTower.baseCost}\n(Teclas 1, 2, 3)`);
+
+        // MOSTRAR AMBAS VIDAS
+        const pStats = gameState.playerStats;
+        this.livesText.setText(`🏰 CASTILLO: ${gameState.baseHp}  |  ❤️ HÉROE: ${Math.floor(pStats.hp)}/${pStats.maxHp}`);
     }
 
     updateWaveTitle(text) { 

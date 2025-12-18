@@ -17,6 +17,7 @@ export const gameState = {
     selectedClass: 'paladin',
     levelsUnlocked: 1,
     gold: 30000,
+    baseHp: 20,
 
     materials: {
         wood:   { common: 100, uncommon: 100, rare: 100, epic: 0, legendary: 0 },
