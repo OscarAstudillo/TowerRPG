@@ -6,7 +6,7 @@ import Projectile from '../entities/projectiles/Projectile.js';
 import Tower from '../entities/towers/Tower.js';
 import BuildSite from '../entities/towers/BuildSite.js';
 import Loot from '../entities/items/Loot.js';
-import { gameState, updatePlayerStats } from '../config/GameState.js'; // Importar updatePlayerStats
+import { gameState, updatePlayerStats } from '../config/GameState.js';
 import { TOWER_TYPES } from '../config/TowerStats.js';
 import SaveSystem from '../systems/SaveSystem.js';
 
@@ -19,7 +19,6 @@ export default class GameScene extends Phaser.Scene {
     }
 
     init(data) {
-        // Asegurar que existan datos válidos
         this.currentLevelData = data.levelData || { 
             id: 1, 
             name: "Nivel Debug", 
@@ -28,25 +27,19 @@ export default class GameScene extends Phaser.Scene {
             path: [], 
             towerSlots: [] 
         };
-        
-        // Forzar actualización de stats del héroe al entrar
         updatePlayerStats();
     }
 
     create() {
-        // --- 1. SEGURIDAD ANTI-CRASH (Esto arregla el congelamiento) ---
+        // --- 1. SEGURIDAD ANTI-CRASH ---
         const pathPoints = this.currentLevelData.path;
-        
-        // Si el camino está vacío o indefinido, volver al mapa en vez de congelar
         if (!pathPoints || pathPoints.length === 0) {
             console.error("¡ERROR DE CAMINO! Volviendo al mapa...");
             this.scene.start('WorldMapScene');
             return; 
         }
 
-        this.pathPoints = pathPoints; // Guardar referencia segura
-
-        // Variables de sesión
+        this.pathPoints = pathPoints;
         this.coins = this.currentLevelData.startCoins;
         this.currentWave = 1;
         this.totalWaves = 5;
@@ -54,7 +47,7 @@ export default class GameScene extends Phaser.Scene {
         this.isWaitingNextWave = false;
         this.sessionLoot = {}; 
 
-        // Dibujar Camino
+        // Mapa
         const graphics = this.add.graphics();
         graphics.lineStyle(4, 0x666666, 1);
         graphics.beginPath();
@@ -72,14 +65,11 @@ export default class GameScene extends Phaser.Scene {
         this.createBuildSlots();
         this.createSpawnIndicator();
 
-        // Jugador
         this.player = new Player(this, 640, 360, gameState.selectedClass, this.enemies, this.projectiles);
 
-        // --- INPUTS ---
-        // Tecla de Habilidad
+        // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         
-        // Torres
         this.input.on('gameobjectdown', (pointer, gameObject) => {
             if (gameObject instanceof Tower) this.openUpgradeMenu(gameObject);
             else this.closeUpgradeMenu();
@@ -103,7 +93,6 @@ export default class GameScene extends Phaser.Scene {
         this.createUI();
         this.createUpgradeUI();
 
-        // Iniciar
         this.startNextWave();
         this.updateUI();
     }
@@ -111,10 +100,10 @@ export default class GameScene extends Phaser.Scene {
     update(time, delta) {
         if (this.player) this.player.update(time, delta);
         this.updateUI();
-        this.updateSkillUI(); // Actualizar barra de skill
+        this.updateSkillUI();
     }
 
-    // --- LÓGICA DE HABILIDAD ---
+    // --- HABILIDAD ---
     triggerPlayerSkill() {
         if (!this.player) return;
         const result = this.player.castSkill();
@@ -146,7 +135,7 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- RESTO DE FUNCIONES (Loot, Oleadas, UI) ---
+    // --- UTILS ---
     spawnLoot(x, y) {
         if (Math.random() > 0.7) return; 
         const randType = Math.random();
@@ -187,7 +176,6 @@ export default class GameScene extends Phaser.Scene {
         gameState.gold += goldReward;
         SaveSystem.save();
 
-        // Panel Resumen
         this.add.rectangle(640, 360, 500, 400, 0x000000, 0.9).setStrokeStyle(4, 0xffd700);
         this.add.text(640, 180, "¡VICTORIA!", { fontSize: '40px', color: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
         this.add.text(640, 230, "Recompensas:", { fontSize: '20px', color: '#fff' }).setOrigin(0.5);
@@ -316,6 +304,7 @@ export default class GameScene extends Phaser.Scene {
         this.upgradeContainer = this.add.container(0, 0);
         this.upgradeContainer.setVisible(false);
         this.upgradeContainer.setDepth(100);
+        
         const bg = this.add.rectangle(0, 0, 200, 120, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
         this.upgradeText = this.add.text(0, -30, '', { fontSize: '14px', align: 'center' }).setOrigin(0.5);
         this.upgradeBtn = this.add.rectangle(0, 20, 120, 30, 0x00aa00).setInteractive({ useHandCursor: true });
@@ -379,14 +368,22 @@ export default class GameScene extends Phaser.Scene {
         this.add.text(1200, 680, 'SALIR', { fontSize: '14px' }).setOrigin(0.5).setScrollFactor(0);
         exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene'));
 
-        // --- BOTÓN DE SKILL ---
+        // --- BOTÓN DE SKILL (CORREGIDO) ---
         this.skillBtnContainer = this.add.container(640, 650).setScrollFactor(0);
-        this.add.rectangle(0, 0, 200, 40, 0x333333).setContainer(this.skillBtnContainer);
+        
+        // 1. Fondo de barra
+        const bgBar = this.add.rectangle(0, 0, 200, 40, 0x333333);
+        this.skillBtnContainer.add(bgBar);
+        
+        // 2. Barra de Progreso
         this.skillBar = this.add.rectangle(-100, 0, 200, 40, 0x0088ff).setOrigin(0, 0.5);
         this.skillBtnContainer.add(this.skillBar);
+        
+        // 3. Marco y Texto
         this.skillBtn = this.add.rectangle(0, 0, 200, 40, 0x000000, 0).setStrokeStyle(2, 0xffd700).setInteractive({ useHandCursor: true });
         this.skillText = this.add.text(0, 0, "HABILIDAD (Espacio)", { fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
         this.skillBtnContainer.add([this.skillBtn, this.skillText]);
+
         this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill());
     }
 
