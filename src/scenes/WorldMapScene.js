@@ -9,58 +9,82 @@ export default class WorldMapScene extends Phaser.Scene {
     }
 
     create() {
-        // Fondo del mapa
-        this.add.rectangle(640, 360, 1280, 720, 0x222222);
-        this.add.text(640, 50, 'MAPA DEL REINO', { fontSize: '40px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
+        // Fondo Mapa
+        this.add.rectangle(640, 360, 1280, 720, 0x2b2b2b);
+        
+        // Título
+        this.add.text(640, 50, "MAPA DE CAMPAÑA", { 
+            fontSize: '40px', fontStyle: 'bold', color: '#ffd700' 
+        }).setOrigin(0.5);
 
-        // Botón Volver al Menú
-        const backBtn = this.add.rectangle(100, 50, 150, 50, 0x444444).setInteractive({ useHandCursor: true });
-        this.add.text(100, 50, 'MENÚ', { fontSize: '20px' }).setOrigin(0.5);
-        backBtn.on('pointerdown', () => this.scene.start('MainMenuScene'));
+        // --- DIBUJAR CAMINOS (Líneas entre niveles) ---
+        const graphics = this.add.graphics();
+        graphics.lineStyle(4, 0x666666, 1);
 
-        // DIBUJAR NIVELES
-        // Recorremos la lista de niveles definida en Levels.js
-        LEVELS.forEach((level, index) => {
-            const isUnlocked = (index + 1) <= gameState.levelsUnlocked;
+        for (let i = 0; i < LEVELS.length - 1; i++) {
+            const curr = LEVELS[i];
+            const next = LEVELS[i+1];
             
-            // Posición en el mapa (ajustable)
-            // Si no tiene coordenadas en Levels.js, las calculamos en fila
-            const x = level.mapX || (200 + index * 250);
-            const y = level.mapY || 360;
-
-            // Línea conectora (si no es el primero)
-            if (index > 0) {
-                const prevLevel = LEVELS[index - 1];
-                const prevX = prevLevel.mapX || (200 + (index - 1) * 250);
-                const prevY = prevLevel.mapY || 360;
-                
-                const color = isUnlocked ? 0xffffff : 0x555555;
-                this.add.line(0, 0, prevX, prevY, x, y, color).setOrigin(0).setLineWidth(4);
-            }
-
-            // El Nodo del Nivel (Círculo)
-            const circleColor = isUnlocked ? (level.id === gameState.levelsUnlocked ? 0x00ff00 : 0x00aa00) : 0x550000;
-            const btn = this.add.circle(x, y, 40, circleColor).setInteractive({ useHandCursor: isUnlocked });
+            // Dibujar línea punteada o sólida
+            const isUnlocked = (gameState.levelsUnlocked > curr.id); 
+            const color = isUnlocked ? 0xffd700 : 0x444444; // Dorado si completaste el anterior
             
-            // Texto del Nivel
-            this.add.text(x, y, level.id, { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
-            this.add.text(x, y + 60, level.name, { fontSize: '16px', color: isUnlocked ? '#fff' : '#888' }).setOrigin(0.5);
+            graphics.lineStyle(4, color, 1);
+            graphics.lineBetween(curr.mapX, curr.mapY, next.mapX, next.mapY);
+        }
 
-            // Evento: Iniciar Nivel
-            if (isUnlocked) {
-                btn.on('pointerdown', () => {
-                    console.log(`Iniciando Nivel ${level.id}: ${level.name}`);
-                    // AQUÍ ES DONDE OCURRE LA MAGIA (Transición)
-                    this.scene.start('GameScene', { levelData: level });
-                });
-                
-                // Efecto hover
-                btn.on('pointerover', () => btn.setScale(1.1));
-                btn.on('pointerout', () => btn.setScale(1.0));
-            } else {
-                // Icono de candado para niveles bloqueados
-                this.add.text(x, y, '🔒', { fontSize: '20px' }).setOrigin(0.5);
-            }
+        // --- DIBUJAR NODOS DE NIVEL ---
+        LEVELS.forEach(level => {
+            this.createLevelNode(level);
         });
+
+        // Botón Volver
+        const backBtn = this.add.rectangle(100, 50, 150, 50, 0xaa0000).setInteractive({useHandCursor:true});
+        this.add.text(100, 50, "MENÚ", { fontSize: '20px', fontStyle:'bold' }).setOrigin(0.5);
+        backBtn.on('pointerdown', () => this.scene.start('MainMenuScene'));
+    }
+
+    createLevelNode(level) {
+        const isUnlocked = level.id <= gameState.levelsUnlocked;
+        const isCompleted = level.id < gameState.levelsUnlocked;
+        
+        // Color del nodo
+        let color = 0x555555; // Bloqueado
+        if (isUnlocked) color = 0x00aa00; // Desbloqueado (Verde)
+        if (isCompleted) color = 0xffd700; // Completado (Dorado)
+
+        const container = this.add.container(level.mapX, level.mapY);
+
+        // Círculo Base
+        const circle = this.add.circle(0, 0, 30, color).setStrokeStyle(3, 0xffffff);
+        
+        if (isUnlocked) {
+            circle.setInteractive({ useHandCursor: true });
+            circle.on('pointerdown', () => {
+                this.scene.start('GameScene', { levelData: level });
+            });
+            
+            // Efecto Hover
+            circle.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.2, duration: 100 }));
+            circle.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, duration: 100 }));
+        }
+
+        // Número o Candado
+        const label = isUnlocked ? level.id.toString() : "🔒";
+        const text = this.add.text(0, 0, label, { 
+            fontSize: '20px', fontStyle: 'bold', color: '#fff' 
+        }).setOrigin(0.5);
+
+        // Nombre del Nivel (Debajo)
+        const nameText = this.add.text(0, 45, level.name, { 
+            fontSize: '14px', color: isUnlocked ? '#fff' : '#888', align: 'center'
+        }).setOrigin(0.5);
+
+        // Estrellas (Opcional visual)
+        if (isCompleted) {
+            this.add.text(0, -45, "⭐⭐⭐", { fontSize: '12px' }).setOrigin(0.5);
+        }
+
+        container.add([circle, text, nameText]);
     }
 }

@@ -4,7 +4,7 @@ export const LEVELS = [
     {
         id: 1,
         name: "El Bosque Verde",
-        mapX: 200, mapY: 360,
+        mapX: 200, mapY: 500,
         difficulty: 1.0,
         startCoins: 250,
         rewardGold: 100,
@@ -25,7 +25,7 @@ export const LEVELS = [
     {
         id: 2,
         name: "Cañón Árido",
-        mapX: 450, mapY: 250,
+        mapX: 400, mapY: 300,
         difficulty: 1.3,
         startCoins: 350,
         rewardGold: 150,
@@ -45,7 +45,7 @@ export const LEVELS = [
     {
         id: 3,
         name: "Picos Helados",
-        mapX: 700, mapY: 450,
+        mapX: 600, mapY: 500,
         difficulty: 1.6,
         startCoins: 400,
         rewardGold: 200,
@@ -65,7 +65,7 @@ export const LEVELS = [
     {
         id: 4,
         name: "Volcán Oscuro",
-        mapX: 950, mapY: 200,
+        mapX: 800, mapY: 300,
         difficulty: 2.0,
         startCoins: 500,
         rewardGold: 300,
@@ -85,7 +85,7 @@ export const LEVELS = [
     {
         id: 5,
         name: "Reino de las Sombras",
-        mapX: 1100, mapY: 500,
+        mapX: 1000, mapY: 500,
         difficulty: 2.5,
         startCoins: 600,
         rewardGold: 500,
