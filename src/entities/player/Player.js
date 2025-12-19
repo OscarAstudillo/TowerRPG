@@ -6,71 +6,45 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
         const stats = gameState.playerStats;
         const color = stats.color || 0xffff00;
-
         super(scene, x, y, 32, 32, color); 
-        
         scene.add.existing(this);
         scene.physics.add.existing(this);
-        
         this.body.setCollideWorldBounds(true);
         this.enemiesGroup = enemiesGroup;
         this.projectilesGroup = projectilesGroup;
-        
         this.stats = gameState.playerStats; 
         this.lastAttackTime = 0;
-
-        // --- SISTEMA DE SKILLS ---
         this.skillCooldown = 0;
-        this.skillMaxCooldown = 5000; // 5 segundos base
+        this.skillMaxCooldown = 5000; 
         this.isBuffed = false; 
-
-        this.cursors = scene.input.keyboard.addKeys({
-            up: Phaser.Input.Keyboard.KeyCodes.W,
-            down: Phaser.Input.Keyboard.KeyCodes.S,
-            left: Phaser.Input.Keyboard.KeyCodes.A,
-            right: Phaser.Input.Keyboard.KeyCodes.D
-        });
+        this.isDead = false; 
+        this.cursors = scene.input.keyboard.addKeys({ up: Phaser.Input.Keyboard.KeyCodes.W, down: Phaser.Input.Keyboard.KeyCodes.S, left: Phaser.Input.Keyboard.KeyCodes.A, right: Phaser.Input.Keyboard.KeyCodes.D });
     }
 
-    // --- AQUÍ ESTABA EL ERROR: FALTABA 'delta' EN EL PARÉNTESIS ---
-    update(time, delta) { 
-        if (!this.body) return;
-
-        // --- 1. BLOQUEO POR MUERTE ---
-        // Si está muerto, no hace NADA. Ni moverse, ni atacar, ni reducir cooldowns.
-        if (this.isDead) {
-            this.body.setVelocity(0);
+    update(time, delta) {
+        if (!this.body || this.isDead) {
+            if(this.body) this.body.setVelocity(0);
             return;
         }
-
-        // 1. Movimiento
+        
         this.body.setVelocity(0);
         const speed = this.stats.moveSpeed;
-
         if (this.cursors.left.isDown) this.body.setVelocityX(-speed);
         else if (this.cursors.right.isDown) this.body.setVelocityX(speed);
         if (this.cursors.up.isDown) this.body.setVelocityY(-speed);
         else if (this.cursors.down.isDown) this.body.setVelocityY(speed);
 
-        // 2. Reducir Cooldown de Skill (Ahora sí funciona porque delta existe)
-        if (this.skillCooldown > 0) {
-            this.skillCooldown -= delta;
-        }
+        if (this.skillCooldown > 0) this.skillCooldown -= delta;
 
-        // 3. Ataque Automático
         let currentAttackSpeed = this.stats.attackSpeed;
-        if (this.isBuffed && gameState.selectedClass === 'arquero') {
-            currentAttackSpeed /= 3; // Dispara 3 veces más rápido
-        }
+        if (this.isBuffed && gameState.selectedClass === 'arquero') currentAttackSpeed /= 3; 
 
         if (time > this.lastAttackTime + currentAttackSpeed) {
             this.findTargetAndAttack(time);
         }
     }
 
-    // --- NUEVA FUNCIÓN: ACTIVAR HABILIDAD ---
     castSkill() {
-        // Bloqueo por muerte
         if (this.isDead) return { success: false, msg: '¡Estás muerto!' };
         if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' };
 
@@ -82,23 +56,22 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             gameState.playerStats.hp = Math.min(gameState.playerStats.hp + healAmount, this.stats.maxHp);
             this.createEffect('heal');
             skillName = "¡Sanación!";
+            // Feedback Curación
+            this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00');
         
         } else if (cls === 'guerrero') {
             const damage = this.stats.damage * 2.5;
             this.createAOE(150, damage, 0xff0000);
             skillName = "¡Torbellino!";
-
         } else if (cls === 'mago') {
             const damage = this.stats.damage * 2;
             this.createAOE(200, damage, 0x00ffff);
             skillName = "¡Nova de Hielo!";
-
         } else if (cls === 'arquero') {
             this.isBuffed = true;
             this.scene.time.delayedCall(3000, () => { this.isBuffed = false; });
             this.createEffect('buff');
             skillName = "¡Instinto!";
-
         } else if (cls === 'asesino') {
             const target = this.findClosestEnemy(300);
             if (target) {
@@ -143,8 +116,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     createEffect(type) {
         if (type === 'heal') {
-            const txt = this.scene.add.text(this.x, this.y - 40, "+HP", { fontSize: '20px', color: '#00ff00', fontStyle: 'bold' });
-            this.scene.tweens.add({ targets: txt, y: this.y - 80, alpha: 0, duration: 800, onComplete: () => txt.destroy() });
+            // Ya manejado en castSkill con texto flotante
         } else if (type === 'buff') {
             this.setStrokeStyle(4, 0xffffff); 
             this.scene.time.delayedCall(3000, () => this.setStrokeStyle(0));
@@ -165,10 +137,12 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
         this.stats.hp -= amount;
         
-        // Feedback visual (Parpadeo rojo)
-        this.scene.tweens.add({
-            targets: this, alpha: 0.2, yoyo: true, duration: 100, repeat: 1
-        });
+        // --- FEEDBACK DE DAÑO AL HÉROE ---
+        if (this.scene && this.scene.showFloatingText) {
+            this.scene.showFloatingText(this.x, this.y - 20, `-${amount}`, '#ff0000');
+        }
+        
+        this.scene.tweens.add({ targets: this, alpha: 0.2, yoyo: true, duration: 100, repeat: 1 });
 
         if (this.stats.hp <= 0) {
             this.die();
@@ -178,43 +152,21 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     die() {
         this.isDead = true;
         this.stats.hp = 0;
-
-        // Convertirse en tumba
-        this.setFillStyle(0x555555); // Gris muerto
-        this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000}); // Icono temporal
-        
-        // Desactivar cuerpo físico (para que no le sigan pegando)
+        this.setFillStyle(0x555555); 
+        this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000});
         this.body.enable = false;
         
-        // Mensaje de respawn
-        this.respawnText = this.scene.add.text(this.x, this.y - 30, "Reviviendo...", { 
-            fontSize: '14px', color: '#fff', backgroundColor: '#000' 
-        }).setOrigin(0.5);
+        this.respawnText = this.scene.add.text(this.x, this.y - 30, "Reviviendo...", { fontSize: '14px', color: '#fff', backgroundColor: '#000' }).setOrigin(0.5);
 
-        console.log("¡Héroe caído! Reviviendo en 5s...");
-
-        // Timer para revivir (5 segundos)
-        this.scene.time.delayedCall(5000, () => {
-            this.respawn();
-        });
+        this.scene.time.delayedCall(10000, () => { this.respawn(); });
     }
 
     respawn() {
         this.isDead = false;
-        this.stats.hp = this.stats.maxHp; // Vida llena
-        this.body.enable = true; // Activar físicas
-        
-        // Restaurar color original de la clase
+        this.stats.hp = this.stats.maxHp; 
+        this.body.enable = true; 
         this.setFillStyle(this.stats.color); 
-        
         if (this.respawnText) this.respawnText.destroy();
-        
-        // Efecto de aparición
-        this.scene.tweens.add({
-            targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out'
-        });
-        
-        console.log("¡Héroe revivido!");
+        this.scene.tweens.add({ targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out' });
     }
-
 }

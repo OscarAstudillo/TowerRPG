@@ -111,6 +111,9 @@ export default class GameScene extends Phaser.Scene {
         });
         this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
+        // --- NUEVO: SISTEMA DE PARTÍCULAS ---
+        this.createParticles();
+
         // UI
         this.createUI();
         this.createUpgradeUI();
@@ -139,6 +142,83 @@ export default class GameScene extends Phaser.Scene {
             }
         }
     }
+
+    update(time, delta) {
+        if (this.player) this.player.update(time, delta);
+        
+        this.towers.children.iterate(tower => {
+            if (tower && tower.active) tower.update(time, delta);
+        });
+
+        this.updateUI();
+        this.updateSkillUI();
+
+        if (this.isTimerRunning) {
+            this.timeToNextWave -= delta;
+            if (this.timeToNextWave <= 0) {
+                this.startNextWave();
+            } else {
+                const seconds = Math.ceil(this.timeToNextWave / 1000);
+                this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
+            }
+        }
+    }
+
+    // --- NUEVAS FUNCIONES DE EFECTOS VISUALES ---
+
+    createParticles() {
+        // Manager global de partículas para explosiones
+        this.particleManager = this.add.particles('particle_texture'); // Si no tienes textura, usará un cuadro por defecto o fallará suave
+        
+        // Si no tienes una textura 'particle', crearemos un gráfico simple en memoria
+        if (!this.textures.exists('pixel')) {
+            const graphics = this.make.graphics({x: 0, y: 0, add: false});
+            graphics.fillStyle(0xffffff, 1);
+            graphics.fillRect(0, 0, 4, 4);
+            graphics.generateTexture('pixel', 4, 4);
+        }
+    }
+
+    createExplosion(x, y, color) {
+        // Crea una explosión de partículas del color del enemigo
+        const emitter = this.add.particles(x, y, 'pixel', {
+            speed: { min: 50, max: 150 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 2, end: 0 },
+            blendMode: 'ADD',
+            lifespan: 500,
+            gravityY: 200,
+            quantity: 10,
+            tint: color
+        });
+        
+        // Destruir el emisor automáticamente después de un tiempo
+        this.time.delayedCall(600, () => {
+            emitter.destroy();
+        });
+    }
+
+    showFloatingText(x, y, message, color = '#fff') {
+        const text = this.add.text(x, y, message, { 
+            fontSize: '20px', 
+            fontStyle: 'bold',
+            color: color, 
+            stroke: '#000', 
+            strokeThickness: 3 
+        }).setOrigin(0.5).setDepth(2000); // Muy arriba
+
+        // Animación de "flotar y desvanecer"
+        this.tweens.add({
+            targets: text,
+            y: y - 50,
+            alpha: 0,
+            scale: 1.5,
+            duration: 800,
+            ease: 'Power2',
+            onComplete: () => text.destroy()
+        });
+    }
+
 
     // --- UI GLOBAL (COLORES DINÁMICOS) ---
     createUI() {
@@ -241,7 +321,11 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // Resto de funciones (Idénticas)
-    addEnemyReward(amount) { this.coins += amount; this.updateUI(); const floatTxt = this.add.text(80, 850, `+$${amount}`, { fontSize: '24px', color: '#ffff00', fontStyle: 'bold', stroke: '#000', strokeThickness: 3 }).setScrollFactor(0).setDepth(2000); this.tweens.add({ targets: floatTxt, y: 800, alpha: 0, duration: 1000, onComplete: () => floatTxt.destroy() }); }
+    addEnemyReward(amount) { 
+        this.coins += amount; 
+        this.updateUI();
+        this.showFloatingText(80, 850, `+$${amount}`, '#ffff00'); // Usamos la nueva función
+    }
     spawnEnemy(speedMult, hpMult, isBoss) { const enemy = new Enemy(this, this.pathPoints, speedMult, hpMult, isBoss); const levelBonus = 1 + ((this.currentLevelData.id - 1) * 0.10); let baseReward = 25; if (isBoss) baseReward = 500; enemy.coinReward = Math.floor(baseReward * levelBonus); this.enemies.add(enemy); }
     checkWaveStatus() { if (this.isTimerRunning) return; if (this.enemiesToSpawn <= 0 && this.enemies.countActive(true) === 0) { this.waveInProgress = false; this.currentWave++; if (this.currentWave > this.totalWaves) this.victory(); else this.startWaveTimer(12); } }
     createBuildSlots() { const slots = this.currentLevelData.towerSlots || []; slots.forEach(slot => { const site = new BuildSite(this, slot.x, slot.y); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
