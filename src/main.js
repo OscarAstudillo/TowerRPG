@@ -7,8 +7,8 @@ import ResultScene from './scenes/ResultScene';
 
 const config = {
     type: Phaser.AUTO,
-    width: 1280,
-    height: 960, // <--- CAMBIO IMPORTANTE: De 720 a 960
+    width: 1920,
+    height: 1080, // <--- CAMBIO IMPORTANTE: De 720 a 960
     parent: 'app',
     physics: {
         default: 'arcade',
