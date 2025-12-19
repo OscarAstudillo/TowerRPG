@@ -8,14 +8,14 @@ export default class RPGSystem {
     static STAT_POOLS = {
         weapon: [
             { key: 'damage', label: 'Daño', min: 2, max: 8 },
-            { key: 'attackSpeed', label: 'Vel. Ataque', min: -50, max: -20 }, // Negativo es mejor
+            { key: 'attackSpeed', label: 'Vel. Ataque', min: -50, max: -20 },
             { key: 'critChance', label: '% Crítico', min: 2, max: 5 },
             { key: 'critDamage', label: '% Daño Crít', min: 10, max: 25 },
             { key: 'lifesteal', label: '% Robo Vida', min: 1, max: 3 },
             { key: 'skillDamage', label: '% Daño Hab.', min: 5, max: 10 },
             { key: 'bleedChance', label: '% Sangrado', min: 5, max: 15 }
         ],
-        weapon_ranged: [ // Solo para arcos/bastones
+        weapon_ranged: [
             { key: 'range', label: 'Rango', min: 20, max: 50 }
         ],
         armor: [
@@ -23,7 +23,7 @@ export default class RPGSystem {
             { key: 'defense', label: 'Defensa', min: 2, max: 5 },
             { key: 'thorns', label: 'Espinas', min: 1, max: 3 },
             { key: 'regenHp', label: 'Regen HP', min: 1, max: 3 },
-            { key: 'coldAura', label: '% Aura Frío', min: 5, max: 10 }, // % Slow
+            { key: 'coldAura', label: '% Aura Frío', min: 5, max: 10 },
             { key: 'lifesteal', label: '% Robo Vida', min: 1, max: 2 }
         ],
         accessory: [
@@ -59,23 +59,22 @@ export default class RPGSystem {
         const rarity = RARITY[rarityKey];
         const prof = gameState.professions[recipe.prof];
         
-        // Calcular Nivel de Encantamiento (Stats Base Bonus)
+        // Calcular Nivel de Encantamiento
         const enchantLevel = this.calculateEnchantment(prof.level);
         
-        // 1. Stats Fijos (De la receta, multiplicados por rareza)
+        // 1. Stats Fijos (Base)
         const finalStats = {};
-        for (let key in recipe.baseStats) { // Ahora usamos baseStats en Recipes.js
+        for (let key in recipe.baseStats) { 
             let val = recipe.baseStats[key];
             val = val * rarity.mult; 
             val = val * (1 + (enchantLevel * 0.1)); 
             finalStats[key] = Math.floor(val);
         }
 
-        // 2. Stats Aleatorios (Según Rareza)
+        // 2. Stats Aleatorios (RNG)
         const numRandomStats = rarity.statCount; 
         const pool = this.getStatPool(recipe);
         
-        // Elegir N stats únicos
         const chosenStats = [];
         const poolCopy = [...pool];
         
@@ -83,13 +82,23 @@ export default class RPGSystem {
             if (poolCopy.length === 0) break;
             const idx = Math.floor(Math.random() * poolCopy.length);
             chosenStats.push(poolCopy[idx]);
-            poolCopy.splice(idx, 1); // Evitar repetidos
+            poolCopy.splice(idx, 1); 
         }
 
-        // Aplicar valores aleatorios
+        // --- APLICAR RNG AJUSTADO POR RAREZA ---
         chosenStats.forEach(statDef => {
-            const val = Math.floor(Math.random() * (statDef.max - statDef.min + 1)) + statDef.min;
-            // Multiplicador por rareza también aplica a stats random
+            let minVal = statDef.min;
+            let maxVal = statDef.max;
+
+            // BONUS: Los items raros tienen mejores mínimos asegurados
+            if (rarityKey === 'uncommon') { minVal *= 1.1; }
+            if (rarityKey === 'rare') { minVal *= 1.2; }
+            if (rarityKey === 'epic') { minVal *= 1.3; maxVal *= 1.1; }
+            if (rarityKey === 'legendary') { minVal *= 1.5; maxVal *= 1.2; }
+
+            const val = Math.floor(Math.random() * (maxVal - minVal + 1)) + minVal;
+            
+            // Multiplicador general por rareza
             const finalVal = Math.floor(val * rarity.mult);
             
             if (finalStats[statDef.key]) finalStats[statDef.key] += finalVal;
@@ -114,7 +123,6 @@ export default class RPGSystem {
         let pool = [];
         if (recipe.type === 'weapon') {
             pool = [...this.STAT_POOLS.weapon];
-            // Si es rango, añadir stats de rango
             if (recipe.subType === 'bow' || recipe.subType === 'staff') {
                 pool = pool.concat(this.STAT_POOLS.weapon_ranged);
             }
@@ -131,6 +139,26 @@ export default class RPGSystem {
         if (level <= 20) return (roll > 95) ? 2 : (roll > 80) ? 1 : 0;
         if (level <= 60) return (roll > 90) ? 5 : (roll > 70) ? 3 : 1;
         return (roll > 95) ? 10 : (roll > 85) ? 8 : 4;
+    }
+
+    static fuseItems(item1, item2) {
+        if (item1.recipeId !== item2.recipeId || item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) {
+            return null;
+        }
+        const recipe = RECIPES.find(r => r.id === item1.recipeId);
+        if(!recipe) return null;
+
+        const newEnchant = item1.enchant + 1;
+        if (newEnchant > 20) return null;
+        
+        // Al fusionar, regeneramos el objeto con nivel +1 (Reroll de stats)
+        // O podríamos mantener stats y subirlos, pero generar de nuevo es más fácil por ahora
+        // Nota: Esto hace "reroll" de los stats aleatorios.
+        const newItem = this.generateItemObject(recipe, item1.rarity);
+        newItem.enchant = newEnchant; // Forzamos el nivel calculado
+        newItem.name = `${recipe.name} ${RARITY[item1.rarity].name} +${newEnchant}`;
+        
+        return newItem;
     }
 
     static gainProfessionXP(profKey, rarityCreated) {
@@ -164,15 +192,13 @@ export default class RPGSystem {
     static levelUpHero() {
         gameState.heroLevel++;
         gameState.heroXP -= gameState.heroMaxXP;
-        gameState.heroMaxXP = Math.floor(gameState.heroMaxXP * 1.15); // Curva de XP
+        gameState.heroMaxXP = Math.floor(gameState.heroMaxXP * 1.15); 
         
-        // Puntos de Stats
         let points = 1;
-        if (gameState.heroLevel % 10 === 0) points += 2; // Bonus cada 10 niveles
+        if (gameState.heroLevel % 10 === 0) points += 2; 
         gameState.statPoints += points;
 
         updatePlayerStats();
-        // Aquí podríamos disparar un efecto visual si estuviéramos en la escena
         console.log("¡LEVEL UP! Nivel:", gameState.heroLevel);
     }
 
@@ -182,7 +208,7 @@ export default class RPGSystem {
         if (stat === 'damage') gameState.baseAttributes.damage += 1;
         else if (stat === 'hp') gameState.baseAttributes.maxHp += 10;
         else if (stat === 'defense') gameState.baseAttributes.defense += 1;
-        else if (stat === 'speed') gameState.baseAttributes.attackSpeed += 10; // 10ms menos
+        else if (stat === 'speed') gameState.baseAttributes.attackSpeed += 10; 
 
         gameState.statPoints--;
         updatePlayerStats();

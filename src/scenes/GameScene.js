@@ -168,12 +168,39 @@ export default class GameScene extends Phaser.Scene {
     }
 
     showFloatingText(x, y, message, color = '#fff') {
-        const text = this.add.text(x, y, message, { fontSize: '20px', fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: 3 })
-            .setOrigin(0.5).setDepth(2000);
-        this.tweens.add({
-            targets: text, y: y - 50, alpha: 0, scale: 1.5, duration: 800, ease: 'Power2',
-            onComplete: () => text.destroy()
-        });
+        const isCrit = color === '#ffaa00'; // Detectar si es crítico por el color
+        const fontSize = isCrit ? '32px' : '20px';
+        
+        const text = this.add.text(x, y, message, { 
+            fontSize: fontSize, 
+            fontStyle: 'bold',
+            color: color, 
+            stroke: '#000', 
+            strokeThickness: isCrit ? 6 : 3 
+        }).setOrigin(0.5).setDepth(2000);
+
+        // Animación diferente para críticos
+        if (isCrit) {
+            this.tweens.add({
+                targets: text,
+                y: y - 80, // Sube más
+                scale: { from: 2, to: 1 }, // Efecto de golpe "POP"
+                alpha: 0,
+                duration: 1200,
+                ease: 'Bounce.easeOut',
+                onComplete: () => text.destroy()
+            });
+        } else {
+            this.tweens.add({
+                targets: text,
+                y: y - 50,
+                alpha: 0,
+                scale: 1.2,
+                duration: 800,
+                ease: 'Power2',
+                onComplete: () => text.destroy()
+            });
+        }
     }
 
     showLevelUpEffect() {

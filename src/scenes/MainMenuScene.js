@@ -341,15 +341,37 @@ export default class MainMenuScene extends Phaser.Scene {
     createForgeView() {
         this.profText = this.add.text(640, 140, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
-        this.forgeMsg = this.add.text(640, 650, 'Selecciona receta', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
+        
+        // Mensaje de estado (movido abajo)
+        this.forgeMsg = this.add.text(640, 680, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.forgeContainer.add(this.forgeMsg);
 
+        // Categorías
         this.createForgeCatBtn(400, 180, "HERRERÍA (Armas)", 'weapon');
         this.createForgeCatBtn(640, 180, "SASTRERÍA (Armaduras)", 'armor');
         this.createForgeCatBtn(880, 180, "JOYERÍA (Accesorios)", 'accessory');
 
+        // Contenedor de lista de recetas (Izquierda)
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
+
+        // --- NUEVO: PANEL DE DETALLE DE RECETA (Derecha) ---
+        this.recipeDetailContainer = this.add.container(900, 250);
+        this.forgeContainer.add(this.recipeDetailContainer);
+        
+        const detailBg = this.add.rectangle(150, 200, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700);
+        this.recipeTitle = this.add.text(150, 40, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.recipeInfo = this.add.text(150, 150, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        
+        // Botón Craftear (inicialmente oculto)
+        this.craftBtn = this.createActionButton(150, 300, "FORJAR", () => this.actionCraft());
+        this.craftBtn.setVisible(false);
+
+        this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]);
+        
+        // Variable para guardar la selección actual
+        this.selectedRecipe = null;
+        this.selectedRarity = null;
     }
 
     createForgeCatBtn(x, y, label, cat) {
@@ -361,7 +383,11 @@ export default class MainMenuScene extends Phaser.Scene {
     refreshForge() {
         this.goldText.setText(`ORO: ${gameState.gold}`);
         const p = gameState.professions;
-        this.profText.setText(`HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\nSASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\nJOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`);
+        this.profText.setText(
+            `HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\n` +
+            `SASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\n` +
+            `JOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`
+        );
         
         this.recipesContainer.removeAll(true);
         const filteredRecipes = RECIPES.filter(r => {
@@ -371,38 +397,97 @@ export default class MainMenuScene extends Phaser.Scene {
             return false;
         });
 
-        let startX = 300; let startY = 240; let col = 0;
+        let startX = 250; // Más a la izquierda para dejar espacio al panel
+        let startY = 240;
+        let col = 0;
+
         filteredRecipes.forEach(recipe => {
-            ['common', 'uncommon', 'rare'].forEach((rarity, i) => {
-                this.createRecipeBtn(startX + (col * 300), startY + (i * 60), recipe, rarity);
+            ['common', 'uncommon', 'rare', 'epic'].forEach((rarity, i) => { // Agregamos épico si quieres
+                // Solo mostrar rarezas desbloqueadas por nivel de profesión? (Opcional, por ahora todas)
+                this.createRecipeBtn(startX + (col * 220), startY + (i * 55), recipe, rarity);
             });
             col++;
-            if (col > 2) { col = 0; startY += 200; }
+            if (col > 1) { col = 0; startY += 240; } // Grid más compacto 2 columnas
         });
     }
 
     createRecipeBtn(x, y, recipe, rarity) {
         const rarityData = RARITY[rarity];
-        const cost = recipe.cost * rarityData.mult;
         const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0');
-        const btn = this.add.rectangle(x, y, 280, 50, 0x333333).setInteractive({ useHandCursor: true });
-        btn.setStrokeStyle(2, rarityData.color);
-        const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})\nReq: 3 ${recipe.mat} + $${cost}`, { fontSize: '12px', align: 'center', color: hexColor }).setOrigin(0.5);
+        
+        const btn = this.add.rectangle(x, y, 200, 45, 0x333333).setInteractive({ useHandCursor: true });
+        btn.setStrokeStyle(1, rarityData.color);
+        
+        const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})`, { 
+            fontSize: '12px', color: hexColor 
+        }).setOrigin(0.5);
+
         btn.on('pointerdown', () => {
-            if (gameState.gold < cost) { this.forgeMsg.setText("¡Falta Oro!"); return; }
-            const result = RPGSystem.craftItem(recipe.id, rarity);
-            if (result.success) {
-                gameState.gold -= cost;
-                gameState.inventory.push(result.item);
-                this.forgeMsg.setText(`¡CRAFTEADO! ${result.item.name}`);
-                this.forgeMsg.setColor('#00ff00');
-                this.refreshForge();
-                SaveSystem.save();
-            } else {
-                this.forgeMsg.setText(`ERROR: ${result.error}`);
-                this.forgeMsg.setColor('#ff0000');
-            }
+            this.selectRecipe(recipe, rarity);
         });
+
         this.recipesContainer.add([btn, txt]);
+    }
+
+    selectRecipe(recipe, rarityKey) {
+        this.selectedRecipe = recipe;
+        this.selectedRarity = rarityKey;
+        
+        const rarity = RARITY[rarityKey];
+        const cost = Math.floor(recipe.cost * rarity.mult);
+        const hexColor = '#' + rarity.color.toString(16).padStart(6, '0');
+
+        this.recipeTitle.setText(recipe.name);
+        this.recipeTitle.setColor(hexColor);
+
+        // Mostrar Stats Base + Posibles Stats Aleatorios
+        let info = `Rareza: ${rarity.name}\nCosto: $${cost}\nMaterial: 3 ${recipe.mat}\n\n`;
+        
+        info += "-- BASE --\n";
+        for (let key in recipe.baseStats) {
+            info += `${key}: ${recipe.baseStats[key]}\n`;
+        }
+
+        info += `\n-- ALEATORIOS (${rarity.statCount}) --\nPosibles atributos:\n`;
+        const pool = RPGSystem.getStatPool(recipe);
+        pool.forEach(stat => {
+            info += `• ${stat.label}\n`;
+        });
+
+        this.recipeInfo.setText(info);
+        this.craftBtn.setVisible(true);
+        this.forgeMsg.setText("");
+    }
+
+    actionCraft() {
+        if (!this.selectedRecipe || !this.selectedRarity) return;
+
+        const recipe = this.selectedRecipe;
+        const rarityKey = this.selectedRarity;
+        const rarity = RARITY[rarityKey];
+        const cost = Math.floor(recipe.cost * rarity.mult);
+
+        if (gameState.gold < cost) {
+            this.forgeMsg.setText("¡Falta Oro!");
+            this.forgeMsg.setColor('#ff0000');
+            return;
+        }
+
+        const result = RPGSystem.craftItem(recipe.id, rarityKey);
+        
+        if (result.success) {
+            gameState.gold -= cost;
+            gameState.inventory.push(result.item);
+            this.forgeMsg.setText(`¡ÉXITO! Creado: ${result.item.name}`);
+            this.forgeMsg.setColor('#00ff00');
+            this.refreshForge();
+            SaveSystem.save();
+            // Feedback visual en el botón
+            this.tweens.add({ targets: this.craftBtn, scale: 1.1, yoyo: true, duration: 100 });
+        } else {
+            this.forgeMsg.setText(`ERROR: ${result.error}`);
+            this.forgeMsg.setColor('#ff0000');
+        }
+
     }
 }
