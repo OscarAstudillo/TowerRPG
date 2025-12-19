@@ -20,7 +20,7 @@ export default class GameScene extends Phaser.Scene {
         this.timeToNextWave = 0; 
         this.isTimerRunning = false;
         this.isPaused = false;
-        this.isSceneReady = false; // Bandera de seguridad
+        this.isSceneReady = false; 
     }
 
     init(data) {
@@ -34,7 +34,7 @@ export default class GameScene extends Phaser.Scene {
 
         if (!gameState.playerStats) updatePlayerStats();
         this.lastHeroLevel = gameState.heroLevel || 1;
-        this.isSceneReady = false; // Resetear bandera
+        this.isSceneReady = false; 
     }
 
     create() {
@@ -46,7 +46,7 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
-        // --- 2. INICIALIZAR GRUPOS (CRÍTICO: HACERLO ANTES DE CUALQUIER LOGICA) ---
+        // --- 2. INICIALIZAR GRUPOS ---
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: true });
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: false });
@@ -68,10 +68,9 @@ export default class GameScene extends Phaser.Scene {
         if (!rawPath || rawPath.length === 0) {
             console.error("¡ERROR DE CAMINO! Regresando al mapa..."); 
             this.scene.start('WorldMapScene'); 
-            return; // Detenemos ejecución aquí, pero los grupos ya existen, así que update no fallará
+            return; 
         }
 
-        // Escalar camino
         this.pathPoints = rawPath.map(p => ({ x: p.x * this.sx, y: p.y * this.sy }));
         
         this.coins = this.currentLevelData.startCoins || 500;
@@ -124,8 +123,11 @@ export default class GameScene extends Phaser.Scene {
 
         // COLISIONES
         this.physics.add.overlap(this.enemies, this.projectiles, (enemy, projectile) => {
-            if (projectile.hit) projectile.hit(enemy);
-            else { enemy.takeDamage(projectile.damage || 10); projectile.destroy(); }
+            // Verificamos que ambos sigan activos antes de procesar
+            if (enemy.active && projectile.active) {
+                if (projectile.hit) projectile.hit(enemy);
+                else { enemy.takeDamage(projectile.damage || 10); projectile.destroy(); }
+            }
         });
         this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
@@ -137,17 +139,14 @@ export default class GameScene extends Phaser.Scene {
         this.startWaveTimer(15); 
         this.updateUI();
 
-        // --- 4. MARCAR ESCENA COMO LISTA ---
         this.isSceneReady = true;
     }
 
     update(time, delta) {
-        // Si la escena no está lista o está pausada, no hacer nada
         if (!this.isSceneReady || this.isPaused) return;
 
         if (this.player) this.player.update(time, delta);
         
-        // Iterar torres de forma segura
         if (this.towers) {
             this.towers.children.iterate(tower => { 
                 if (tower && tower.active) tower.update(time, delta); 
@@ -173,16 +172,63 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // ... (El resto de funciones se mantienen idénticas a la versión anterior) ...
-    // Copia y pega las funciones auxiliares aquí para que el archivo esté completo.
-    
-    // --- FUNCIONES AUXILIARES (Esenciales para que funcione) ---
-    onEnemyKilled(enemy) { try { this.coins += (enemy.coinReward || 10); RPGSystem.gainHeroXP(enemy.xpReward || 10); this.spawnLoot(enemy.x, enemy.y); this.createExplosion(enemy.x, enemy.y, enemy.colorVal); this.showFloatingText(80, 850, `+$${enemy.coinReward}`, '#ffff00'); this.updateUI(); } catch (err) { console.error("Error kill:", err); } }
+    // --- CORRECCIÓN CRÍTICA DE EXPLOSIÓN ---
+    createExplosion(x, y, color) {
+        // En lugar de partículas (que fallan en tu versión de Phaser), usamos formas simples
+        const circle = this.add.circle(x, y, 5, color);
+        
+        // Animación de expansión y desvanecimiento
+        this.tweens.add({
+            targets: circle,
+            scale: 4,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => circle.destroy()
+        });
+
+        // Añadir 4 "chispas" pequeñas alrededor
+        for(let i=0; i<4; i++) {
+            const spark = this.add.rectangle(x, y, 4, 4, color);
+            const angle = Phaser.Math.DegToRad(Math.random() * 360);
+            const dist = 30;
+            
+            this.tweens.add({
+                targets: spark,
+                x: x + Math.cos(angle) * dist,
+                y: y + Math.sin(angle) * dist,
+                alpha: 0,
+                duration: 400,
+                onComplete: () => spark.destroy()
+            });
+        }
+    }
+
+    onEnemyKilled(enemy) {
+        try {
+            // Lógica protegida
+            this.coins += (enemy.coinReward || 10);
+            
+            // Importante: RPGSystem debe estar importado correctamente
+            if (RPGSystem && RPGSystem.gainHeroXP) {
+                RPGSystem.gainHeroXP(enemy.xpReward || 10);
+            }
+            
+            this.spawnLoot(enemy.x, enemy.y);
+            this.createExplosion(enemy.x, enemy.y, enemy.colorVal); // Ahora llama a la función segura
+            this.showFloatingText(80, 850, `+$${enemy.coinReward}`, '#ffff00');
+            
+            this.updateUI();
+        } catch (err) {
+            console.warn("Error visual al matar enemigo (ignorando):", err);
+        }
+    }
+
+    // --- RESTO DE FUNCIONES (UI, PAUSA, ETC) ---
     onEnemyLeaks(damage) { gameState.baseHp -= damage; this.cameras.main.flash(200, 255, 0, 0); this.updateUI(); if (gameState.baseHp <= 0) this.gameOver(); }
     createPauseMenu() {
         this.pauseContainer = this.add.container(640, 480).setDepth(10000).setVisible(false).setScrollFactor(0);
-        const w = this.scale.width; const h = this.scale.height; // Usar dimensiones reales
-        this.pauseContainer.setPosition(w/2, h/2); // Centrar dinámicamente
+        const w = this.scale.width; const h = this.scale.height; 
+        this.pauseContainer.setPosition(w/2, h/2); 
         const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.7).setInteractive(); 
         const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700);
         const title = this.add.text(0, -100, "PAUSA", { fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
@@ -200,11 +246,6 @@ export default class GameScene extends Phaser.Scene {
         this.isPaused = !this.isPaused;
         if (this.isPaused) { this.physics.pause(); this.pauseContainer.setVisible(true); this.tweens.pauseAll(); if (this.spawnTimer) this.spawnTimer.paused = true; } 
         else { this.physics.resume(); this.pauseContainer.setVisible(false); this.tweens.resumeAll(); if (this.spawnTimer) this.spawnTimer.paused = false; }
-    }
-    createExplosion(x, y, color) {
-        const particles = this.add.particles('pixel');
-        const emitter = particles.createEmitter({ x: x, y: y, speed: { min: 50, max: 150 }, angle: { min: 0, max: 360 }, scale: { start: 2, end: 0 }, blendMode: 'ADD', lifespan: 500, gravityY: 200, quantity: 10, tint: color });
-        this.time.delayedCall(600, () => { if(particles) particles.destroy(); });
     }
     showFloatingText(x, y, message, color = '#fff') {
         const isCrit = color === '#ffaa00'; const fontSize = isCrit ? '32px' : '20px';
@@ -240,20 +281,10 @@ export default class GameScene extends Phaser.Scene {
             this.spawnEnemy(hpMult, actualType); this.enemiesToSpawn--; if (this.enemiesToSpawn <= 0) this.spawnTimer.remove();
         }, repeat: count - 1 });
     }
-    spawnEnemy(hpMult, type) { 
-        const enemy = new Enemy(this, this.pathPoints, hpMult, type); 
-        this.enemies.add(enemy); 
-    }
+    spawnEnemy(hpMult, type) { const enemy = new Enemy(this, this.pathPoints, hpMult, type); this.enemies.add(enemy); }
     checkWaveStatus() { if (this.isTimerRunning) return; if (this.enemiesToSpawn <= 0 && this.enemies.countActive(true) === 0) { this.waveInProgress = false; this.currentWave++; if (this.currentWave > this.totalWaves) this.victory(); else this.startWaveTimer(12); } }
     addEnemyReward(amount) { this.coins += amount; this.updateUI(); this.showFloatingText(80, 850, `+$${amount}`, '#ffff00'); }
-    createBuildSlots() { 
-        const rawSlots = this.currentLevelData.towerSlots || []; 
-        rawSlots.forEach(slot => { 
-            const site = new BuildSite(this, slot.x * this.sx, slot.y * this.sy); 
-            this.buildSites.add(site); 
-            site.on('pointerdown', () => this.tryBuildTower(site)); 
-        }); 
-    }
+    createBuildSlots() { const rawSlots = this.currentLevelData.towerSlots || []; rawSlots.forEach(slot => { const site = new BuildSite(this, slot.x * this.sx, slot.y * this.sy); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
     tryBuildTower(site) { if (site.isOccupied) return; const stats = TOWER_TYPES[this.selectedTowerType]; if (this.coins >= stats.baseCost) { this.coins -= stats.baseCost; const tower = new Tower(this, site.x, site.y, this.selectedTowerType, this.enemies, this.projectiles, site, stats.baseCost); this.towers.add(tower); site.occupy(); this.updateUI(); this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); } else { this.cameras.main.shake(100, 0.005); } }
     createUpgradeUI() { this.upgradeContainer = this.add.container(0, 0).setDepth(2000); this.upgradeContainer.setVisible(false); const bg = this.add.rectangle(0, 0, 220, 160, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive(); this.upgradeText = this.add.text(0, -50, '', { fontSize: '14px', align: 'center', color: '#fff' }).setOrigin(0.5); this.upgradeBtn = this.add.rectangle(0, 0, 180, 35, 0x00aa00).setInteractive({ useHandCursor: true }); this.upgradeBtnText = this.add.text(0, 0, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); this.sellBtn = this.add.rectangle(0, 50, 180, 35, 0xaa0000).setInteractive({ useHandCursor: true }); this.sellBtnText = this.add.text(0, 50, 'VENDER', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); this.upgradeBtn.on('pointerdown', () => this.tryUpgradeTower()); this.sellBtn.on('pointerdown', () => this.sellTower()); this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.sellBtn, this.sellBtnText]); }
     openUpgradeMenu(tower) { this.selectedTowerToUpgrade = tower; this.upgradeContainer.setPosition(tower.x, tower.y - 100); this.upgradeContainer.setVisible(true); tower.rangeCircle.setVisible(true); this.updateUpgradeMenuText(); }
