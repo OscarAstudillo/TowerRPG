@@ -13,10 +13,12 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         this.path = path;
         this.follower = { t: 0, vec: new Phaser.Math.Vector2() };
         
-        this.hp = 100 * hpMult;
+        // Seguridad en HP
+        const safeHpMult = hpMult || 1;
+        this.hp = Math.floor(100 * safeHpMult);
         this.maxHp = this.hp;
         
-        this.baseSpeed = speedMult / 15000; 
+        this.baseSpeed = (speedMult || 1) / 15000; 
         this.currentSpeed = this.baseSpeed;
         
         this.isBoss = isBoss;
@@ -27,7 +29,6 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         this.lastAttackTime = 0;
         this.attackRate = 1000; 
 
-        // Efectos
         this.isSlowed = false;
         this.slowTimer = 0;
 
@@ -35,17 +36,16 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     }
 
     update(time, delta) {
-        // Gestionar Slow
+        // Slow
         if (this.isSlowed) {
             this.slowTimer -= delta;
             if (this.slowTimer <= 0) {
                 this.isSlowed = false;
                 this.currentSpeed = this.baseSpeed;
-                this.setFillStyle(this.colorVal); // Volver a color original
+                this.setFillStyle(this.colorVal); 
             }
         }
 
-        // Movimiento
         this.follower.t += this.currentSpeed * delta;
         
         if (this.follower.t >= 1) {
@@ -62,8 +62,13 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
             this.y = Phaser.Math.Linear(p1.y, p2.y, segmentT);
         }
         
+        // Actualizar barra de vida CON SEGURIDAD
         this.hpBar.setPosition(this.x, this.y - 20);
-        const hpPercent = this.hp / this.maxHp;
+        
+        let hpPercent = this.hp / this.maxHp;
+        if (isNaN(hpPercent)) hpPercent = 0;
+        else if (hpPercent < 0) hpPercent = 0;
+        
         this.hpBar.width = 30 * hpPercent;
         this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00);
         
@@ -71,12 +76,11 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     }
 
     applySlow(factor, duration) {
-        if (this.isBoss) return; // Bosses inmunes a slow (opcional)
-        
+        if (this.isBoss) return;
         this.isSlowed = true;
-        this.currentSpeed = this.baseSpeed * factor; // ej 0.5 = 50%
+        this.currentSpeed = this.baseSpeed * factor; 
         this.slowTimer = duration;
-        this.setFillStyle(0x00ffff); // Color Hielo
+        this.setFillStyle(0x00ffff); 
     }
 
     checkAttackPlayer(time) {
@@ -94,14 +98,19 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     }
 
     takeDamage(amount) {
-        this.hp -= amount;
+        let safeAmount = Number(amount);
+        if (isNaN(safeAmount)) safeAmount = 0;
+
+        this.hp -= safeAmount;
         
         if (this.scene && this.scene.showFloatingText) {
             const isCrit = Math.random() > 0.8; 
-            const finalDamage = isCrit ? Math.floor(amount * 1.5) : amount;
+            const finalDamage = isCrit ? Math.floor(safeAmount * 1.5) : safeAmount;
             const color = isCrit ? '#ffaa00' : '#ffffff';
-            if (isCrit) this.hp -= (finalDamage - amount);
-            this.scene.showFloatingText(this.x, this.y - 20, `-${finalDamage}`, color);
+            
+            if (isCrit) this.hp -= (finalDamage - safeAmount);
+
+            this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(finalDamage)}`, color);
         }
 
         if (this.hp <= 0) {
@@ -117,9 +126,7 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
             if (currentScene) {
                 if(currentScene.addEnemyReward) currentScene.addEnemyReward(this.coinReward);
                 if(currentScene.spawnLoot) currentScene.spawnLoot(this.x, this.y);
-                if (currentScene.createExplosion) {
-                    currentScene.createExplosion(this.x, this.y, this.colorVal);
-                }
+                if (currentScene.createExplosion) currentScene.createExplosion(this.x, this.y, this.colorVal);
             }
             const xpAmount = this.isBoss ? 50 : 10;
             RPGSystem.gainHeroXP(xpAmount);

@@ -18,8 +18,12 @@ export default class MainMenuScene extends Phaser.Scene {
     create() {
         if (!this.hasLoaded) {
             SaveSystem.load();
-            // Parche de seguridad para datos antiguos
+            
+            // --- PARCHE DE SEGURIDAD PARA DATOS VIEJOS ---
+            if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
             if (!gameState.equipment) gameState.equipment = { mainHand: null, offHand: null, armor: null, accessory: null };
+            // ---------------------------------------------
+
             updatePlayerStats();
             this.hasLoaded = true;
         }

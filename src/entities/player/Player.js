@@ -84,21 +84,22 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     takeDamage(amount) {
         if (this.isDead) return;
 
-        // --- DEFENSA REAL ---
-        // Fórmula simple: Daño = Daño - Defensa. Mínimo 1.
-        let finalDamage = Math.max(1, amount - this.stats.defense);
+        // Seguridad contra NaN
+        let safeAmount = Number(amount);
+        if (isNaN(safeAmount)) safeAmount = 0;
+
+        const def = this.stats.defense || 0;
+        let finalDamage = Math.max(1, safeAmount - def);
         
         this.stats.hp -= finalDamage;
         
         // Feedback Daño
         if (this.scene && this.scene.showFloatingText) {
-            this.scene.showFloatingText(this.x, this.y - 20, `-${finalDamage}`, '#ff0000');
+            this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(finalDamage)}`, '#ff0000');
         }
         
-        // --- ESPINAS (Thorns) ---
-        if (this.stats.thorns > 0) {
-            // Buscamos quién pegó... bueno, aquí no sabemos quién pegó exactamente
-            // así que haremos daño al enemigo más cercano como "represalia"
+        // Espinas
+        if ((this.stats.thorns || 0) > 0) {
             const attacker = this.findClosestEnemy(100);
             if (attacker) attacker.takeDamage(this.stats.thorns);
         }

@@ -7,19 +7,11 @@ export const INITIAL_STATS = {
     attackSpeed: 1000, moveSpeed: 160, range: 100,
     
     // Ofensivos Avanzados
-    critChance: 0,      // % Probabilidad crítico
-    critDamage: 150,    // % Daño crítico (Base 150%)
-    lifesteal: 0,       // % Robo de vida
-    skillDamage: 0,     // % Daño extra habilidad
-    cdr: 0,             // % Reducción enfriamiento
-    bleedChance: 0,     // % Probabilidad sangrado
-    doubleAttack: 0,    // % Probabilidad doble golpe
+    critChance: 0, critDamage: 150, lifesteal: 0, 
+    skillDamage: 0, cdr: 0, bleedChance: 0, doubleAttack: 0,
 
-    // Defensivos/Utilidad Avanzados
-    thorns: 0,          // Daño devuelto al atacante
-    regenHp: 0,         // Vida regenerada cada 5s
-    coldAura: 0,        // % Ralentización a enemigos cercanos
-    pickupRange: 0      // Rango extra recolección (Opcional)
+    // Defensivos/Utilidad
+    thorns: 0, regenHp: 0, coldAura: 0, pickupRange: 0
 };
 
 export const RARITY = {
@@ -35,11 +27,10 @@ export const gameState = {
     levelsUnlocked: 1,
     gold: 5000,
 
-    // Sistema de Nivel de Héroe
     heroLevel: 1,
     heroXP: 0,
     heroMaxXP: 100,
-    statPoints: 0, // Puntos disponibles para gastar
+    statPoints: 0, 
 
     materials: {
         wood:   { common: 20, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -55,12 +46,8 @@ export const gameState = {
         mainHand: null, offHand: null, armor: null, accessory: null 
     },
 
-    // Stats Base (se modifican al subir de nivel con puntos)
     baseAttributes: {
-        damage: 0,
-        maxHp: 0,
-        attackSpeed: 0, // Reducción de delay (ms)
-        defense: 0
+        damage: 0, maxHp: 0, attackSpeed: 0, defense: 0
     },
 
     playerStats: { ...INITIAL_STATS },
@@ -73,33 +60,49 @@ export const gameState = {
 };
 
 export function updatePlayerStats() {
-    const classBase = CLASS_STATS[gameState.selectedClass];
-    // Reiniciar a base de clase
+    const classBase = CLASS_STATS[gameState.selectedClass] || { ...INITIAL_STATS };
+    
+    // Copia base segura
     const newStats = { ...INITIAL_STATS, ...classBase };
-    newStats.maxHp = classBase.hp; // Fix inicial
+    // Asegurar maxHp base
+    newStats.maxHp = classBase.hp || 100; 
 
-    // 1. Sumar Atributos por Puntos de Nivel
-    newStats.damage += gameState.baseAttributes.damage;
-    newStats.maxHp += gameState.baseAttributes.maxHp;
-    newStats.defense += gameState.baseAttributes.defense;
-    newStats.attackSpeed -= gameState.baseAttributes.attackSpeed; // Menos es más rápido
+    // --- CORRECCIÓN DE SEGURIDAD: USAR VALORES POR DEFECTO ---
+    // Si baseAttributes no existe (datos viejos), usar objeto vacío
+    const attr = gameState.baseAttributes || { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
+    
+    // Sumar Atributos (usando || 0 para evitar NaN)
+    newStats.damage += (attr.damage || 0);
+    newStats.maxHp += (attr.maxHp || 0);
+    newStats.defense += (attr.defense || 0);
+    newStats.attackSpeed -= (attr.attackSpeed || 0);
 
-    // 2. Sumar Equipo
+    // Sumar Equipo
+    const eq = gameState.equipment || { mainHand: null, offHand: null, armor: null, accessory: null };
+    
     ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => {
-        const item = gameState.equipment[slot];
+        const item = eq[slot];
         if (item && item.stats) {
             for (let key in item.stats) {
                 if (newStats[key] !== undefined) {
-                    newStats[key] += item.stats[key];
+                    newStats[key] += (item.stats[key] || 0);
                 }
             }
         }
     });
 
-    // Validaciones
-    if (newStats.attackSpeed < 100) newStats.attackSpeed = 100; // Cap de velocidad
+    // Validaciones finales para evitar NaN
+    if (isNaN(newStats.damage)) newStats.damage = 1;
+    if (isNaN(newStats.defense)) newStats.defense = 0;
+    if (isNaN(newStats.maxHp)) newStats.maxHp = 100;
+    if (newStats.attackSpeed < 100) newStats.attackSpeed = 100;
+
+    // Mantener HP actual dentro del nuevo máximo
     if (gameState.playerStats.hp > newStats.maxHp) newStats.hp = newStats.maxHp;
-    else newStats.hp = gameState.playerStats.hp; // Mantener daño actual
+    else if (isNaN(gameState.playerStats.hp)) newStats.hp = newStats.maxHp;
+    else newStats.hp = gameState.playerStats.hp;
 
     gameState.playerStats = newStats;
+    // Restaurar baseAttributes si estaba perdido para evitar futuros errores
+    if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
 }
