@@ -309,8 +309,88 @@ export default class GameScene extends Phaser.Scene {
     // REPITO FUNCIONES AUXILIARES CLAVE PARA COPIAR Y PEGAR SEGURO:
     startNextWaveAction() { if (this.isTimerRunning) this.startNextWave(); }
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
-    startNextWave() { this.isTimerRunning = false; this.waveTimerContainer.setVisible(false); if (this.spawnTimer) this.spawnTimer.remove(); if (this.currentWave > this.totalWaves) { this.victory(); return; } this.waveInProgress = true; let count = 4 + (this.currentWave * 2); let interval = 2000 - (this.currentWave * 200); let hpMult = 0.8 + (this.currentWave * 0.2); let speedMult = 0.6 + (this.currentWave * 0.1); let isBoss = false; if (this.currentWave === 5) { count = 1; interval = 1000; hpMult = 2.5; speedMult = 0.4; isBoss = true; this.waveInfoText.setText("OLEADA: BOSS!"); this.waveInfoText.setColor('#ff0000'); } else { this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`); this.waveInfoText.setColor(this.theme.accent); } this.enemiesToSpawn = count; this.spawnTimer = this.time.addEvent({ delay: interval, callback: () => { this.spawnEnemy(speedMult, hpMult, isBoss); this.enemiesToSpawn--; if (this.enemiesToSpawn <= 0) this.spawnTimer.remove(); }, repeat: count - 1 }); }
-    spawnEnemy(speedMult, hpMult, isBoss) { const enemy = new Enemy(this, this.pathPoints, speedMult, hpMult, isBoss); const levelBonus = 1 + ((this.currentLevelData.id - 1) * 0.10); let baseReward = 25; if (isBoss) baseReward = 500; enemy.coinReward = Math.floor(baseReward * levelBonus); this.enemies.add(enemy); }
+    startNextWave() {
+        this.isTimerRunning = false;
+        this.waveTimerContainer.setVisible(false);
+        if (this.spawnTimer) this.spawnTimer.remove();
+        
+        if (this.currentWave > this.totalWaves) { this.victory(); return; }
+
+        this.waveInProgress = true;
+        
+        // --- CONFIGURACIÓN DE LA OLEADA ---
+        const levelDiff = this.currentLevelData.difficulty || 1;
+        
+        // Definir composición según número de oleada
+        let enemyType = 'normal';
+        let count = 5 + (this.currentWave * 2);
+        let interval = 1500;
+        let hpMult = levelDiff; // Base multiplier
+
+        if (this.currentWave === 1) {
+            // Oleada 1: Normales
+            enemyType = 'normal';
+            hpMult *= 1.0;
+        } else if (this.currentWave === 2) {
+            // Oleada 2: Rápidos (Prueba de DPS)
+            enemyType = 'speed';
+            count = 10;
+            interval = 800; // Salen muy seguido
+            hpMult *= 0.8;
+        } else if (this.currentWave === 3) {
+            // Oleada 3: Tanques (Prueba de Daño sostenido)
+            enemyType = 'tank';
+            count = 4;
+            interval = 2500; // Lentos en salir
+            hpMult *= 1.5;
+        } else if (this.currentWave === 4) {
+            // Oleada 4: Sanadores + Normales (Mezcla)
+            // Para simplificar, usaremos un truco: alternar en el spawn
+            enemyType = 'mix_healer'; 
+            count = 8;
+            interval = 1200;
+            hpMult *= 1.2;
+        } else if (this.currentWave === 5) {
+            // Oleada 5: BOSS FINAL
+            enemyType = 'boss';
+            count = 1;
+            hpMult *= 5.0; // Mucha vida
+            this.waveInfoText.setText("OLEADA: BOSS!");
+            this.waveInfoText.setColor('#ff0000');
+        }
+
+        if (this.currentWave !== 5) {
+            this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`);
+            this.waveInfoText.setColor(this.theme.accent);
+        }
+
+        this.enemiesToSpawn = count;
+        
+        // Timer de Spawn
+        this.spawnTimer = this.time.addEvent({
+            delay: interval,
+            callback: () => {
+                let actualType = enemyType;
+                
+                // Lógica para oleadas mixtas
+                if (enemyType === 'mix_healer') {
+                    // 50% Healer, 50% Normal
+                    actualType = Math.random() > 0.5 ? 'healer' : 'normal';
+                }
+
+                this.spawnEnemy(hpMult, actualType); // Pasamos HP Mult y Tipo
+                
+                this.enemiesToSpawn--;
+                if (this.enemiesToSpawn <= 0) this.spawnTimer.remove();
+            },
+            repeat: count - 1
+        });
+    }
+    spawnEnemy(hpMult, type) {
+        // Nota: Quitamos speedMult como parámetro porque ahora lo decide el 'type' dentro de Enemy
+        const enemy = new Enemy(this, this.pathPoints, hpMult, type);
+        this.enemies.add(enemy);
+    }
     checkWaveStatus() { if (this.isTimerRunning) return; if (this.enemiesToSpawn <= 0 && this.enemies.countActive(true) === 0) { this.waveInProgress = false; this.currentWave++; if (this.currentWave > this.totalWaves) this.victory(); else this.startWaveTimer(12); } }
     addEnemyReward(amount) { this.coins += amount; this.updateUI(); this.showFloatingText(80, 850, `+$${amount}`, '#ffff00'); }
     createBuildSlots() { const slots = this.currentLevelData.towerSlots || []; slots.forEach(slot => { const site = new BuildSite(this, slot.x, slot.y); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
