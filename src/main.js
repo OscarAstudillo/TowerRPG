@@ -1,14 +1,13 @@
-// src/main.js
 import Phaser from 'phaser';
-import WorldMapScene from './scenes/WorldMapScene.js';
-import GameScene from './scenes/GameScene.js';
-import MainMenuScene from './scenes/MainMenuScene.js';
+import MainMenuScene from './scenes/MainMenuScene';
+import WorldMapScene from './scenes/WorldMapScene';
+import GameScene from './scenes/GameScene';
+import ResultScene from './scenes/ResultScene'; // <--- IMPORTAR
 
 const config = {
     type: Phaser.AUTO,
     width: 1280,
-    height: 960, // --- CAMBIO: Aumentado para tener márgenes (120 top + 720 map + 120 bot)
-    backgroundColor: '#1a1a1a', // Color de fondo para los márgenes
+    height: 720,
     parent: 'app',
     physics: {
         default: 'arcade',
@@ -16,7 +15,7 @@ const config = {
             debug: false
         }
     },
-    scene: [MainMenuScene, WorldMapScene, GameScene]
+    scene: [MainMenuScene, WorldMapScene, GameScene, ResultScene] // <--- AÑADIR AQUÍ
 };
 
-const game = new Phaser.Game(config);
+new Phaser.Game(config);

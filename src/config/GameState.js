@@ -2,15 +2,10 @@
 import { CLASS_STATS } from '../entities/player/PlayerStats.js';
 
 export const INITIAL_STATS = {
-    // Básicos
     hp: 100, maxHp: 100, damage: 10, defense: 0, 
     attackSpeed: 1000, moveSpeed: 160, range: 100,
-    
-    // Ofensivos Avanzados
     critChance: 0, critDamage: 150, lifesteal: 0, 
     skillDamage: 0, cdr: 0, bleedChance: 0, doubleAttack: 0,
-
-    // Defensivos/Utilidad
     thorns: 0, regenHp: 0, coldAura: 0, pickupRange: 0
 };
 
@@ -25,6 +20,7 @@ export const RARITY = {
 export const gameState = {
     selectedClass: 'paladin',
     levelsUnlocked: 1,
+    levelStars: {}, // NUEVO: Registro de estrellas por nivel { 1: 3, 2: 1 }
     gold: 5000,
 
     heroLevel: 1,
@@ -51,6 +47,7 @@ export const gameState = {
     },
 
     playerStats: { ...INITIAL_STATS },
+    baseHp: 20, // Vida del castillo global
     
     professions: {
         weaponsmith: { level: 1, xp: 0, maxXp: 100 },
@@ -61,25 +58,16 @@ export const gameState = {
 
 export function updatePlayerStats() {
     const classBase = CLASS_STATS[gameState.selectedClass] || { ...INITIAL_STATS };
-    
-    // Copia base segura
     const newStats = { ...INITIAL_STATS, ...classBase };
-    // Asegurar maxHp base
     newStats.maxHp = classBase.hp || 100; 
 
-    // --- CORRECCIÓN DE SEGURIDAD: USAR VALORES POR DEFECTO ---
-    // Si baseAttributes no existe (datos viejos), usar objeto vacío
     const attr = gameState.baseAttributes || { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
-    
-    // Sumar Atributos (usando || 0 para evitar NaN)
     newStats.damage += (attr.damage || 0);
     newStats.maxHp += (attr.maxHp || 0);
     newStats.defense += (attr.defense || 0);
     newStats.attackSpeed -= (attr.attackSpeed || 0);
 
-    // Sumar Equipo
     const eq = gameState.equipment || { mainHand: null, offHand: null, armor: null, accessory: null };
-    
     ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => {
         const item = eq[slot];
         if (item && item.stats) {
@@ -91,18 +79,15 @@ export function updatePlayerStats() {
         }
     });
 
-    // Validaciones finales para evitar NaN
     if (isNaN(newStats.damage)) newStats.damage = 1;
     if (isNaN(newStats.defense)) newStats.defense = 0;
     if (isNaN(newStats.maxHp)) newStats.maxHp = 100;
     if (newStats.attackSpeed < 100) newStats.attackSpeed = 100;
 
-    // Mantener HP actual dentro del nuevo máximo
     if (gameState.playerStats.hp > newStats.maxHp) newStats.hp = newStats.maxHp;
     else if (isNaN(gameState.playerStats.hp)) newStats.hp = newStats.maxHp;
     else newStats.hp = gameState.playerStats.hp;
 
     gameState.playerStats = newStats;
-    // Restaurar baseAttributes si estaba perdido para evitar futuros errores
     if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
 }

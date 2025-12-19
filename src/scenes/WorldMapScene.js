@@ -46,16 +46,19 @@ export default class WorldMapScene extends Phaser.Scene {
 
     createLevelNode(level) {
         const isUnlocked = level.id <= gameState.levelsUnlocked;
-        const isCompleted = level.id < gameState.levelsUnlocked;
         
         // Color del nodo
-        let color = 0x555555; // Bloqueado
-        if (isUnlocked) color = 0x00aa00; // Desbloqueado (Verde)
-        if (isCompleted) color = 0xffd700; // Completado (Dorado)
+        let color = 0x555555; 
+        if (isUnlocked) color = 0x00aa00; 
+        
+        // Verificar si está completado (si hay estrellas guardadas)
+        const stars = (gameState.levelStars && gameState.levelStars[level.id]) || 0;
+        const isCompleted = stars > 0;
+        
+        if (isCompleted) color = 0xffd700; // Dorado si tiene al menos 1 estrella
 
         const container = this.add.container(level.mapX, level.mapY);
 
-        // Círculo Base
         const circle = this.add.circle(0, 0, 30, color).setStrokeStyle(3, 0xffffff);
         
         if (isUnlocked) {
@@ -63,28 +66,26 @@ export default class WorldMapScene extends Phaser.Scene {
             circle.on('pointerdown', () => {
                 this.scene.start('GameScene', { levelData: level });
             });
-            
-            // Efecto Hover
             circle.on('pointerover', () => this.tweens.add({ targets: container, scale: 1.2, duration: 100 }));
             circle.on('pointerout', () => this.tweens.add({ targets: container, scale: 1, duration: 100 }));
         }
 
-        // Número o Candado
         const label = isUnlocked ? level.id.toString() : "🔒";
-        const text = this.add.text(0, 0, label, { 
-            fontSize: '20px', fontStyle: 'bold', color: '#fff' 
-        }).setOrigin(0.5);
-
-        // Nombre del Nivel (Debajo)
-        const nameText = this.add.text(0, 45, level.name, { 
-            fontSize: '14px', color: isUnlocked ? '#fff' : '#888', align: 'center'
-        }).setOrigin(0.5);
-
-        // Estrellas (Opcional visual)
-        if (isCompleted) {
-            this.add.text(0, -45, "⭐⭐⭐", { fontSize: '12px' }).setOrigin(0.5);
-        }
+        const text = this.add.text(0, 0, label, { fontSize: '20px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
+        const nameText = this.add.text(0, 45, level.name, { fontSize: '14px', color: isUnlocked ? '#fff' : '#888', align: 'center' }).setOrigin(0.5);
 
         container.add([circle, text, nameText]);
+
+        // --- DIBUJAR ESTRELLAS ---
+        if (isCompleted) {
+            let starsStr = "";
+            for(let i=0; i<3; i++) starsStr += (i < stars ? "⭐" : "☆");
+            
+            // Texto de estrellas amarillo
+            const starText = this.add.text(0, -45, starsStr, { 
+                fontSize: '16px', color: '#ffd700', stroke: '#000', strokeThickness: 2 
+            }).setOrigin(0.5);
+            container.add(starText);
+        }
     }
 }
