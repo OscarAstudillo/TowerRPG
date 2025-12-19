@@ -16,6 +16,12 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     create() {
+        // --- VARIABLES DE RESPONSIVIDAD ---
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
         if (!this.hasLoaded) {
             SaveSystem.load();
             if (!gameState.equipment) gameState.equipment = { mainHand: null, offHand: null, armor: null, accessory: null };
@@ -25,33 +31,36 @@ export default class MainMenuScene extends Phaser.Scene {
         }
 
         // Fondo y Título
-        this.add.rectangle(640, 360, 1280, 720, 0x1a1a1a);
-        this.add.text(640, 30, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
-        this.goldText = this.add.text(1200, 30, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
+        this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
+        this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
+        this.goldText = this.add.text(w - 50, h * 0.05, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
-        // Tabs
-        this.createTabButton(200, 80, 'HÉROE', 'hero');
-        this.createTabButton(640, 80, 'MOCHILA', 'inventory');
-        this.createTabButton(1080, 80, 'FORJA', 'forge');
+        // Tabs (Distribuidos horizontalmente)
+        const tabY = h * 0.12; // 12% desde arriba
+        this.createTabButton(w * 0.2, tabY, 'HÉROE', 'hero');
+        this.createTabButton(cx, tabY, 'MOCHILA', 'inventory');
+        this.createTabButton(w * 0.8, tabY, 'FORJA', 'forge');
 
         // Contenedores
         this.heroContainer = this.add.container(0, 0);
         this.invContainer = this.add.container(0, 0);
         this.forgeContainer = this.add.container(0, 0);
 
-        this.createHeroView();
-        this.createInventoryView();
-        this.createForgeView();
+        // Inicializar Vistas (Pasamos dimensiones para que se ajusten)
+        this.createHeroView(w, h, cx, cy);
+        this.createInventoryView(w, h, cx, cy);
+        this.createForgeView(w, h, cx, cy);
 
         this.switchTab('hero');
 
-        // Botón Jugar
-        const playBtn = this.add.rectangle(640, 680, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
-        this.add.text(640, 680, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
+        // Botones Globales (Abajo)
+        const botY = h - 60;
+        const playBtn = this.add.rectangle(cx, botY, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
+        this.add.text(cx, botY, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
         playBtn.on('pointerdown', () => this.scene.start('WorldMapScene'));
 
-        // Botón Reset (Más pequeño y discreto)
-        const resetBtn = this.add.text(50, 680, 'Borrar Datos', { fontSize: '12px', color: '#555' }).setInteractive({ useHandCursor: true });
+        // Botón Reset (Esquina inferior izquierda)
+        const resetBtn = this.add.text(50, h - 30, 'Borrar Datos', { fontSize: '12px', color: '#555' }).setInteractive({ useHandCursor: true });
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) SaveSystem.reset(); });
     }
 
@@ -72,26 +81,36 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'forge') this.refreshForge();
     }
 
-    // --- VISTA HÉROE ---
-    createHeroView() {
-        this.heroLevelText = this.add.text(640, 140, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
+    // --- VISTA HÉROE (RESPONSIVA) ---
+    createHeroView(w, h, cx, cy) {
+        // Título Nivel
+        this.heroLevelText = this.add.text(cx, h * 0.2, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
         this.heroContainer.add(this.heroLevelText);
 
-        const statsBg = this.add.rectangle(320, 400, 400, 450, 0x000000, 0.5).setStrokeStyle(1, 0x555555);
+        // Panel Izquierdo (Stats)
+        // Posición: 25% del ancho
+        const leftX = w * 0.25;
+        const contentY = h * 0.3; // Empezar contenido un poco más abajo
+
+        const statsBg = this.add.rectangle(leftX, cy + 20, w * 0.4, h * 0.6, 0x000000, 0.5).setStrokeStyle(1, 0x555555);
         this.heroContainer.add(statsBg);
         
-        this.heroStatsText = this.add.text(140, 200, '', { fontSize: '16px', lineHeight: 26, color: '#ffffff' });
+        // Texto alineado dentro del panel izquierdo
+        this.heroStatsText = this.add.text(leftX - (w * 0.18), contentY, '', { fontSize: '16px', lineHeight: 26, color: '#ffffff' });
         this.heroContainer.add(this.heroStatsText);
 
-        // Selector de Clase
-        this.heroContainer.add(this.add.text(960, 180, 'SELECCIONAR CLASE', { fontSize: '18px', color: '#aaa', fontStyle: 'bold' }).setOrigin(0.5));
+        // Panel Derecho (Clases y Mejoras)
+        // Posición: 75% del ancho
+        const rightX = w * 0.75;
+        
+        this.heroContainer.add(this.add.text(rightX, contentY - 40, 'SELECCIONAR CLASE', { fontSize: '18px', color: '#aaa', fontStyle: 'bold' }).setOrigin(0.5));
         
         const classes = ['paladin', 'guerrero', 'arquero', 'mago', 'asesino'];
-        let startY = 220;
+        let startY = contentY;
         
         classes.forEach(clsKey => {
-            const btn = this.add.rectangle(960, startY, 180, 35, 0x333333).setInteractive({ useHandCursor: true });
-            const txt = this.add.text(960, startY, clsKey.toUpperCase(), { fontSize: '14px' }).setOrigin(0.5);
+            const btn = this.add.rectangle(rightX, startY, 180, 35, 0x333333).setInteractive({ useHandCursor: true });
+            const txt = this.add.text(rightX, startY, clsKey.toUpperCase(), { fontSize: '14px' }).setOrigin(0.5);
             
             btn.on('pointerdown', () => {
                 this.unequipAll();
@@ -104,16 +123,16 @@ export default class MainMenuScene extends Phaser.Scene {
             startY += 50;
         });
 
-        // Mejoras Stats
+        // Mejoras Stats (Debajo de clases)
         let upgradeY = startY + 40;
-        this.pointsText = this.add.text(960, upgradeY, "Puntos: 0", { fontSize: '20px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { fontSize: '20px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.heroContainer.add(this.pointsText);
         
         upgradeY += 40;
-        this.createStatButton(960, upgradeY, "Daño (+1)", 'damage');
-        this.createStatButton(960, upgradeY + 40, "Vida (+10)", 'hp');
-        this.createStatButton(960, upgradeY + 80, "Vel. Atq (+10ms)", 'speed');
-        this.createStatButton(960, upgradeY + 120, "Defensa (+1)", 'defense');
+        this.createStatButton(rightX, upgradeY, "Daño (+1)", 'damage');
+        this.createStatButton(rightX, upgradeY + 40, "Vida (+10)", 'hp');
+        this.createStatButton(rightX, upgradeY + 80, "Vel. Atq (+10ms)", 'speed');
+        this.createStatButton(rightX, upgradeY + 120, "Defensa (+1)", 'defense');
     }
 
     createStatButton(x, y, label, statKey) {
@@ -173,33 +192,39 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    // --- MOCHILA MEJORADA (CON VENTA) ---
-    createInventoryView() {
-        this.createInvCategoryBtn(400, 130, "TODO", 'all');
-        this.createInvCategoryBtn(550, 130, "ARMAS", 'weapon');
-        this.createInvCategoryBtn(700, 130, "ARMADURA", 'armor');
-        this.createInvCategoryBtn(850, 130, "JOYAS", 'accessory');
+    // --- MOCHILA (RESPONSIVA) ---
+    createInventoryView(w, h, cx, cy) {
+        const catY = h * 0.18;
+        
+        // Botones de categoría centrados
+        const catSpacing = 150;
+        this.createInvCategoryBtn(cx - (catSpacing * 1.5), catY, "TODO", 'all');
+        this.createInvCategoryBtn(cx - (catSpacing * 0.5), catY, "ARMAS", 'weapon');
+        this.createInvCategoryBtn(cx + (catSpacing * 0.5), catY, "ARMADURA", 'armor');
+        this.createInvCategoryBtn(cx + (catSpacing * 1.5), catY, "JOYAS", 'accessory');
 
-        this.invMatsText = this.add.text(50, 160, '', { fontSize: '14px', lineHeight: 20 });
+        this.invMatsText = this.add.text(50, catY + 40, '', { fontSize: '14px', lineHeight: 20 });
         this.invContainer.add(this.invMatsText);
 
-        this.invItemsContainer = this.add.container(350, 180);
+        // Contenedor Items (Lado Izquierdo/Centro)
+        const gridX = w * 0.28;
+        const gridY = h * 0.3;
+        this.invItemsContainer = this.add.container(gridX, gridY);
         this.invContainer.add(this.invItemsContainer);
         
-        this.itemDetailContainer = this.add.container(950, 180);
+        // Panel Detalle (Lado Derecho)
+        const detailX = w * 0.78;
+        this.itemDetailContainer = this.add.container(detailX, gridY);
         this.itemDetailContainer.setVisible(false);
         this.invContainer.add(this.itemDetailContainer);
 
-        const bg = this.add.rectangle(150, 220, 280, 400, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
-        this.detailTitle = this.add.text(150, 40, "Nombre", { fontSize: '18px', fontStyle: 'bold', wordWrap: { width: 260 }, align: 'center' }).setOrigin(0.5);
-        this.detailStats = this.add.text(150, 120, "Stats...", { fontSize: '14px', align: 'center', wordWrap: { width: 260 } }).setOrigin(0.5);
+        const bg = this.add.rectangle(0, 150, 280, 400, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
+        this.detailTitle = this.add.text(0, -30, "Nombre", { fontSize: '18px', fontStyle: 'bold', wordWrap: { width: 260 }, align: 'center' }).setOrigin(0.5);
+        this.detailStats = this.add.text(0, 50, "Stats...", { fontSize: '14px', align: 'center', wordWrap: { width: 260 } }).setOrigin(0.5);
         
-        // Botones de acción
-        this.equipBtn = this.createActionButton(150, 250, "EQUIPAR", () => this.actionEquip(), 0x006400);
-        this.fuseBtn = this.createActionButton(150, 300, "FUSIONAR (Req. 2)", () => this.actionFuse(), 0x00008b);
-        
-        // --- BOTÓN VENDER ---
-        this.sellBtn = this.createActionButton(150, 350, "VENDER ($0)", () => this.actionSell(), 0x8b0000);
+        this.equipBtn = this.createActionButton(0, 180, "EQUIPAR", () => this.actionEquip(), 0x006400);
+        this.fuseBtn = this.createActionButton(0, 230, "FUSIONAR (Req. 2)", () => this.actionFuse(), 0x00008b);
+        this.sellBtn = this.createActionButton(0, 280, "VENDER ($0)", () => this.actionSell(), 0x8b0000);
 
         this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn, this.sellBtn]);
     }
@@ -274,13 +299,11 @@ export default class MainMenuScene extends Phaser.Scene {
             `Stats:\n${statsStr}`
         );
 
-        // Calcular Precio de Venta
-        let sellPrice = 50; // Base
+        let sellPrice = 50; 
         const rData = RARITY[item.rarity];
         if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10));
         
-        // Actualizar texto del botón Vender
-        const sellText = this.sellBtn.list[1]; // El texto es el segundo hijo
+        const sellText = this.sellBtn.list[1]; 
         sellText.setText(`VENDER ($${sellPrice})`);
     }
 
@@ -293,21 +316,18 @@ export default class MainMenuScene extends Phaser.Scene {
         return container;
     }
 
-    // Acciones de Inventario
+    // Acciones Inventario (Igual que antes)
     actionEquip() {
         if (!this.selectedItem) return;
         const item = this.selectedItem;
         const cls = gameState.selectedClass;
         let error = "";
-
-        if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Arquero: Solo Arcos, Cuero y Anillos";
-        if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Guerrero: Solo Espadas, Placas y Anillos";
-        if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Paladín: Espada, Escudo, Placas";
-        if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Mago: Bastón y Tela";
-        if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Asesino: Dagas y Cuero";
-
+        if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida";
         if (error) { alert(error); return; }
-
         if (item.type === 'armor') this.swapping('armor', item);
         else if (item.type === 'accessory') this.swapping('accessory', item);
         else if (item.type === 'offhand') this.swapping('offHand', item);
@@ -329,40 +349,32 @@ export default class MainMenuScene extends Phaser.Scene {
                 }
             }
         }
-
         updatePlayerStats();
         this.selectedItem = null;
         this.itemDetailContainer.setVisible(false);
         this.refreshInventory();
         SaveSystem.save();
     }
-
     actionSell() {
         if (!this.selectedItem) return;
         const item = this.selectedItem;
-        
         let sellPrice = 50; 
         const rData = RARITY[item.rarity];
         if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10));
-
         gameState.gold += sellPrice;
         this.removeItemFromInventory(item);
-        
         this.selectedItem = null;
         this.itemDetailContainer.setVisible(false);
         this.refreshInventory();
         SaveSystem.save();
     }
-
     actionFuse() {
         if (!this.selectedItem) return;
         const item1 = this.selectedItem;
         const idx2 = gameState.inventory.findIndex(i => i !== item1 && i.recipeId === item1.recipeId && i.rarity === item1.rarity && i.enchant === item1.enchant);
-        
         if (idx2 === -1) { alert("Necesitas otro objeto idéntico"); return; }
         const item2 = gameState.inventory[idx2];
         const newItem = RPGSystem.fuseItems(item1, item2);
-        
         if (newItem) {
             this.removeItemFromInventory(item1);
             this.removeItemFromInventory(item2);
@@ -372,33 +384,37 @@ export default class MainMenuScene extends Phaser.Scene {
             SaveSystem.save();
         }
     }
-
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
     swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
     forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
     removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
 
-    // --- FORJA Y RECETAS (Igual que antes) ---
-    createForgeView() {
-        this.profText = this.add.text(640, 140, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5);
+    // --- FORJA (RESPONSIVA) ---
+    createForgeView(w, h, cx, cy) {
+        this.profText = this.add.text(cx, h * 0.18, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
-        this.forgeMsg = this.add.text(640, 680, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
+        this.forgeMsg = this.add.text(cx, h - 100, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.forgeContainer.add(this.forgeMsg);
 
-        this.createForgeCatBtn(400, 180, "HERRERÍA (Armas)", 'weapon');
-        this.createForgeCatBtn(640, 180, "SASTRERÍA (Armaduras)", 'armor');
-        this.createForgeCatBtn(880, 180, "JOYERÍA (Accesorios)", 'accessory');
+        const catY = h * 0.25;
+        this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon');
+        this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor');
+        this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory');
 
+        // Lista de recetas
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
 
-        this.recipeDetailContainer = this.add.container(900, 250);
+        // Panel Detalle
+        const detailX = w * 0.78;
+        const detailY = h * 0.45;
+        this.recipeDetailContainer = this.add.container(detailX, detailY);
         this.forgeContainer.add(this.recipeDetailContainer);
         
-        const detailBg = this.add.rectangle(150, 200, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700);
-        this.recipeTitle = this.add.text(150, 40, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
-        this.recipeInfo = this.add.text(150, 150, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
-        this.craftBtn = this.createActionButton(150, 300, "FORJAR", () => this.actionCraft());
+        const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700);
+        this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.recipeInfo = this.add.text(0, 50, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.actionCraft());
         this.craftBtn.setVisible(false);
         this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]);
         
@@ -418,11 +434,7 @@ export default class MainMenuScene extends Phaser.Scene {
     refreshForge() {
         this.goldText.setText(`ORO: ${gameState.gold}`);
         const p = gameState.professions;
-        this.profText.setText(
-            `HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\n` +
-            `SASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\n` +
-            `JOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`
-        );
+        this.profText.setText(`HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\nSASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\nJOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`);
         
         this.recipesContainer.removeAll(true);
         const filteredRecipes = RECIPES.filter(r => {
@@ -432,8 +444,11 @@ export default class MainMenuScene extends Phaser.Scene {
             return false;
         });
 
-        let startX = 250; 
-        let startY = 240;
+        // Grid dinámico
+        const w = this.scale.width;
+        const h = this.scale.height;
+        let startX = w * 0.15; 
+        let startY = h * 0.35;
         let col = 0;
 
         filteredRecipes.forEach(recipe => {
@@ -441,7 +456,10 @@ export default class MainMenuScene extends Phaser.Scene {
                 this.createRecipeBtn(startX + (col * 220), startY + (i * 55), recipe, rarity);
             });
             col++;
-            if (col > 1) { col = 0; startY += 240; } 
+            if (col > 1) { // 2 columnas
+                col = 0; 
+                startY += 240; // Espacio vertical entre grupos
+            } 
         });
     }
 
@@ -461,17 +479,14 @@ export default class MainMenuScene extends Phaser.Scene {
         const rarity = RARITY[rarityKey];
         const cost = Math.floor(recipe.cost * rarity.mult);
         const hexColor = '#' + rarity.color.toString(16).padStart(6, '0');
-
         this.recipeTitle.setText(recipe.name);
         this.recipeTitle.setColor(hexColor);
-
         let info = `Rareza: ${rarity.name}\nCosto: $${cost}\nMaterial: 3 ${recipe.mat}\n\n`;
         info += "-- BASE --\n";
         for (let key in recipe.baseStats) { info += `${key}: ${recipe.baseStats[key]}\n`; }
         info += `\n-- ALEATORIOS (${rarity.statCount}) --\nPosibles:\n`;
         const pool = RPGSystem.getStatPool(recipe);
         pool.forEach(stat => { info += `• ${stat.label}\n`; });
-
         this.recipeInfo.setText(info);
         this.craftBtn.setVisible(true);
         this.forgeMsg.setText("");
@@ -483,15 +498,12 @@ export default class MainMenuScene extends Phaser.Scene {
         const rarityKey = this.selectedRarity;
         const rarity = RARITY[rarityKey];
         const cost = Math.floor(recipe.cost * rarity.mult);
-
         if (gameState.gold < cost) {
             this.forgeMsg.setText("¡Falta Oro!");
             this.forgeMsg.setColor('#ff0000');
             return;
         }
-
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
-        
         if (result.success) {
             gameState.gold -= cost;
             gameState.inventory.push(result.item);
