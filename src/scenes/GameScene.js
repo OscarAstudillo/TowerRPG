@@ -37,6 +37,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // --- 1. GENERAR TEXTURA PARA PARTÍCULAS (Corrección del Freeze) ---
+        if (!this.textures.exists('pixel')) {
+            const graphics = this.make.graphics({x: 0, y: 0, add: false});
+            graphics.fillStyle(0xffffff, 1);
+            graphics.fillRect(0, 0, 4, 4);
+            graphics.generateTexture('pixel', 4, 4);
+        }
+
         // CAMARA
         this.cameras.main.scrollY = -this.TOP_MARGIN;
         this.cameras.main.setBackgroundColor(0x111111);
@@ -81,11 +89,8 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 
-        // --- CORRECCIÓN INPUT GLOBAL ---
-        // Quitamos el bloqueo total 'if (this.isPaused) return;' y lo aplicamos solo a la lógica de juego
+        // Corrección Input Global para no bloquear botones de pausa
         this.input.on('gameobjectdown', (pointer, gameObject) => {
-            // Si estamos en pausa, NO interactuar con torres ni sitios de construcción
-            // PERO permitir interactuar con botones del menú de pausa (que son gameObjects también)
             if (this.isPaused) return; 
             
             let target = gameObject;
@@ -112,11 +117,8 @@ export default class GameScene extends Phaser.Scene {
         });
         this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
-        this.createParticles();
         this.createUI();
         this.createUpgradeUI();
-        
-        // Crear menú de pausa al final para que esté arriba
         this.createPauseMenu();
 
         this.startWaveTimer(15); 
@@ -148,13 +150,11 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- SISTEMA DE PAUSA CORREGIDO ---
+    // --- PAUSA ---
     createPauseMenu() {
-        // Profundidad máxima para estar sobre todo
         this.pauseContainer = this.add.container(640, 480).setDepth(10000).setVisible(false).setScrollFactor(0);
         
-        // Fondo que bloquea clics
-        const bg = this.add.rectangle(0, 0, 1280, 960, 0x000000, 0.7).setInteractive(); 
+        const bg = this.add.rectangle(0, 0, 1280, 960, 0x000000, 0.7).setInteractive(); // Bloqueador
         
         const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700);
         const title = this.add.text(0, -100, "PAUSA", { fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
@@ -163,18 +163,15 @@ export default class GameScene extends Phaser.Scene {
         const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true });
         const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontSize: '20px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         
-        // Evento en AMBOS (Fondo y Texto) para asegurar el clic
-        resumeBtn.on('pointerdown', () => this.togglePause());
-        resumeTxt.on('pointerdown', () => this.togglePause());
+        const resumeAction = () => this.togglePause();
+        resumeBtn.on('pointerdown', resumeAction);
+        resumeTxt.on('pointerdown', resumeAction); // Click en texto también funciona
 
         // Botón Salir
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true });
         const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontSize: '20px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         
-        const exitAction = () => {
-            this.scene.start('MainMenuScene');
-        };
-        
+        const exitAction = () => { this.scene.start('MainMenuScene'); };
         exitBtn.on('pointerdown', exitAction);
         exitTxt.on('pointerdown', exitAction);
 
@@ -183,7 +180,6 @@ export default class GameScene extends Phaser.Scene {
 
     togglePause() {
         this.isPaused = !this.isPaused;
-        
         if (this.isPaused) {
             this.physics.pause(); 
             this.pauseContainer.setVisible(true);
@@ -197,24 +193,22 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- FUNCIONES AUXILIARES (Sin cambios) ---
-    // Copiadas para integridad del archivo
-    createParticles() {
-        this.particleManager = this.add.particles('particle_texture'); 
-        if (!this.textures.exists('pixel')) {
-            const graphics = this.make.graphics({x: 0, y: 0, add: false});
-            graphics.fillStyle(0xffffff, 1);
-            graphics.fillRect(0, 0, 4, 4);
-            graphics.generateTexture('pixel', 4, 4);
-        }
-    }
+    // --- EFECTOS VISUALES ---
     createExplosion(x, y, color) {
+        // Aseguramos usar la textura 'pixel' que generamos
         const emitter = this.add.particles(x, y, 'pixel', {
-            speed: { min: 50, max: 150 }, angle: { min: 0, max: 360 }, scale: { start: 2, end: 0 },
-            blendMode: 'ADD', lifespan: 500, gravityY: 200, quantity: 10, tint: color
+            speed: { min: 50, max: 150 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 2, end: 0 },
+            blendMode: 'ADD',
+            lifespan: 500,
+            gravityY: 200,
+            quantity: 10,
+            tint: color
         });
         this.time.delayedCall(600, () => emitter.destroy());
     }
+
     showFloatingText(x, y, message, color = '#fff') {
         const isCrit = color === '#ffaa00';
         const fontSize = isCrit ? '32px' : '20px';
@@ -225,6 +219,7 @@ export default class GameScene extends Phaser.Scene {
             this.tweens.add({ targets: text, y: y - 50, alpha: 0, scale: 1.2, duration: 800, ease: 'Power2', onComplete: () => text.destroy() });
         }
     }
+
     showLevelUpEffect() {
         const txt = this.add.text(640, 360, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0);
         this.tweens.add({ targets: txt, scale: 1.5, duration: 500, ease: 'Back.out', yoyo: true, hold: 1000, onComplete: () => txt.destroy() });
@@ -232,25 +227,37 @@ export default class GameScene extends Phaser.Scene {
         gameState.playerStats.hp = gameState.playerStats.maxHp;
         this.player.createEffect('heal');
     }
+
+    // --- LÓGICA DE JUEGO AUXILIAR ---
     startNextWaveAction() { if (this.isTimerRunning) this.startNextWave(); }
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
+    
     startNextWave() {
         this.isTimerRunning = false;
         this.waveTimerContainer.setVisible(false);
         if (this.spawnTimer) this.spawnTimer.remove();
         if (this.currentWave > this.totalWaves) { this.victory(); return; }
+        
         this.waveInProgress = true;
+        
+        // Director de Oleadas
         const levelDiff = this.currentLevelData.difficulty || 1;
         let enemyType = 'normal';
         let count = 5 + (this.currentWave * 2);
         let interval = 1500;
-        let hpMult = levelDiff; 
-        if (this.currentWave === 1) { enemyType = 'normal'; hpMult *= 1.0; } 
-        else if (this.currentWave === 2) { enemyType = 'speed'; count = 10; interval = 800; hpMult *= 0.8; } 
-        else if (this.currentWave === 3) { enemyType = 'tank'; count = 4; interval = 2500; hpMult *= 1.5; } 
-        else if (this.currentWave === 4) { enemyType = 'mix_healer'; count = 8; interval = 1200; hpMult *= 1.2; } 
+        let hpMult = levelDiff;
+
+        if (this.currentWave === 1) { enemyType = 'normal'; hpMult *= 1.0; }
+        else if (this.currentWave === 2) { enemyType = 'speed'; count = 10; interval = 800; hpMult *= 0.8; }
+        else if (this.currentWave === 3) { enemyType = 'tank'; count = 4; interval = 2500; hpMult *= 1.5; }
+        else if (this.currentWave === 4) { enemyType = 'mix_healer'; count = 8; interval = 1200; hpMult *= 1.2; }
         else if (this.currentWave === 5) { enemyType = 'boss'; count = 1; hpMult *= 5.0; this.waveInfoText.setText("OLEADA: BOSS!"); this.waveInfoText.setColor('#ff0000'); }
-        if (this.currentWave !== 5) { this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`); this.waveInfoText.setColor(this.theme.accent); }
+
+        if (this.currentWave !== 5) {
+            this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`);
+            this.waveInfoText.setColor(this.theme.accent);
+        }
+
         this.enemiesToSpawn = count;
         this.spawnTimer = this.time.addEvent({
             delay: interval,
@@ -264,6 +271,7 @@ export default class GameScene extends Phaser.Scene {
             repeat: count - 1
         });
     }
+
     spawnEnemy(hpMult, type) { const enemy = new Enemy(this, this.pathPoints, hpMult, type); this.enemies.add(enemy); }
     checkWaveStatus() { if (this.isTimerRunning) return; if (this.enemiesToSpawn <= 0 && this.enemies.countActive(true) === 0) { this.waveInProgress = false; this.currentWave++; if (this.currentWave > this.totalWaves) this.victory(); else this.startWaveTimer(12); } }
     addEnemyReward(amount) { this.coins += amount; this.updateUI(); this.showFloatingText(80, 850, `+$${amount}`, '#ffff00'); }
@@ -275,12 +283,13 @@ export default class GameScene extends Phaser.Scene {
     updateUpgradeMenuText() { if (!this.selectedTowerToUpgrade) return; const t = this.selectedTowerToUpgrade; if (t.level >= t.maxLevel) { this.upgradeText.setText(`${t.typeName} (MAX)\nDaño: ${t.damage}`); this.upgradeBtn.setVisible(false); this.upgradeBtnText.setVisible(false); } else { this.upgradeBtn.setVisible(true); this.upgradeBtnText.setVisible(true); this.upgradeText.setText(`${t.typeName} Lv ${t.level}\nDaño: ${t.damage} -> ${Math.floor(t.damage * 1.2)}`); this.upgradeBtnText.setText(`MEJORAR ($${t.upgradeCost})`); } this.sellBtnText.setText(`VENDER (+$${t.totalInvestment})`); }
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${t.totalInvestment}`, '#ffff00'); } }
-    updateUI() { const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); 
-        const xpPercent = Math.min(1, gameState.heroXP / gameState.heroMaxXP);
-        if(this.xpBarFill) this.xpBarFill.width = 200 * xpPercent;
-        if(this.lvlText) this.lvlText.setText(`Lvl ${gameState.heroLevel}`);
-    }
+    updateUI() { const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); if(this.xpBarFill) this.xpBarFill.width = 200 * Math.min(1, gameState.heroXP / gameState.heroMaxXP); if(this.lvlText) this.lvlText.setText(`Lvl ${gameState.heroLevel}`); }
     updateSkillUI() { if (!this.player) return; const cd = this.player.skillCooldown; const maxCd = this.player.skillMaxCooldown; if (cd > 0) { const progress = 1 - (cd / maxCd); this.skillBar.width = 200 * progress; this.skillBar.setFillStyle(0x555555); this.skillText.setText(`${(cd / 1000).toFixed(1)}s`); } else { this.skillBar.width = 200; this.skillBar.setFillStyle(this.theme.accent); if (this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)"); } }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
+    spawnLoot(x, y) { const levelId = this.currentLevelData.id || 1; if (Math.random() > 0.20) return; const luck = (levelId - 1) * 0.05; const roll = Math.random() * 100; let rarity = 'common'; const tGold = 0.01 + (luck * 0.01); const tRed = 0.10 + (luck * 0.05); const tPurple = 0.29 + (luck * 0.1); const tGreen = 5.09 + (luck * 0.5); if (roll < tGold) rarity = 'legendary'; else if (roll < tRed) rarity = 'epic'; else if (roll < tPurple) rarity = 'rare'; else if (roll < tGreen) rarity = 'uncommon'; else rarity = 'common'; const randType = Math.random(); let type = 'wood'; if (randType > 0.66) type = 'copper'; else if (randType > 0.33) type = 'cloth'; const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
+    collectLoot(lootItem) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); lootItem.destroy(); }
+    onEnemyLeaks(damage) { gameState.baseHp -= damage; this.cameras.main.flash(200, 255, 0, 0); this.updateUI(); if (gameState.baseHp <= 0) this.gameOver(); }
+    victory() { this.physics.pause(); if (this.currentLevelData.id >= gameState.levelsUnlocked) gameState.levelsUnlocked = this.currentLevelData.id + 1; const goldReward = this.currentLevelData.rewardGold || 100; gameState.gold += goldReward; SaveSystem.save(); const panel = this.add.container(640, 360).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.9).setStrokeStyle(4, 0xffd700); const t1 = this.add.text(0, -100, "¡VICTORIA!", {fontSize:'40px', color:'#00ff00', fontStyle:'bold'}).setOrigin(0.5); const t2 = this.add.text(0, -40, `Oro: +${goldReward}`, {fontSize:'24px'}).setOrigin(0.5); const btn = this.add.rectangle(0, 80, 200, 50, 0x006400).setInteractive({useHandCursor:true}); const btnT = this.add.text(0, 80, "CONTINUAR", {fontSize:'20px'}).setOrigin(0.5); panel.add([bg, t1, t2, btn, btnT]); btn.on('pointerdown', ()=>this.scene.start('WorldMapScene')); }
     createSpawnIndicator() { if (!this.pathPoints || this.pathPoints.length === 0) return; const startX = this.pathPoints[0].x; const startY = this.pathPoints[0].y; const marker = this.add.circle(startX, startY, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(startX, startY - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
+    gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.waveInfoText.setText("DERROTA"); this.time.delayedCall(3000, () => { gameState.playerStats.hp = gameState.playerStats.maxHp; this.scene.start('MainMenuScene'); }); }
 }
