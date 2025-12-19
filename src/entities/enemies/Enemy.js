@@ -1,5 +1,6 @@
 // src/entities/enemies/Enemy.js
 import Phaser from 'phaser';
+import RPGSystem from '../../systems/RPGSystem.js';
 
 export default class Enemy extends Phaser.GameObjects.Rectangle {
     constructor(scene, path, speedMult, hpMult, isBoss) {
@@ -30,7 +31,7 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         this.follower.t += this.speed * delta;
         if (this.follower.t >= 1) {
             this.hpBar.destroy();
-            this.die(false); 
+            this.die(false); // Murió por escapar
             return;
         }
         const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))];
@@ -66,12 +67,10 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         
         // --- TEXTO FLOTANTE DE DAÑO ---
         if (this.scene && this.scene.showFloatingText) {
-            const isCrit = Math.random() > 0.8; // Simulación de crítico (20%)
+            const isCrit = Math.random() > 0.8; 
             const finalDamage = isCrit ? Math.floor(amount * 1.5) : amount;
             const color = isCrit ? '#ffaa00' : '#ffffff';
-            const scale = isCrit ? 1.5 : 1;
             
-            // Ajustamos HP real si fue crítico
             if (isCrit) this.hp -= (finalDamage - amount);
 
             this.scene.showFloatingText(this.x, this.y - 20, `-${finalDamage}`, color);
@@ -96,7 +95,13 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
                     currentScene.createExplosion(this.x, this.y, this.colorVal);
                 }
             }
+            
+            // --- CORRECCIÓN: XP SOLO SI LO MATA EL JUGADOR ---
+            const xpAmount = this.isBoss ? 50 : 10;
+            RPGSystem.gainHeroXP(xpAmount);
+
         } else {
+            // Se escapó
             if (currentScene && currentScene.onEnemyLeaks) currentScene.onEnemyLeaks(1); 
         }
 

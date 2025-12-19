@@ -65,16 +65,31 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'forge') this.refreshForge();
     }
 
-    // --- HÉROE ---
+    // --- HÉROE MEJORADO ---
     createHeroView() {
-        this.heroStatsText = this.add.text(640, 320, '', { fontSize: '18px', align: 'center', lineHeight: 30 }).setOrigin(0.5);
+        // Stats Texto
+        this.heroStatsText = this.add.text(440, 300, '', { fontSize: '16px', lineHeight: 24 }).setOrigin(0, 0);
         this.heroContainer.add(this.heroStatsText);
 
+        // Nivel y XP
+        this.heroLevelText = this.add.text(640, 180, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
+        this.heroContainer.add(this.heroLevelText);
+
+        // Botones de Subir Stats
+        this.createStatButton(850, 300, "Daño (+1)", 'damage');
+        this.createStatButton(850, 350, "Vida (+10)", 'hp');
+        this.createStatButton(850, 400, "Vel. Atq (+10ms)", 'speed');
+        this.createStatButton(850, 450, "Defensa (+1)", 'defense');
+
+        this.pointsText = this.add.text(850, 260, "Puntos: 0", { fontSize: '18px', color: '#ffd700' }).setOrigin(0.5);
+        this.heroContainer.add(this.pointsText);
+
+        // Clases
         const classes = ['paladin', 'guerrero', 'arquero', 'mago', 'asesino'];
         let startX = 340;
         classes.forEach(clsKey => {
-            const btn = this.add.rectangle(startX, 160, 100, 30, 0x555555).setInteractive({ useHandCursor: true });
-            const txt = this.add.text(startX, 160, clsKey.toUpperCase(), { fontSize: '12px' }).setOrigin(0.5);
+            const btn = this.add.rectangle(startX, 130, 100, 30, 0x555555).setInteractive({ useHandCursor: true });
+            const txt = this.add.text(startX, 130, clsKey.toUpperCase(), { fontSize: '12px' }).setOrigin(0.5);
             btn.on('pointerdown', () => {
                 this.unequipAll();
                 gameState.selectedClass = clsKey;
@@ -85,16 +100,18 @@ export default class MainMenuScene extends Phaser.Scene {
             this.heroContainer.add([btn, txt]);
             startX += 150;
         });
-        this.heroContainer.add(this.add.text(640, 130, 'SELECCIONA CLASE (Desequipará todo):', { fontSize: '16px', color: '#aaa' }).setOrigin(0.5));
     }
 
-    unequipAll() {
-        ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => {
-            if (gameState.equipment[slot]) {
-                gameState.inventory.push(gameState.equipment[slot]);
-                gameState.equipment[slot] = null;
+    createStatButton(x, y, label, statKey) {
+        const btn = this.add.rectangle(x, y, 180, 30, 0x006400).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(x, y, label, { fontSize: '14px' }).setOrigin(0.5);
+        btn.on('pointerdown', () => {
+            if (RPGSystem.spendStatPoint(statKey)) {
+                this.refreshHero();
+                SaveSystem.save();
             }
         });
+        this.heroContainer.add([btn, txt]);
     }
 
     refreshHero() {
@@ -102,252 +119,55 @@ export default class MainMenuScene extends Phaser.Scene {
         const s = gameState.playerStats;
         const eq = gameState.equipment;
         const clsName = gameState.selectedClass.toUpperCase();
+        
+        // Mostrar Stats Avanzados
         this.heroStatsText.setText(`
-        CLASE: [ ${clsName} ]
-        Vida: ${Math.floor(s.hp)}/${s.maxHp} | Daño: ${s.damage} | Def: ${s.defense}
+        CLASE: ${clsName}
         
-        -- EQUIPO --
-        Mano Der: ${eq.mainHand ? eq.mainHand.name : 'Vacío'}
-        Mano Izq: ${eq.offHand ? eq.offHand.name : 'Vacío'}
-        Armadura: ${eq.armor ? eq.armor.name : 'Vacío'}
-        Accesorio: ${eq.accessory ? eq.accessory.name : 'Vacío'}
+        Vida: ${Math.floor(s.hp)}/${s.maxHp}
+        Daño Base: ${s.damage}
+        Defensa: ${s.defense} (Reducción Daño)
+        Vel. Ataque: ${s.attackSpeed}ms
+        Rango: ${s.range}
+        
+        -- AVANZADO --
+        Crítico: ${s.critChance}% (x${s.critDamage}%)
+        Robo Vida: ${s.lifesteal}%
+        Daño Skill: +${s.skillDamage}%
+        Sangrado: ${s.bleedChance}%
+        Espinas: ${s.thorns}
         `);
+
+        this.heroLevelText.setText(`NIVEL ${gameState.heroLevel} (XP: ${gameState.heroXP}/${gameState.heroMaxXP})`);
+        this.pointsText.setText(`PUNTOS DISPONIBLES: ${gameState.statPoints}`);
     }
 
-    // --- MOCHILA (CORREGIDA) ---
-    createInventoryView() {
-        this.createInvCategoryBtn(400, 130, "TODO", 'all');
-        this.createInvCategoryBtn(550, 130, "ARMAS", 'weapon');
-        this.createInvCategoryBtn(700, 130, "ARMADURA", 'armor');
-        this.createInvCategoryBtn(850, 130, "JOYAS", 'accessory');
-
-        this.invMatsText = this.add.text(50, 160, '', { fontSize: '14px', lineHeight: 20 });
-        this.invContainer.add(this.invMatsText);
-
-        this.invItemsContainer = this.add.container(350, 180);
-        this.invContainer.add(this.invItemsContainer);
-        
-        this.itemDetailContainer = this.add.container(950, 180);
-        this.itemDetailContainer.setVisible(false);
-        this.invContainer.add(this.itemDetailContainer);
-
-        const bg = this.add.rectangle(150, 200, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
-        this.detailTitle = this.add.text(150, 40, "Nombre", { fontSize: '18px', fontStyle: 'bold', wordWrap: { width: 260 }, align: 'center' }).setOrigin(0.5);
-        this.detailStats = this.add.text(150, 120, "Stats...", { fontSize: '14px', align: 'center', wordWrap: { width: 260 } }).setOrigin(0.5);
-        this.equipBtn = this.createActionButton(150, 250, "EQUIPAR", () => this.actionEquip());
-        this.fuseBtn = this.createActionButton(150, 300, "FUSIONAR (Req. 2)", () => this.actionFuse());
-        this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn]);
-    }
-
-    createInvCategoryBtn(x, y, label, cat) {
-        const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#888', fontStyle: 'bold' })
-            .setInteractive({ useHandCursor: true }).setOrigin(0.5);
-        btn.on('pointerdown', () => {
-            this.inventoryCategory = cat;
-            this.selectedItem = null;
-            this.itemDetailContainer.setVisible(false);
-            this.refreshInventory();
-        });
-        this.invContainer.add(btn);
-    }
-
-    refreshInventory() {
-        // Materiales
-        let matContent = "--- MATERIALES ---\n";
-        ['wood', 'cloth', 'copper', 'leather'].forEach(mat => {
-            matContent += `\n${mat.toUpperCase()}:\n`;
-            Object.keys(RARITY).forEach(rarity => {
-                const count = gameState.materials[mat][rarity];
-                if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`;
-            });
-        });
-        this.invMatsText.setText(matContent);
-
-        // --- CORRECCIÓN DE ITEMS ---
-        this.invItemsContainer.removeAll(true);
-        
-        // Filtrar
-        const filteredItems = gameState.inventory.filter(i => {
-            if (!i) return false; // Seguridad contra nulos
-            if (this.inventoryCategory === 'all') return true;
-            if (i.type === this.inventoryCategory) return true;
-            if (this.inventoryCategory === 'weapon' && (i.type === 'weapon' || i.type === 'offhand')) return true;
-            if (this.inventoryCategory === 'armor' && i.type === 'armor') return true;
-            return false;
-        });
-
-        const maxSlots = gameState.maxInventorySlots || 30;
-        const limitText = this.add.text(0, -30, `CAPACIDAD: ${gameState.inventory.length} / ${maxSlots}`, { fontSize: '14px', color: '#fff' });
-        this.invItemsContainer.add(limitText);
-
-        if (filteredItems.length === 0) {
-            this.invItemsContainer.add(this.add.text(0, 0, "(Vacío)", { color: '#888' }));
-        }
-
-        let col = 0; let row = 0;
-        
-        filteredItems.forEach(item => {
-            // Protección contra ítems corruptos (sin color)
-            let itemColor = item.color;
-            if (itemColor === undefined || itemColor === null) itemColor = 0xffffff;
-
-            const itemContainer = this.add.container(col * 180, row * 50);
-            const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true });
-            
-            const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
-            const nameTxt = this.add.text(10, 12, item.name || "Ítem Desconocido", { fontSize: '12px', color: colorHex, wordWrap: {width: 150} });
-            
-            bg.on('pointerdown', () => this.selectItem(item));
-            itemContainer.add([bg, nameTxt]);
-            this.invItemsContainer.add(itemContainer);
-
-            col++;
-            if (col >= 3) { col = 0; row++; }
-        });
-        
-        this.goldText.setText(`ORO: ${gameState.gold}`);
-    }
-
-    selectItem(item) {
-        this.selectedItem = item;
-        this.itemDetailContainer.setVisible(true);
-        const itemColor = item.color || 0xffffff;
-        const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
-        
-        this.detailTitle.setText(item.name);
-        this.detailTitle.setColor(colorHex);
-        
-        // Manejo seguro de stats
-        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
-        
-        this.detailStats.setText(
-            `Tipo: ${item.type || '?'} (${item.subType || '-'}) \n` +
-            `Rareza: ${RARITY[item.rarity] ? RARITY[item.rarity].name : '?'}\n` +
-            `2 Manos: ${item.twoHanded ? 'SÍ' : 'NO'}\n` +
-            `Stats:\n${statsStr}`
-        );
-    }
-
-    createActionButton(x, y, text, callback) {
-        const container = this.add.container(x, y);
-        const bg = this.add.rectangle(0, 0, 200, 35, 0x006400).setInteractive({ useHandCursor: true });
-        const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
-        bg.on('pointerdown', callback);
-        container.add([bg, txt]);
-        return container;
-    }
-
-    actionEquip() {
-        if (!this.selectedItem) return;
-        const item = this.selectedItem;
-        const cls = gameState.selectedClass;
-        let error = "";
-
-        if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Arquero: Solo Arcos, Cuero y Anillos";
-        if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Guerrero: Solo Espadas, Placas y Anillos";
-        if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Paladín: Espada, Escudo, Placas";
-        if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Mago: Bastón y Tela";
-        if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Asesino: Dagas y Cuero";
-
-        if (error) { alert(error); return; }
-
-        if (item.type === 'armor') this.swapping('armor', item);
-        else if (item.type === 'accessory') this.swapping('accessory', item);
-        else if (item.type === 'offhand') this.swapping('offHand', item);
-        else if (item.type === 'weapon') {
-            if (item.twoHanded) {
-                this.forceUnequip('mainHand');
-                this.forceUnequip('offHand');
-                gameState.equipment.mainHand = item;
-                this.removeItemFromInventory(item);
-            } else {
-                if (!gameState.equipment.mainHand) {
-                    gameState.equipment.mainHand = item;
-                    this.removeItemFromInventory(item);
-                } else if (this.canDualWield(cls) && !gameState.equipment.offHand) {
-                    gameState.equipment.offHand = item;
-                    this.removeItemFromInventory(item);
-                } else {
-                    this.swapping('mainHand', item);
-                }
-            }
-        }
-
-        updatePlayerStats();
-        this.selectedItem = null;
-        this.itemDetailContainer.setVisible(false);
-        this.refreshInventory();
-        SaveSystem.save();
-    }
-
-    canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
-
-    swapping(slot, newItem) {
-        if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]);
-        gameState.equipment[slot] = newItem;
-        this.removeItemFromInventory(newItem);
-    }
-
-    forceUnequip(slot) {
-        if (gameState.equipment[slot]) {
-            gameState.inventory.push(gameState.equipment[slot]);
-            gameState.equipment[slot] = null;
-        }
-    }
-
-    removeItemFromInventory(item) {
-        const idx = gameState.inventory.indexOf(item);
-        if (idx > -1) gameState.inventory.splice(idx, 1);
-    }
-
-    actionFuse() {
-        if (!this.selectedItem) return;
-        const item1 = this.selectedItem;
-        const idx2 = gameState.inventory.findIndex(i => i !== item1 && i.recipeId === item1.recipeId && i.rarity === item1.rarity && i.enchant === item1.enchant);
-        
-        if (idx2 === -1) { alert("Necesitas otro objeto idéntico"); return; }
-        const item2 = gameState.inventory[idx2];
-        const newItem = RPGSystem.fuseItems(item1, item2);
-        
-        if (newItem) {
-            this.removeItemFromInventory(item1);
-            this.removeItemFromInventory(item2);
-            gameState.inventory.push(newItem);
-            this.selectItem(newItem);
-            this.refreshInventory();
-            SaveSystem.save();
-        }
-    }
-
+    // --- FORJA MEJORADA (XP VISIBLE) ---
     createForgeView() {
-        this.profText = this.add.text(640, 140, '', { fontSize: '14px', align: 'center', color: '#aaaaaa' }).setOrigin(0.5);
+        this.profText = this.add.text(640, 140, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
         this.forgeMsg = this.add.text(640, 650, 'Selecciona receta', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.forgeContainer.add(this.forgeMsg);
 
-        this.createForgeCatBtn(400, 170, "HERRERÍA (Armas)", 'weapon');
-        this.createForgeCatBtn(640, 170, "SASTRERÍA (Armaduras)", 'armor');
-        this.createForgeCatBtn(880, 170, "JOYERÍA (Accesorios)", 'accessory');
+        this.createForgeCatBtn(400, 180, "HERRERÍA (Armas)", 'weapon');
+        this.createForgeCatBtn(640, 180, "SASTRERÍA (Armaduras)", 'armor');
+        this.createForgeCatBtn(880, 180, "JOYERÍA (Accesorios)", 'accessory');
 
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
     }
 
-    createForgeCatBtn(x, y, label, cat) {
-        const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
-        btn.on('pointerdown', () => {
-            this.forgeCategory = cat;
-            this.refreshForge();
-        });
-        this.forgeContainer.add(btn);
-    }
-
     refreshForge() {
         this.goldText.setText(`ORO: ${gameState.gold}`);
         const p = gameState.professions;
-        this.profText.setText(`Weaponsmith: ${p.weaponsmith.level} | Armorsmith: ${p.armorsmith.level} | Jewelry: ${p.jewelry.level}`);
+        // Mostrar info detallada de profesiones
+        this.profText.setText(
+            `HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\n` +
+            `SASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\n` +
+            `JOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`
+        );
+        
         this.recipesContainer.removeAll(true);
-
         const filteredRecipes = RECIPES.filter(r => {
             if (this.forgeCategory === 'weapon') return r.type === 'weapon';
             if (this.forgeCategory === 'armor') return r.type === 'armor' || r.type === 'offhand';
@@ -355,7 +175,7 @@ export default class MainMenuScene extends Phaser.Scene {
             return false;
         });
 
-        let startX = 300; let startY = 220; let col = 0;
+        let startX = 300; let startY = 240; let col = 0;
         filteredRecipes.forEach(recipe => {
             ['common', 'uncommon', 'rare'].forEach((rarity, i) => {
                 this.createRecipeBtn(startX + (col * 300), startY + (i * 60), recipe, rarity);
@@ -365,31 +185,22 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    createRecipeBtn(x, y, recipe, rarity) {
-        const rarityData = RARITY[rarity];
-        const cost = recipe.cost * rarityData.mult;
-        const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0');
-        
-        const btn = this.add.rectangle(x, y, 280, 50, 0x333333).setInteractive({ useHandCursor: true });
-        btn.setStrokeStyle(2, rarityData.color);
-        const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})\nReq: 3 ${recipe.mat} + $${cost}`, { fontSize: '12px', align: 'center', color: hexColor }).setOrigin(0.5);
-
-        btn.on('pointerdown', () => {
-            if (gameState.gold < cost) { this.forgeMsg.setText("¡Falta Oro!"); return; }
-            const result = RPGSystem.craftItem(recipe.id, rarity);
-            
-            if (result.success) {
-                gameState.gold -= cost;
-                gameState.inventory.push(result.item);
-                this.forgeMsg.setText(`¡CRAFTEADO! ${result.item.name}`);
-                this.forgeMsg.setColor('#00ff00');
-                this.refreshForge();
-                SaveSystem.save();
-            } else {
-                this.forgeMsg.setText(`ERROR: ${result.error}`);
-                this.forgeMsg.setColor('#ff0000');
-            }
-        });
-        this.recipesContainer.add([btn, txt]);
-    }
+    // ... (El resto de funciones createTabButton, createInventoryView, unequipAll, etc. se mantienen igual que en el código anterior.
+    // Solo copia las funciones modificadas arriba y asegúrate de mantener las funciones auxiliares de Inventario y Crafteo del paso anterior.)
+    
+    // --- FUNCIONES AUXILIARES NECESARIAS (NO OLVIDAR COPIARLAS DE TU CÓDIGO ANTERIOR O DE AQUÍ) ---
+    unequipAll() { ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }); }
+    createInvCategoryBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#888', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); }); this.invContainer.add(btn); }
+    createInventoryView() { this.createInvCategoryBtn(400, 130, "TODO", 'all'); this.createInvCategoryBtn(550, 130, "ARMAS", 'weapon'); this.createInvCategoryBtn(700, 130, "ARMADURA", 'armor'); this.createInvCategoryBtn(850, 130, "JOYAS", 'accessory'); this.invMatsText = this.add.text(50, 160, '', { fontSize: '14px', lineHeight: 20 }); this.invContainer.add(this.invMatsText); this.invItemsContainer = this.add.container(350, 180); this.invContainer.add(this.invItemsContainer); this.itemDetailContainer = this.add.container(950, 180); this.itemDetailContainer.setVisible(false); this.invContainer.add(this.itemDetailContainer); const bg = this.add.rectangle(150, 200, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffffff); this.detailTitle = this.add.text(150, 40, "Nombre", { fontSize: '18px', fontStyle: 'bold', wordWrap: { width: 260 }, align: 'center' }).setOrigin(0.5); this.detailStats = this.add.text(150, 120, "Stats...", { fontSize: '14px', align: 'center', wordWrap: { width: 260 } }).setOrigin(0.5); this.equipBtn = this.createActionButton(150, 250, "EQUIPAR", () => this.actionEquip()); this.fuseBtn = this.createActionButton(150, 300, "FUSIONAR (Req. 2)", () => this.actionFuse()); this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn]); }
+    refreshInventory() { let matContent = "--- MATERIALES ---\n"; ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'all') return true; if (i.type === this.inventoryCategory) return true; if (this.inventoryCategory === 'weapon' && (i.type === 'weapon' || i.type === 'offhand')) return true; if (this.inventoryCategory === 'armor' && i.type === 'armor') return true; return false; }); const limitText = this.add.text(0, -30, `CAPACIDAD: ${gameState.inventory.length} / ${gameState.maxInventorySlots}`, { fontSize: '14px', color: '#fff' }); this.invItemsContainer.add(limitText); if (filteredItems.length === 0) { this.invItemsContainer.add(this.add.text(0, 0, "(Vacío)", { color: '#888' })); } let col = 0; let row = 0; filteredItems.forEach(item => { let itemColor = item.color || 0xffffff; const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); const nameTxt = this.add.text(10, 12, item.name || "Ítem", { fontSize: '12px', color: colorHex, wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
+    selectItem(item) { this.selectedItem = item; this.itemDetailContainer.setVisible(true); const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex); const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats"; this.detailStats.setText( `Tipo: ${item.type} (${item.subType || '-'}) \n` + `Rareza: ${RARITY[item.rarity].name}\n` + `Stats:\n${statsStr}` ); }
+    createActionButton(x, y, text, callback) { const container = this.add.container(x, y); const bg = this.add.rectangle(0, 0, 200, 35, 0x006400).setInteractive({ useHandCursor: true }); const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); bg.on('pointerdown', callback); container.add([bg, txt]); return container; }
+    actionEquip() { if (!this.selectedItem) return; const item = this.selectedItem; const cls = gameState.selectedClass; let error = ""; if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (error) { alert(error); return; } if (item.type === 'armor') this.swapping('armor', item); else if (item.type === 'accessory') this.swapping('accessory', item); else if (item.type === 'offhand') this.swapping('offHand', item); else if (item.type === 'weapon') { if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else { if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; this.removeItemFromInventory(item); } else { this.swapping('mainHand', item); } } } updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
+    canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
+    swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
+    forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
+    removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
+    actionFuse() { if (!this.selectedItem) return; const item1 = this.selectedItem; const idx2 = gameState.inventory.findIndex(i => i !== item1 && i.recipeId === item1.recipeId && i.rarity === item1.rarity && i.enchant === item1.enchant); if (idx2 === -1) { alert("Necesitas otro igual"); return; } const item2 = gameState.inventory[idx2]; const newItem = RPGSystem.fuseItems(item1, item2); if (newItem) { this.removeItemFromInventory(item1); this.removeItemFromInventory(item2); gameState.inventory.push(newItem); this.selectItem(newItem); this.refreshInventory(); SaveSystem.save(); } }
+    createForgeCatBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btn.on('pointerdown', () => { this.forgeCategory = cat; this.refreshForge(); }); this.forgeContainer.add(btn); }
+    createRecipeBtn(x, y, recipe, rarity) { const rarityData = RARITY[rarity]; const cost = recipe.cost * rarityData.mult; const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0'); const btn = this.add.rectangle(x, y, 280, 50, 0x333333).setInteractive({ useHandCursor: true }); btn.setStrokeStyle(2, rarityData.color); const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})\nReq: 3 ${recipe.mat} + $${cost}`, { fontSize: '12px', align: 'center', color: hexColor }).setOrigin(0.5); btn.on('pointerdown', () => { if (gameState.gold < cost) { this.forgeMsg.setText("¡Falta Oro!"); return; } const result = RPGSystem.craftItem(recipe.id, rarity); if (result.success) { gameState.gold -= cost; gameState.inventory.push(result.item); this.forgeMsg.setText(`¡CRAFTEADO! ${result.item.name}`); this.forgeMsg.setColor('#00ff00'); this.refreshForge(); SaveSystem.save(); } else { this.forgeMsg.setText(`ERROR: ${result.error}`); this.forgeMsg.setColor('#ff0000'); } }); this.recipesContainer.add([btn, txt]); }
 }
