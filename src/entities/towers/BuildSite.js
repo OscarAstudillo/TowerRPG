@@ -3,32 +3,23 @@ import Phaser from 'phaser';
 
 export default class BuildSite extends Phaser.GameObjects.Rectangle {
     constructor(scene, x, y) {
-        // Cuadrado blanco (0xffffff), semitransparente (alpha 0.3), tamaño 40x40
-        super(scene, x, y, 40, 40, 0xffffff, 0.3);
-        
+        super(scene, x, y, 60, 60, 0x00ff00, 0.1); // Un poco transparente
         scene.add.existing(this);
-        
-        // Lo hacemos interactivo para detectar clics
         this.setInteractive({ useHandCursor: true });
         
-        // Borde blanco brillante
-        this.setStrokeStyle(2, 0xffffff);
-
-        this.isOccupied = false; // ¿Ya tiene torre?
-
-        // Efecto al pasar el mouse por encima (Hover)
-        this.on('pointerover', () => {
-            if (!this.isOccupied) this.setFillStyle(0x00ff00, 0.5); // Se pone verde
-        });
-
-        this.on('pointerout', () => {
-            if (!this.isOccupied) this.setFillStyle(0xffffff, 0.3); // Vuelve a blanco
-        });
+        this.isOccupied = false;
+        this.setStrokeStyle(2, 0x00ff00, 0.5);
     }
 
     occupy() {
         this.isOccupied = true;
-        this.setVisible(false); // Ocultar el cuadrado blanco cuando hay torre
-        this.disableInteractive(); // Ya no se puede clicar
+        this.input.enabled = false; // Desactivar clics
+        this.setVisible(false); // Ocultar el cuadro verde
+    }
+
+    free() {
+        this.isOccupied = false;
+        this.input.enabled = true; // Reactivar clics
+        this.setVisible(true); // Mostrar de nuevo
     }
 }
