@@ -1,40 +1,54 @@
 // src/config/Recipes.js
 
 export const RECIPES = [
+    // --- ARMAS (Weaponsmith) ---
     {
-        id: 'wood_sword',
-        name: 'Espada de Madera',
-        type: 'weapon', // <--- NUEVO: Tipo de hueco
-        profession: 'weaponsmith',
-        cost: { wood: 3, cloth: 0, copper: 0 },
-        bonus: { stat: 'damage', value: 5 },
-        description: "Daño +5"
+        id: 'sword_common', name: "Espada Corta", type: 'weapon', subType: 'sword',
+        prof: 'weaponsmith', mat: 'copper', cost: 50, twoHanded: false,
+        stats: { damage: 15 }
     },
     {
-        id: 'iron_sword', // Ejemplo de mejora
-        name: 'Espada de Hierro',
-        type: 'weapon',
-        profession: 'weaponsmith',
-        cost: { wood: 2, cloth: 0, copper: 5 },
-        bonus: { stat: 'damage', value: 15 },
-        description: "Daño +15"
+        id: 'bow_wood', name: "Arco de Caza", type: 'weapon', subType: 'bow',
+        prof: 'weaponsmith', mat: 'wood', cost: 60, twoHanded: true, // Ocupa 2 manos
+        stats: { damage: 20, range: 100 } // Da rango extra
     },
     {
-        id: 'cloth_armor',
-        name: 'Túnica de Aprendiz',
-        type: 'armor', // <--- NUEVO
-        profession: 'armorsmith',
-        cost: { wood: 0, cloth: 3, copper: 0 },
-        bonus: { stat: 'maxHp', value: 50 },
-        description: "Vida Max +50"
+        id: 'staff_apprentice', name: "Bastón Aprendiz", type: 'weapon', subType: 'staff',
+        prof: 'weaponsmith', mat: 'wood', cost: 70, twoHanded: true,
+        stats: { damage: 25, range: 50 }
     },
     {
-        id: 'copper_ring',
-        name: 'Anillo de Cobre',
-        type: 'accessory', // <--- NUEVO
-        profession: 'jewelry',
-        cost: { wood: 0, cloth: 0, copper: 2 },
-        bonus: { stat: 'attackSpeed', value: -100 },
-        description: "Vel. Ataque +Rápida"
+        id: 'dagger_rogue', name: "Daga Veloz", type: 'weapon', subType: 'dagger',
+        prof: 'weaponsmith', mat: 'copper', cost: 45, twoHanded: false,
+        stats: { damage: 10, attackSpeed: -100 } // Ataca más rápido
+    },
+
+    // --- ARMADURAS Y ESCUDOS (Armorsmith) ---
+    {
+        id: 'shield_wooden', name: "Escudo Redondo", type: 'offhand', subType: 'shield',
+        prof: 'armorsmith', mat: 'wood', cost: 40,
+        stats: { defense: 5, maxHp: 20 }
+    },
+    {
+        id: 'armor_plate', name: "Peto de Placas", type: 'armor', subType: 'plate',
+        prof: 'armorsmith', mat: 'copper', cost: 100,
+        stats: { maxHp: 100, defense: 10 }
+    },
+    {
+        id: 'armor_leather', name: "Jubón de Cuero", type: 'armor', subType: 'leather',
+        prof: 'armorsmith', mat: 'leather', cost: 80,
+        stats: { maxHp: 60, moveSpeed: 10 }
+    },
+    {
+        id: 'armor_cloth', name: "Túnica de Mago", type: 'armor', subType: 'cloth',
+        prof: 'armorsmith', mat: 'cloth', cost: 60,
+        stats: { maxHp: 40, attackSpeed: -50 } // Lanza hechizos más rápido
+    },
+
+    // --- JOYERÍA (Jewelry) ---
+    {
+        id: 'ring_copper', name: "Anillo Simple", type: 'accessory', subType: 'ring',
+        prof: 'jewelry', mat: 'copper', cost: 150,
+        stats: { damage: 5, maxHp: 10 }
     }
 ];

@@ -253,7 +253,33 @@ export default class GameScene extends Phaser.Scene {
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); const txt = this.add.text(t.x, t.y - 50, `+$${t.totalInvestment}`, { fontSize: '24px', color: '#ffff00', stroke: '#000', strokeThickness: 3 }); this.tweens.add({ targets: txt, y: t.y - 100, alpha: 0, duration: 1000, onComplete: () => txt.destroy() }); } }
     updateUI() { const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); }
-    spawnLoot(x, y) { const levelId = this.currentLevelData.id || 1; if (Math.random() > 0.20) return; const luck = (levelId - 1) * 0.05; const roll = Math.random() * 100; let rarity = 'common'; const tGold = 0.01 + (luck * 0.01); const tRed = 0.10 + (luck * 0.05); const tPurple = 0.29 + (luck * 0.1); const tGreen = 5.09 + (luck * 0.5); if (roll < tGold) rarity = 'legendary'; else if (roll < tRed) rarity = 'epic'; else if (roll < tPurple) rarity = 'rare'; else if (roll < tGreen) rarity = 'uncommon'; else rarity = 'common'; const randType = Math.random(); let type = 'wood'; if (randType > 0.66) type = 'copper'; else if (randType > 0.33) type = 'cloth'; const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
+    spawnLoot(x, y) {
+        const levelId = this.currentLevelData.id || 1;
+        if (Math.random() > 0.25) return; // 25% drop rate
+
+        const luck = (levelId - 1) * 0.05; 
+        const roll = Math.random() * 100;
+        let rarity = 'common';
+        
+        // Tabla de rareza
+        const tGold = 0.01 + (luck * 0.01);
+        const tRed = 0.10 + (luck * 0.05);
+        const tPurple = 0.29 + (luck * 0.1);
+        const tGreen = 5.09 + (luck * 0.5);
+
+        if (roll < tGold) rarity = 'legendary';
+        else if (roll < tRed) rarity = 'epic';
+        else if (roll < tPurple) rarity = 'rare';
+        else if (roll < tGreen) rarity = 'uncommon';
+        else rarity = 'common';
+
+        // Tipo aleatorio (INCLUYE LEATHER)
+        const types = ['wood', 'copper', 'cloth', 'leather'];
+        const type = types[Math.floor(Math.random() * types.length)];
+
+        const item = new Loot(this, x, y, type, rarity);
+        this.loots.add(item);
+    }
     collectLoot(lootItem) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; const text = this.add.text(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, { fontSize: '14px', stroke: '#000', strokeThickness: 2 }); this.tweens.add({ targets: text, y: lootItem.y - 50, alpha: 0, duration: 1000, onComplete: () => text.destroy() }); lootItem.destroy(); }
     onEnemyLeaks(damage) { gameState.baseHp -= 1; this.cameras.main.flash(200, 255, 0, 0); this.updateUI(); if (gameState.baseHp <= 0) this.gameOver(); }
     gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.waveInfoText.setText("DERROTA"); this.time.delayedCall(3000, () => { gameState.playerStats.hp = gameState.playerStats.maxHp; this.scene.start('MainMenuScene'); }); }

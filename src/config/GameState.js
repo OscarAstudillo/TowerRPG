@@ -1,8 +1,8 @@
 // src/config/GameState.js
-import { CLASS_STATS } from '../entities/player/PlayerStats.js'; // Asegúrate de importar esto
+import { CLASS_STATS } from '../entities/player/PlayerStats.js';
 
 export const INITIAL_STATS = {
-    hp: 100, maxHp: 100, damage: 10, defense: 0, attackSpeed: 1000, moveSpeed: 160
+    hp: 100, maxHp: 100, damage: 10, defense: 0, attackSpeed: 1000, moveSpeed: 160, range: 100
 };
 
 export const RARITY = {
@@ -16,20 +16,28 @@ export const RARITY = {
 export const gameState = {
     selectedClass: 'paladin',
     levelsUnlocked: 1,
-    gold: 30000,
-    baseHp: 20,
+    gold: 5000, // Oro inicial para pruebas
 
     materials: {
-        wood:   { common: 100, uncommon: 100, rare: 100, epic: 0, legendary: 0 },
-        cloth:  { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 }
+        wood:   { common: 10, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        cloth:  { common: 10, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        copper: { common: 10, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        leather:{ common: 10, uncommon: 0, rare: 0, epic: 0, legendary: 0 } // NUEVO: Cuero
     },
 
-    inventory: [], 
-    equipment: { weapon: null, armor: null, accessory: null },
+    inventory: [],
+    maxInventorySlots: 30, // NUEVO: Límite de mochila
+    
+    // NUEVA ESTRUCTURA DE EQUIPO
+    equipment: { 
+        mainHand: null, // Arma Principal / Arco / Bastón
+        offHand: null,  // Escudo / Segunda Arma / (Ocupado si es arma 2 manos)
+        armor: null,    // Pecho
+        accessory: null // Anillo/Amuleto
+    },
+
     playerStats: { ...INITIAL_STATS },
     
-    // --- NUEVA ESTRUCTURA DE PROFESIONES CON XP ---
     professions: {
         weaponsmith: { level: 1, xp: 0, maxXp: 100 },
         armorsmith:  { level: 1, xp: 0, maxXp: 100 },
@@ -38,11 +46,9 @@ export const gameState = {
 };
 
 export function updatePlayerStats() {
-    // 1. Cargar base de la clase seleccionada
     const classBase = CLASS_STATS[gameState.selectedClass];
     const base = classBase ? { ...classBase, maxHp: classBase.hp } : { ...INITIAL_STATS };
 
-    // 2. Crear stats (incluyendo COLOR y RANGO para arreglar el héroe amarillo)
     const newStats = { 
         hp: gameState.playerStats.hp, 
         maxHp: base.hp,
@@ -50,15 +56,16 @@ export function updatePlayerStats() {
         defense: base.defense,
         attackSpeed: base.attackSpeed,
         moveSpeed: base.moveSpeed,
-        range: base.range || 200, // Vital para Melee vs Ranged
+        range: base.range || 200, 
         color: base.color || 0xffff00
     };
 
     if (newStats.hp > newStats.maxHp) newStats.hp = newStats.maxHp;
 
-    // 3. Sumar equipo
-    Object.values(gameState.equipment).forEach(item => {
-        if (item) {
+    // Sumar stats de todos los slots nuevos
+    ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => {
+        const item = gameState.equipment[slot];
+        if (item && item.stats) {
             for (let key in item.stats) {
                 if (newStats[key] !== undefined) {
                     newStats[key] += item.stats[key];
