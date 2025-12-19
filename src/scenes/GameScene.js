@@ -37,7 +37,8 @@ export default class GameScene extends Phaser.Scene {
     }
 
     create() {
-        // --- 1. GENERAR TEXTURA PARA PARTÍCULAS (Corrección del Freeze) ---
+        // --- 1. GENERAR TEXTURA 'PIXEL' (Corrección del Freeze) ---
+        // Generamos un cuadrado blanco de 4x4 en memoria para usarlo como partícula
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -89,7 +90,6 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 
-        // Corrección Input Global para no bloquear botones de pausa
         this.input.on('gameobjectdown', (pointer, gameObject) => {
             if (this.isPaused) return; 
             
@@ -117,9 +117,10 @@ export default class GameScene extends Phaser.Scene {
         });
         this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
+        // --- SISTEMAS DE UI ---
         this.createUI();
         this.createUpgradeUI();
-        this.createPauseMenu();
+        this.createPauseMenu(); // Crear menú de pausa al final
 
         this.startWaveTimer(15); 
         this.updateUI();
@@ -154,20 +155,17 @@ export default class GameScene extends Phaser.Scene {
     createPauseMenu() {
         this.pauseContainer = this.add.container(640, 480).setDepth(10000).setVisible(false).setScrollFactor(0);
         
-        const bg = this.add.rectangle(0, 0, 1280, 960, 0x000000, 0.7).setInteractive(); // Bloqueador
-        
+        const bg = this.add.rectangle(0, 0, 1280, 960, 0x000000, 0.7).setInteractive(); 
         const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700);
         const title = this.add.text(0, -100, "PAUSA", { fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
         
-        // Botón Continuar
         const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true });
         const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontSize: '20px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         
         const resumeAction = () => this.togglePause();
         resumeBtn.on('pointerdown', resumeAction);
-        resumeTxt.on('pointerdown', resumeAction); // Click en texto también funciona
+        resumeTxt.on('pointerdown', resumeAction);
 
-        // Botón Salir
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true });
         const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontSize: '20px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
         
@@ -195,7 +193,8 @@ export default class GameScene extends Phaser.Scene {
 
     // --- EFECTOS VISUALES ---
     createExplosion(x, y, color) {
-        // Aseguramos usar la textura 'pixel' que generamos
+        // Usamos la textura 'pixel' que generamos en create()
+        // Sintaxis compatible v3.60+
         const emitter = this.add.particles(x, y, 'pixel', {
             speed: { min: 50, max: 150 },
             angle: { min: 0, max: 360 },
@@ -206,7 +205,11 @@ export default class GameScene extends Phaser.Scene {
             quantity: 10,
             tint: color
         });
-        this.time.delayedCall(600, () => emitter.destroy());
+        
+        // Destruir automáticamente
+        this.time.delayedCall(600, () => {
+            if (emitter) emitter.destroy();
+        });
     }
 
     showFloatingText(x, y, message, color = '#fff') {
@@ -228,7 +231,7 @@ export default class GameScene extends Phaser.Scene {
         this.player.createEffect('heal');
     }
 
-    // --- LÓGICA DE JUEGO AUXILIAR ---
+    // --- LÓGICA DE JUEGO (Igual que antes) ---
     startNextWaveAction() { if (this.isTimerRunning) this.startNextWave(); }
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
     
@@ -283,7 +286,11 @@ export default class GameScene extends Phaser.Scene {
     updateUpgradeMenuText() { if (!this.selectedTowerToUpgrade) return; const t = this.selectedTowerToUpgrade; if (t.level >= t.maxLevel) { this.upgradeText.setText(`${t.typeName} (MAX)\nDaño: ${t.damage}`); this.upgradeBtn.setVisible(false); this.upgradeBtnText.setVisible(false); } else { this.upgradeBtn.setVisible(true); this.upgradeBtnText.setVisible(true); this.upgradeText.setText(`${t.typeName} Lv ${t.level}\nDaño: ${t.damage} -> ${Math.floor(t.damage * 1.2)}`); this.upgradeBtnText.setText(`MEJORAR ($${t.upgradeCost})`); } this.sellBtnText.setText(`VENDER (+$${t.totalInvestment})`); }
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${t.totalInvestment}`, '#ffff00'); } }
-    updateUI() { const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); if(this.xpBarFill) this.xpBarFill.width = 200 * Math.min(1, gameState.heroXP / gameState.heroMaxXP); if(this.lvlText) this.lvlText.setText(`Lvl ${gameState.heroLevel}`); }
+    updateUI() { const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); 
+        const xpPercent = Math.min(1, gameState.heroXP / gameState.heroMaxXP);
+        if(this.xpBarFill) this.xpBarFill.width = 200 * xpPercent;
+        if(this.lvlText) this.lvlText.setText(`Lvl ${gameState.heroLevel}`);
+    }
     updateSkillUI() { if (!this.player) return; const cd = this.player.skillCooldown; const maxCd = this.player.skillMaxCooldown; if (cd > 0) { const progress = 1 - (cd / maxCd); this.skillBar.width = 200 * progress; this.skillBar.setFillStyle(0x555555); this.skillText.setText(`${(cd / 1000).toFixed(1)}s`); } else { this.skillBar.width = 200; this.skillBar.setFillStyle(this.theme.accent); if (this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)"); } }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
     spawnLoot(x, y) { const levelId = this.currentLevelData.id || 1; if (Math.random() > 0.20) return; const luck = (levelId - 1) * 0.05; const roll = Math.random() * 100; let rarity = 'common'; const tGold = 0.01 + (luck * 0.01); const tRed = 0.10 + (luck * 0.05); const tPurple = 0.29 + (luck * 0.1); const tGreen = 5.09 + (luck * 0.5); if (roll < tGold) rarity = 'legendary'; else if (roll < tRed) rarity = 'epic'; else if (roll < tPurple) rarity = 'rare'; else if (roll < tGreen) rarity = 'uncommon'; else rarity = 'common'; const randType = Math.random(); let type = 'wood'; if (randType > 0.66) type = 'copper'; else if (randType > 0.33) type = 'cloth'; const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
