@@ -1,10 +1,9 @@
 // src/entities/enemies/Enemy.js
 import Phaser from 'phaser';
-import RPGSystem from '../../systems/RPGSystem.js';
+// YA NO IMPORTAMOS RPGSystem AQUÍ PARA EVITAR ERRORES
 
 export default class Enemy extends Phaser.GameObjects.Rectangle {
     constructor(scene, path, levelDifficulty, type = 'normal') {
-        // Colores y Tamaños
         let color = 0xff0000; 
         let size = 20;
         
@@ -22,41 +21,33 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         this.type = type;
         this.colorVal = color;
 
-        // Stats Base
         let hpBase = 100;
         let speedBase = 1;
         let armor = 0; 
-        
-        // --- NUEVO: DAÑO AL CASTILLO (LEAK DAMAGE) ---
-        let castleDamage = 1; // Por defecto
+        let castleDamage = 1; 
 
         if (type === 'normal') { hpBase = 100; speedBase = 1.0; }
         else if (type === 'tank') { hpBase = 250; speedBase = 0.6; armor = 5; }
         else if (type === 'speed') { hpBase = 60; speedBase = 1.8; }
         else if (type === 'healer') { hpBase = 120; speedBase = 0.9; }
         else if (type === 'boss') { 
-            hpBase = 1500; 
-            speedBase = 0.5; 
-            armor = 10;
-            castleDamage = 10; // <--- EL BOSS HACE 10 DE DAÑO AL CASTILLO
+            hpBase = 1500; speedBase = 0.5; armor = 10; castleDamage = 10; 
         }
 
         this.hp = Math.floor(hpBase * levelDifficulty);
         this.maxHp = this.hp;
         this.baseSpeed = speedBase / 15000; 
         this.currentSpeed = this.baseSpeed;
-
         this.armor = armor;
-        this.leakDamage = castleDamage; // Guardamos el daño al castillo
+        this.leakDamage = castleDamage;
         
         this.coinReward = (type === 'boss') ? 100 : (type === 'tank' ? 20 : 10);
-        this.damage = (type === 'boss') ? 50 : 15; // Daño al héroe
+        this.xpReward = (type === 'boss') ? 100 : (type === 'tank' ? 20 : 10); // Nueva propiedad para que GameScene la lea
+        this.damage = (type === 'boss') ? 50 : 15;
 
-        // Timers
         this.lastAttackTime = 0;
         this.attackRate = 1000;
         this.healTimer = 0;
-
         this.isSlowed = false;
         this.slowTimer = 0;
 
@@ -77,7 +68,7 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         
         if (this.follower.t >= 1) {
             this.hpBar.destroy();
-            this.die(false); // Se escapó (False = No matado por jugador)
+            this.die(false); 
             return;
         }
         
@@ -164,24 +155,15 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
 
     die(killedByPlayer) {
         const currentScene = this.scene; 
-        this.hpBar.destroy();
+        if (this.hpBar) this.hpBar.destroy();
         
         if (killedByPlayer) {
-            // Murió por daño del jugador/torres
-            if (currentScene) {
-                if(currentScene.addEnemyReward) currentScene.addEnemyReward(this.coinReward);
-                if(currentScene.spawnLoot) currentScene.spawnLoot(this.x, this.y);
-                if (currentScene.createExplosion) currentScene.createExplosion(this.x, this.y, this.colorVal);
+            // Delegamos la lógica de recompensas a la Escena
+            if (currentScene && currentScene.onEnemyKilled) {
+                currentScene.onEnemyKilled(this);
             }
-            
-            let xp = 10;
-            if (this.type === 'tank') xp = 20;
-            if (this.type === 'boss') xp = 100;
-            RPGSystem.gainHeroXP(xp);
-
         } else {
-            // Se escapó (Leak)
-            // --- AQUÍ USAMOS EL DAÑO CONFIGURADO (1 o 10) ---
+            // Se escapó
             if (currentScene && currentScene.onEnemyLeaks) {
                 currentScene.onEnemyLeaks(this.leakDamage); 
             }
