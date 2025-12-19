@@ -9,8 +9,8 @@ export default class MainMenuScene extends Phaser.Scene {
     constructor() {
         super('MainMenuScene');
         this.currentTab = 'hero'; 
-        this.inventoryCategory = 'all'; // all, weapon, armor, accessory
-        this.forgeCategory = 'weapon';  // weapon, armor, accessory
+        this.inventoryCategory = 'all'; 
+        this.forgeCategory = 'weapon';  
         this.selectedItem = null;
         this.hasLoaded = false;
     }
@@ -22,17 +22,14 @@ export default class MainMenuScene extends Phaser.Scene {
             this.hasLoaded = true;
         }
 
-        // Fondo y Título
         this.add.rectangle(640, 360, 1280, 720, 0x1a1a1a);
         this.add.text(640, 30, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.goldText = this.add.text(1200, 30, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
-        // Menú Principal Tabs
         this.createTabButton(200, 80, 'HÉROE', 'hero');
         this.createTabButton(640, 80, 'MOCHILA', 'inventory');
         this.createTabButton(1080, 80, 'FORJA', 'forge');
 
-        // Contenedores
         this.heroContainer = this.add.container(0, 0);
         this.invContainer = this.add.container(0, 0);
         this.forgeContainer = this.add.container(0, 0);
@@ -43,7 +40,6 @@ export default class MainMenuScene extends Phaser.Scene {
 
         this.switchTab('hero');
 
-        // Botones Globales
         const playBtn = this.add.rectangle(640, 680, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
         this.add.text(640, 680, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
         playBtn.on('pointerdown', () => this.scene.start('WorldMapScene'));
@@ -76,24 +72,19 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const classes = ['paladin', 'guerrero', 'arquero', 'mago', 'asesino'];
         let startX = 340;
-        
         classes.forEach(clsKey => {
             const btn = this.add.rectangle(startX, 160, 100, 30, 0x555555).setInteractive({ useHandCursor: true });
             const txt = this.add.text(startX, 160, clsKey.toUpperCase(), { fontSize: '12px' }).setOrigin(0.5);
-            
             btn.on('pointerdown', () => {
-                // Desequipar todo al cambiar clase para evitar bugs
                 this.unequipAll();
                 gameState.selectedClass = clsKey;
                 updatePlayerStats();
                 this.refreshHero(); 
                 SaveSystem.save();
             });
-
             this.heroContainer.add([btn, txt]);
             startX += 150;
         });
-        
         this.heroContainer.add(this.add.text(640, 130, 'SELECCIONA CLASE (Desequipará todo):', { fontSize: '16px', color: '#aaa' }).setOrigin(0.5));
     }
 
@@ -111,7 +102,6 @@ export default class MainMenuScene extends Phaser.Scene {
         const s = gameState.playerStats;
         const eq = gameState.equipment;
         const clsName = gameState.selectedClass.toUpperCase();
-        
         this.heroStatsText.setText(`
         CLASE: [ ${clsName} ]
         Vida: ${Math.floor(s.hp)}/${s.maxHp} | Daño: ${s.damage} | Def: ${s.defense}
@@ -124,9 +114,8 @@ export default class MainMenuScene extends Phaser.Scene {
         `);
     }
 
-    // --- MOCHILA (GRID + CATEGORÍAS) ---
+    // --- MOCHILA (CORREGIDA) ---
     createInventoryView() {
-        // Categorías
         this.createInvCategoryBtn(400, 130, "TODO", 'all');
         this.createInvCategoryBtn(550, 130, "ARMAS", 'weapon');
         this.createInvCategoryBtn(700, 130, "ARMADURA", 'armor');
@@ -138,7 +127,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invItemsContainer = this.add.container(350, 180);
         this.invContainer.add(this.invItemsContainer);
         
-        // Detalle lateral
         this.itemDetailContainer = this.add.container(950, 180);
         this.itemDetailContainer.setVisible(false);
         this.invContainer.add(this.itemDetailContainer);
@@ -175,51 +163,68 @@ export default class MainMenuScene extends Phaser.Scene {
         });
         this.invMatsText.setText(matContent);
 
-        // Items (Grid 3 columnas)
+        // --- CORRECCIÓN DE ITEMS ---
         this.invItemsContainer.removeAll(true);
         
-        const filteredItems = gameState.inventory.filter(i => 
-            this.inventoryCategory === 'all' || 
-            i.type === this.inventoryCategory || 
-            (this.inventoryCategory === 'weapon' && (i.type === 'weapon' || i.type === 'offhand')) ||
-            (this.inventoryCategory === 'armor' && i.type === 'armor')
-        );
+        // Filtrar
+        const filteredItems = gameState.inventory.filter(i => {
+            if (!i) return false; // Seguridad contra nulos
+            if (this.inventoryCategory === 'all') return true;
+            if (i.type === this.inventoryCategory) return true;
+            if (this.inventoryCategory === 'weapon' && (i.type === 'weapon' || i.type === 'offhand')) return true;
+            if (this.inventoryCategory === 'armor' && i.type === 'armor') return true;
+            return false;
+        });
 
-        let col = 0; let row = 0;
-        const limitText = this.add.text(0, -30, `CAPACIDAD: ${gameState.inventory.length} / ${gameState.maxInventorySlots}`, { fontSize: '14px', color: '#fff' });
+        const maxSlots = gameState.maxInventorySlots || 30;
+        const limitText = this.add.text(0, -30, `CAPACIDAD: ${gameState.inventory.length} / ${maxSlots}`, { fontSize: '14px', color: '#fff' });
         this.invItemsContainer.add(limitText);
 
         if (filteredItems.length === 0) {
             this.invItemsContainer.add(this.add.text(0, 0, "(Vacío)", { color: '#888' }));
         }
 
+        let col = 0; let row = 0;
+        
         filteredItems.forEach(item => {
-            const itemCont = this.add.container(col * 180, row * 50);
+            // Protección contra ítems corruptos (sin color)
+            let itemColor = item.color;
+            if (itemColor === undefined || itemColor === null) itemColor = 0xffffff;
+
+            const itemContainer = this.add.container(col * 180, row * 50);
             const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true });
-            const colorHex = '#' + item.color.toString(16).padStart(6, '0');
-            const nameTxt = this.add.text(10, 12, item.name, { fontSize: '12px', color: colorHex, wordWrap: {width: 150} });
+            
+            const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
+            const nameTxt = this.add.text(10, 12, item.name || "Ítem Desconocido", { fontSize: '12px', color: colorHex, wordWrap: {width: 150} });
             
             bg.on('pointerdown', () => this.selectItem(item));
-            itemCont.add([bg, nameTxt]);
-            this.invItemsContainer.add(itemCont);
+            itemContainer.add([bg, nameTxt]);
+            this.invItemsContainer.add(itemContainer);
 
             col++;
             if (col >= 3) { col = 0; row++; }
         });
+        
         this.goldText.setText(`ORO: ${gameState.gold}`);
     }
 
     selectItem(item) {
         this.selectedItem = item;
         this.itemDetailContainer.setVisible(true);
-        const colorHex = '#' + item.color.toString(16).padStart(6, '0');
+        const itemColor = item.color || 0xffffff;
+        const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
+        
         this.detailTitle.setText(item.name);
         this.detailTitle.setColor(colorHex);
+        
+        // Manejo seguro de stats
+        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
+        
         this.detailStats.setText(
-            `Tipo: ${item.type} (${item.subType || '-'}) \n` +
-            `Rareza: ${RARITY[item.rarity].name}\n` +
+            `Tipo: ${item.type || '?'} (${item.subType || '-'}) \n` +
+            `Rareza: ${RARITY[item.rarity] ? RARITY[item.rarity].name : '?'}\n` +
             `2 Manos: ${item.twoHanded ? 'SÍ' : 'NO'}\n` +
-            `Stats:\n${JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '')}`
+            `Stats:\n${statsStr}`
         );
     }
 
@@ -232,48 +237,37 @@ export default class MainMenuScene extends Phaser.Scene {
         return container;
     }
 
-    // --- LÓGICA COMPLEJA DE EQUIPAR ---
     actionEquip() {
         if (!this.selectedItem) return;
         const item = this.selectedItem;
         const cls = gameState.selectedClass;
         let error = "";
 
-        // 1. Validar Clase
         if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Arquero: Solo Arcos, Cuero y Anillos";
         if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Guerrero: Solo Espadas, Placas y Anillos";
         if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Paladín: Espada, Escudo, Placas";
         if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Mago: Bastón y Tela";
         if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Asesino: Dagas y Cuero";
 
-        if (error) {
-            alert(error);
-            return;
-        }
+        if (error) { alert(error); return; }
 
-        // 2. Lógica de Slots
         if (item.type === 'armor') this.swapping('armor', item);
         else if (item.type === 'accessory') this.swapping('accessory', item);
         else if (item.type === 'offhand') this.swapping('offHand', item);
         else if (item.type === 'weapon') {
-            // Manejo de Armas
             if (item.twoHanded) {
-                // Desequipar ambas manos
                 this.forceUnequip('mainHand');
                 this.forceUnequip('offHand');
                 gameState.equipment.mainHand = item;
                 this.removeItemFromInventory(item);
             } else {
-                // Una mano (Dual Wield check)
                 if (!gameState.equipment.mainHand) {
                     gameState.equipment.mainHand = item;
                     this.removeItemFromInventory(item);
                 } else if (this.canDualWield(cls) && !gameState.equipment.offHand) {
-                    // Si es guerrero/asesino y la secundaria está libre
                     gameState.equipment.offHand = item;
                     this.removeItemFromInventory(item);
                 } else {
-                    // Reemplazar mano principal por defecto
                     this.swapping('mainHand', item);
                 }
             }
@@ -289,9 +283,7 @@ export default class MainMenuScene extends Phaser.Scene {
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
 
     swapping(slot, newItem) {
-        if (gameState.equipment[slot]) {
-            gameState.inventory.push(gameState.equipment[slot]);
-        }
+        if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]);
         gameState.equipment[slot] = newItem;
         this.removeItemFromInventory(newItem);
     }
@@ -311,13 +303,9 @@ export default class MainMenuScene extends Phaser.Scene {
     actionFuse() {
         if (!this.selectedItem) return;
         const item1 = this.selectedItem;
-        // Buscar duplicado exacto
         const idx2 = gameState.inventory.findIndex(i => i !== item1 && i.recipeId === item1.recipeId && i.rarity === item1.rarity && i.enchant === item1.enchant);
         
-        if (idx2 === -1) {
-            alert("Necesitas otro objeto idéntico (Mismo nombre, rareza y nivel)");
-            return;
-        }
+        if (idx2 === -1) { alert("Necesitas otro objeto idéntico"); return; }
         const item2 = gameState.inventory[idx2];
         const newItem = RPGSystem.fuseItems(item1, item2);
         
@@ -331,14 +319,12 @@ export default class MainMenuScene extends Phaser.Scene {
         }
     }
 
-    // --- FORJA ORGANIZADA ---
     createForgeView() {
         this.profText = this.add.text(640, 140, '', { fontSize: '14px', align: 'center', color: '#aaaaaa' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
         this.forgeMsg = this.add.text(640, 650, 'Selecciona receta', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
         this.forgeContainer.add(this.forgeMsg);
 
-        // Categorías Forge
         this.createForgeCatBtn(400, 170, "HERRERÍA (Armas)", 'weapon');
         this.createForgeCatBtn(640, 170, "SASTRERÍA (Armaduras)", 'armor');
         this.createForgeCatBtn(880, 170, "JOYERÍA (Accesorios)", 'accessory');
@@ -360,23 +346,17 @@ export default class MainMenuScene extends Phaser.Scene {
         this.goldText.setText(`ORO: ${gameState.gold}`);
         const p = gameState.professions;
         this.profText.setText(`Weaponsmith: ${p.weaponsmith.level} | Armorsmith: ${p.armorsmith.level} | Jewelry: ${p.jewelry.level}`);
-        
         this.recipesContainer.removeAll(true);
 
-        // Filtrar Recetas
         const filteredRecipes = RECIPES.filter(r => {
             if (this.forgeCategory === 'weapon') return r.type === 'weapon';
-            if (this.forgeCategory === 'armor') return r.type === 'armor' || r.type === 'offhand'; // Escudos aquí
+            if (this.forgeCategory === 'armor') return r.type === 'armor' || r.type === 'offhand';
             if (this.forgeCategory === 'accessory') return r.type === 'accessory';
             return false;
         });
 
-        let startX = 300; 
-        let startY = 220;
-        let col = 0;
-
+        let startX = 300; let startY = 220; let col = 0;
         filteredRecipes.forEach(recipe => {
-            // Mostrar Botones por rareza
             ['common', 'uncommon', 'rare'].forEach((rarity, i) => {
                 this.createRecipeBtn(startX + (col * 300), startY + (i * 60), recipe, rarity);
             });
@@ -392,16 +372,10 @@ export default class MainMenuScene extends Phaser.Scene {
         
         const btn = this.add.rectangle(x, y, 280, 50, 0x333333).setInteractive({ useHandCursor: true });
         btn.setStrokeStyle(2, rarityData.color);
-
-        const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})\nReq: 3 ${recipe.mat} + $${cost}`, { 
-            fontSize: '12px', align: 'center', color: hexColor 
-        }).setOrigin(0.5);
+        const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})\nReq: 3 ${recipe.mat} + $${cost}`, { fontSize: '12px', align: 'center', color: hexColor }).setOrigin(0.5);
 
         btn.on('pointerdown', () => {
-            if (gameState.gold < cost) {
-                this.forgeMsg.setText("¡Falta Oro!");
-                return;
-            }
+            if (gameState.gold < cost) { this.forgeMsg.setText("¡Falta Oro!"); return; }
             const result = RPGSystem.craftItem(recipe.id, rarity);
             
             if (result.success) {
@@ -416,7 +390,6 @@ export default class MainMenuScene extends Phaser.Scene {
                 this.forgeMsg.setColor('#ff0000');
             }
         });
-
         this.recipesContainer.add([btn, txt]);
     }
 }
