@@ -4,17 +4,20 @@ import { gameState } from '../../config/GameState.js';
 
 export default class Player extends Phaser.GameObjects.Rectangle {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
-        const stats = gameState.playerStats;
-        const color = stats.color || 0xffff00;
+        // Leemos stats globales directamente para el color inicial
+        const color = gameState.playerStats.color || 0xffff00;
+        
         super(scene, x, y, 32, 32, color); 
         scene.add.existing(this);
         scene.physics.add.existing(this);
+        
         this.body.setCollideWorldBounds(true);
         this.enemiesGroup = enemiesGroup;
         this.projectilesGroup = projectilesGroup;
-        this.stats = gameState.playerStats; 
         
-        // Timers y Cooldowns
+        // NO guardamos 'this.stats = gameState.playerStats' para evitar desconexión
+        
+        // Timers
         this.lastAttackTime = 0;
         this.skillCooldown = 0;
         this.skillMaxCooldown = 5000; 
@@ -23,12 +26,18 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
         this.isBuffed = false; 
         this.isDead = false; 
+        
         this.cursors = scene.input.keyboard.addKeys({ 
             up: Phaser.Input.Keyboard.KeyCodes.W, 
             down: Phaser.Input.Keyboard.KeyCodes.S, 
             left: Phaser.Input.Keyboard.KeyCodes.A, 
             right: Phaser.Input.Keyboard.KeyCodes.D 
         });
+    }
+
+    // Helper para leer stats siempre actualizados
+    get stats() {
+        return gameState.playerStats;
     }
 
     update(time, delta) {
@@ -39,7 +48,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         
         // 1. Movimiento
         this.body.setVelocity(0);
-        const speed = this.stats.moveSpeed;
+        const speed = this.stats.moveSpeed; // Usamos el getter
         if (this.cursors.left.isDown) this.body.setVelocityX(-speed);
         else if (this.cursors.right.isDown) this.body.setVelocityX(speed);
         if (this.cursors.up.isDown) this.body.setVelocityY(-speed);
@@ -48,7 +57,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         // 2. Cooldowns
         if (this.skillCooldown > 0) this.skillCooldown -= delta;
 
-        // 3. Ataque Automático
+        // 3. Ataque
         let currentAttackSpeed = this.stats.attackSpeed;
         if (this.isBuffed && gameState.selectedClass === 'arquero') currentAttackSpeed /= 3; 
 
@@ -56,20 +65,20 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             this.findTargetAndAttack(time);
         }
 
-        // 4. Regeneración Pasiva (Cada 5s)
+        // 4. Regeneración
         this.regenTimer += delta;
         if (this.regenTimer >= 5000) { 
             this.regenTimer = 0;
             if (this.stats.regenHp > 0 && this.stats.hp < this.stats.maxHp) {
-                this.stats.hp = Math.min(this.stats.hp + this.stats.regenHp, this.stats.maxHp);
-                // Feedback visual verde
+                // Modificamos directamente el estado global
+                gameState.playerStats.hp = Math.min(this.stats.hp + this.stats.regenHp, this.stats.maxHp);
                 if (this.scene.showFloatingText) {
                     this.scene.showFloatingText(this.x, this.y, `+${this.stats.regenHp}`, '#00ff00');
                 }
             }
         }
 
-        // 5. Auras (Cada 1s)
+        // 5. Auras
         this.auraTimer += delta;
         if (this.auraTimer >= 1000) {
             this.auraTimer = 0;
@@ -77,67 +86,23 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         }
     }
 
-    findTargetAndAttack(time) {
-        const target = this.findClosestEnemy(this.stats.range);
-        
-        if (target) {
-            const projectile = this.projectilesGroup.get(this.x, this.y);
-            
-            if (projectile) {
-                // --- CORRECCIÓN CRÍTICA AQUÍ ---
-                // Ahora enviamos un OBJETO con los datos, igual que las torres.
-                projectile.fire(target, {
-                    damage: this.stats.damage,  // Daño real del héroe
-                    type: 'hero',               // Tipo especial para no causar errores de color
-                    aoeRadius: 0,               // El héroe (por ahora) no hace daño en área básico
-                    slowFactor: 1               // Velocidad normal
-                });
-                
-                // Lógica de Robo de Vida (Lifesteal)
-                if (this.stats.lifesteal > 0) {
-                    const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
-                    if (heal > 0 && this.stats.hp < this.stats.maxHp) {
-                        this.stats.hp += heal;
-                        // Opcional: Feedback visual de robo de vida
-                        // if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, `+${heal}`, '#ff00ff');
-                    }
-                }
-            }
-            this.lastAttackTime = time;
-        }
-    }
-
-    applyAuras() {
-        if (this.stats.coldAura > 0) {
-            // Lógica simple de aura: busca enemigos cerca
-            this.enemiesGroup.children.iterate(enemy => {
-                if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) < 200) {
-                    // Aquí podríamos aplicar un slow si el enemigo tuviera esa función expuesta públicamente
-                    // Por ahora es pasivo.
-                }
-            });
-        }
-    }
-
     takeDamage(amount) {
         if (this.isDead) return;
 
-        // Sanitizar daño (Evitar NaN)
         let safeAmount = Number(amount);
         if (isNaN(safeAmount)) safeAmount = 0;
 
-        // Calcular daño real tras defensa
         const def = this.stats.defense || 0;
+        // Fórmula de Defensa: Reduce el daño plano. Mínimo 1 de daño siempre.
         let finalDamage = Math.max(1, safeAmount - def);
         
-        this.stats.hp -= finalDamage;
+        // Modificamos la vida GLOBAL
+        gameState.playerStats.hp -= finalDamage;
         
-        // Feedback Visual Rojo
         if (this.scene && this.scene.showFloatingText) {
             this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(finalDamage)}`, '#ff0000');
         }
         
-        // Efecto Espinas (Thorns)
         if ((this.stats.thorns || 0) > 0) {
             const attacker = this.findClosestEnemy(100);
             if (attacker) attacker.takeDamage(this.stats.thorns);
@@ -150,6 +115,40 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         }
     }
 
+    findTargetAndAttack(time) {
+        const target = this.findClosestEnemy(this.stats.range);
+        if (target) {
+            const projectile = this.projectilesGroup.get(this.x, this.y);
+            if (projectile) {
+                projectile.fire(target, {
+                    damage: this.stats.damage,
+                    type: 'hero',
+                    aoeRadius: 0,
+                    slowFactor: 1
+                });
+                
+                if (this.stats.lifesteal > 0) {
+                    const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
+                    if (heal > 0 && this.stats.hp < this.stats.maxHp) {
+                        gameState.playerStats.hp += heal;
+                    }
+                }
+            }
+            this.lastAttackTime = time;
+        }
+    }
+
+    applyAuras() {
+        if (this.stats.coldAura > 0) {
+            this.enemiesGroup.children.iterate(enemy => {
+                if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) < 200) {
+                    // Si el enemigo tuviera slow público lo aplicamos aquí
+                    // Por ahora es pasivo visual o preparado para futuro
+                }
+            });
+        }
+    }
+
     castSkill() {
         if (this.isDead) return { success: false, msg: '¡Estás muerto!' };
         if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' };
@@ -159,10 +158,10 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
         if (cls === 'paladin') {
             const healAmount = Math.floor(this.stats.maxHp * 0.3);
-            gameState.playerStats.hp = Math.min(gameState.playerStats.hp + healAmount, this.stats.maxHp);
+            gameState.playerStats.hp = Math.min(this.stats.hp + healAmount, this.stats.maxHp);
             this.createEffect('heal');
             skillName = "¡Sanación!";
-            if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00');
+            if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00');
         
         } else if (cls === 'guerrero') {
             const damage = this.stats.damage * 2.5;
@@ -190,50 +189,19 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             skillName = "¡Ejecución!";
         }
 
-        // Aplicar reducción de cooldown (CDR)
         const cdrMult = 1 - ((this.stats.cdr || 0) / 100);
         this.skillCooldown = this.skillMaxCooldown * cdrMult;
-        
         return { success: true, msg: skillName };
     }
 
-    findClosestEnemy(range) {
-        let closest = null;
-        let minDist = Infinity;
-        this.enemiesGroup.children.iterate(enemy => {
-            if (enemy.active) {
-                const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
-                if (dist < range && dist < minDist) {
-                    minDist = dist;
-                    closest = enemy;
-                }
-            }
-        });
-        return closest;
-    }
-
-    createAOE(radius, damage, color) {
-        const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4);
-        this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() });
-        this.enemiesGroup.children.iterate(enemy => {
-            if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) {
-                enemy.takeDamage(damage);
-            }
-        });
-    }
-
-    createEffect(type) {
-        if (type === 'heal') {
-            // Ya manejado con texto flotante
-        } else if (type === 'buff') {
-            this.setStrokeStyle(4, 0xffffff); 
-            this.scene.time.delayedCall(3000, () => this.setStrokeStyle(0));
-        }
-    }
-
+    // Funciones auxiliares
+    findClosestEnemy(range) { let closest = null; let minDist = Infinity; this.enemiesGroup.children.iterate(enemy => { if (enemy.active) { const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y); if (dist < range && dist < minDist) { minDist = dist; closest = enemy; } } }); return closest; }
+    createAOE(radius, damage, color) { const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); this.enemiesGroup.children.iterate(enemy => { if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { enemy.takeDamage(damage); } }); }
+    createEffect(type) { if (type === 'buff') { this.setStrokeStyle(4, 0xffffff); this.scene.time.delayedCall(3000, () => this.setStrokeStyle(0)); } }
+    
     die() {
         this.isDead = true;
-        this.stats.hp = 0;
+        gameState.playerStats.hp = 0; // Asegurar estado global
         this.setFillStyle(0x555555); 
         this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000});
         this.body.enable = false;
@@ -243,7 +211,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     respawn() {
         this.isDead = false;
-        this.stats.hp = this.stats.maxHp; 
+        gameState.playerStats.hp = this.stats.maxHp; 
         this.body.enable = true; 
         this.setFillStyle(this.stats.color); 
         if (this.respawnText) this.respawnText.destroy();
