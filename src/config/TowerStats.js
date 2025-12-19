@@ -2,43 +2,57 @@
 
 export const TOWER_TYPES = {
     archer: {
-        name: "Torre Arquero",
+        name: "Torre de Arqueros",
+        description: "Dispara flechas rápidas a un solo objetivo.",
         baseCost: 100,
-        color: 0x00ff00,
-        projectileColor: 0x00ff00,
+        range: 150,
+        damage: 15,
+        attackSpeed: 800, // ms
+        color: 0x00ff00, // Verde
+        type: 'archer',
+        // Niveles de mejora
         levels: [
-            { damage: 25, range: 230, fireRate: 650, upgradeCost: 150 },
-            { damage: 40, range: 250, fireRate: 550, upgradeCost: 250 },
-            { damage: 55, range: 270, fireRate: 450, upgradeCost: 400 },
-            { damage: 70, range: 290, fireRate: 350, upgradeCost: 600 },
-            { damage: 100, range: 400, fireRate: 250, upgradeCost: 0 }
+            { damage: 15, range: 150, fireRate: 800, upgradeCost: 0 },
+            { damage: 25, range: 160, fireRate: 700, upgradeCost: 150 },
+            { damage: 40, range: 170, fireRate: 600, upgradeCost: 300 },
+            { damage: 60, range: 180, fireRate: 500, upgradeCost: 600 },
+            { damage: 100, range: 200, fireRate: 400, upgradeCost: 1000 }
         ]
     },
     cannon: {
-        name: "Cañón Pesado",
-        baseCost: 250,
-        color: 0x696969,
-        projectileColor: 0xff4500,
-        // --- CAMBIO: RANGO AUMENTADO UN 20% ---
+        name: "Torre de Cañón",
+        description: "Daño en área (Explosión). Lento pero letal para grupos.",
+        baseCost: 200,
+        range: 120,
+        damage: 30,
+        attackSpeed: 2000,
+        color: 0xff0000, // Rojo
+        type: 'cannon',
+        aoeRadius: 80, // Radio de explosión en pixeles
         levels: [
-            { damage: 15, range: 400, fireRate: 2000, aoe: 120, upgradeCost: 300 }, // Antes 150
-            { damage: 25, range: 500, fireRate: 1900, aoe: 160, upgradeCost: 450 }, // Antes 160
-            { damage: 35, range: 600, fireRate: 1800, aoe: 200, upgradeCost: 650 }, // Antes 180
-            { damage: 45, range: 700, fireRate: 1700, aoe: 240, upgradeCost: 900 }, // Antes 200
-            { damage: 85, range: 900, fireRate: 1500, aoe: 300, upgradeCost: 0 }    // Antes 250
+            { damage: 30, range: 120, fireRate: 2000, upgradeCost: 0, aoe: 80 },
+            { damage: 50, range: 130, fireRate: 1900, upgradeCost: 300, aoe: 90 },
+            { damage: 80, range: 140, fireRate: 1800, upgradeCost: 600, aoe: 100 },
+            { damage: 120, range: 150, fireRate: 1700, upgradeCost: 1000, aoe: 110 },
+            { damage: 200, range: 160, fireRate: 1500, upgradeCost: 2000, aoe: 130 }
         ]
     },
     mage: {
-        name: "Torre Mágica",
-        baseCost: 180,
-        color: 0x0000ff,
-        projectileColor: 0x00ffff,
+        name: "Torre de Mago",
+        description: "Ralentiza a los enemigos con hielo.",
+        baseCost: 150,
+        range: 180,
+        damage: 10,
+        attackSpeed: 1200,
+        color: 0x0000ff, // Azul
+        type: 'mage',
+        slowFactor: 0.5, // Reduce velocidad al 50%
         levels: [
-            { damage: 40, range: 200, fireRate: 1100, chain: false, upgradeCost: 200 },
-            { damage: 55, range: 220, fireRate: 1050, chain: false, upgradeCost: 350 },
-            { damage: 70, range: 250, fireRate: 1000, chain: true, upgradeCost: 550 },
-            { damage: 85, range: 280, fireRate: 950, chain: true, upgradeCost: 800 },
-            { damage: 130, range: 390, fireRate: 900, chain: true, upgradeCost: 0 }
+            { damage: 10, range: 180, fireRate: 1200, upgradeCost: 0, slow: 0.5 },
+            { damage: 15, range: 190, fireRate: 1100, upgradeCost: 250, slow: 0.45 },
+            { damage: 25, range: 200, fireRate: 1000, upgradeCost: 500, slow: 0.4 },
+            { damage: 40, range: 210, fireRate: 900, upgradeCost: 900, slow: 0.35 },
+            { damage: 70, range: 230, fireRate: 800, upgradeCost: 1500, slow: 0.3 }
         ]
     }
 };

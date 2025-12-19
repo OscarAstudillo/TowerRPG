@@ -100,9 +100,14 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-THREE', () => { this.selectedTowerType = 'mage'; this.updateUI(); });
 
         this.physics.add.overlap(this.enemies, this.projectiles, (enemy, projectile) => {
-            if (projectile.aoeRadius > 0) projectile.explode(this.enemies);
-            else enemy.takeDamage(projectile.damage);
-            projectile.destroy();
+            // Usamos la lógica interna del proyectil
+            if (projectile.hit) {
+                projectile.hit(enemy);
+            } else {
+                // Fallback por si acaso
+                enemy.takeDamage(projectile.damage || 10);
+                projectile.destroy();
+            }
         });
         this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
