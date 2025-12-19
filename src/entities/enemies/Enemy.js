@@ -15,25 +15,45 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
         
         this.hp = 100 * hpMult;
         this.maxHp = this.hp;
-        this.speed = speedMult / 15000; 
+        
+        this.baseSpeed = speedMult / 15000; 
+        this.currentSpeed = this.baseSpeed;
+        
         this.isBoss = isBoss;
         this.coinReward = isBoss ? 100 : 10;
-        this.colorVal = color; // Guardamos color para partículas
+        this.colorVal = color; 
 
         this.damage = 15; 
         this.lastAttackTime = 0;
         this.attackRate = 1000; 
 
+        // Efectos
+        this.isSlowed = false;
+        this.slowTimer = 0;
+
         this.hpBar = scene.add.rectangle(this.x, this.y - 15, 30, 5, 0x00ff00);
     }
 
     update(time, delta) {
-        this.follower.t += this.speed * delta;
+        // Gestionar Slow
+        if (this.isSlowed) {
+            this.slowTimer -= delta;
+            if (this.slowTimer <= 0) {
+                this.isSlowed = false;
+                this.currentSpeed = this.baseSpeed;
+                this.setFillStyle(this.colorVal); // Volver a color original
+            }
+        }
+
+        // Movimiento
+        this.follower.t += this.currentSpeed * delta;
+        
         if (this.follower.t >= 1) {
             this.hpBar.destroy();
-            this.die(false); // Murió por escapar
+            this.die(false); 
             return;
         }
+        
         const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))];
         const p2 = this.path[Math.ceil(this.follower.t * (this.path.length - 1))];
         if (p1 && p2) {
@@ -41,11 +61,22 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
             this.x = Phaser.Math.Linear(p1.x, p2.x, segmentT);
             this.y = Phaser.Math.Linear(p1.y, p2.y, segmentT);
         }
+        
         this.hpBar.setPosition(this.x, this.y - 20);
         const hpPercent = this.hp / this.maxHp;
         this.hpBar.width = 30 * hpPercent;
         this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00);
+        
         this.checkAttackPlayer(time);
+    }
+
+    applySlow(factor, duration) {
+        if (this.isBoss) return; // Bosses inmunes a slow (opcional)
+        
+        this.isSlowed = true;
+        this.currentSpeed = this.baseSpeed * factor; // ej 0.5 = 50%
+        this.slowTimer = duration;
+        this.setFillStyle(0x00ffff); // Color Hielo
     }
 
     checkAttackPlayer(time) {
@@ -65,14 +96,11 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
     takeDamage(amount) {
         this.hp -= amount;
         
-        // --- TEXTO FLOTANTE DE DAÑO ---
         if (this.scene && this.scene.showFloatingText) {
             const isCrit = Math.random() > 0.8; 
             const finalDamage = isCrit ? Math.floor(amount * 1.5) : amount;
             const color = isCrit ? '#ffaa00' : '#ffffff';
-            
             if (isCrit) this.hp -= (finalDamage - amount);
-
             this.scene.showFloatingText(this.x, this.y - 20, `-${finalDamage}`, color);
         }
 
@@ -89,19 +117,13 @@ export default class Enemy extends Phaser.GameObjects.Rectangle {
             if (currentScene) {
                 if(currentScene.addEnemyReward) currentScene.addEnemyReward(this.coinReward);
                 if(currentScene.spawnLoot) currentScene.spawnLoot(this.x, this.y);
-                
-                // --- EXPLOSIÓN DE PARTÍCULAS ---
                 if (currentScene.createExplosion) {
                     currentScene.createExplosion(this.x, this.y, this.colorVal);
                 }
             }
-            
-            // --- CORRECCIÓN: XP SOLO SI LO MATA EL JUGADOR ---
             const xpAmount = this.isBoss ? 50 : 10;
             RPGSystem.gainHeroXP(xpAmount);
-
         } else {
-            // Se escapó
             if (currentScene && currentScene.onEnemyLeaks) currentScene.onEnemyLeaks(1); 
         }
 
