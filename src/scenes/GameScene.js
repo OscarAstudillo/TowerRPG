@@ -24,6 +24,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     init(data) {
+        // Protección contra datos nulos
         this.currentLevelData = data.levelData || { id: 1, name: "Nivel Debug", startCoins: 500, difficulty: 1, path: [], towerSlots: [] };
         
         this.theme = this.currentLevelData.theme || {
@@ -32,13 +33,13 @@ export default class GameScene extends Phaser.Scene {
             accent: 0x00ffff 
         };
 
-        updatePlayerStats();
-        this.lastHeroLevel = gameState.heroLevel;
+        // Asegurar que stats estén cargados
+        if (!gameState.playerStats) updatePlayerStats();
+        this.lastHeroLevel = gameState.heroLevel || 1;
     }
 
     create() {
-        // --- 1. GENERAR TEXTURA 'PIXEL' (Corrección del Freeze) ---
-        // Generamos un cuadrado blanco de 4x4 en memoria para usarlo como partícula
+        // --- 1. GENERAR TEXTURA 'PIXEL' (Esencial para partículas) ---
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -50,22 +51,26 @@ export default class GameScene extends Phaser.Scene {
         this.cameras.main.scrollY = -this.TOP_MARGIN;
         this.cameras.main.setBackgroundColor(0x111111);
 
+        // MAPA Y CAMINO
         const pathPoints = this.currentLevelData.path;
         if (!pathPoints || pathPoints.length === 0) {
-            console.error("¡ERROR DE CAMINO!"); this.scene.start('WorldMapScene'); return; 
+            console.error("¡ERROR DE CAMINO! Volviendo al mapa..."); 
+            this.scene.start('WorldMapScene'); 
+            return; 
         }
         this.pathPoints = pathPoints;
-        this.coins = this.currentLevelData.startCoins;
+        this.coins = this.currentLevelData.startCoins || 500;
         this.currentWave = 1;
         this.totalWaves = 5;
         this.waveInProgress = false;
         this.sessionLoot = {}; 
         gameState.baseHp = 20;
 
-        // MAPA
+        // DIBUJAR MAPA
         const graphics = this.add.graphics();
         graphics.fillStyle(this.theme.background, 1);
         graphics.fillRect(0, 0, 1280, 720);
+        
         graphics.lineStyle(50, this.theme.path, 1);
         graphics.beginPath();
         graphics.moveTo(pathPoints[0].x, pathPoints[0].y);
@@ -81,9 +86,9 @@ export default class GameScene extends Phaser.Scene {
         this.buildSites = this.add.group();
         this.loots = this.physics.add.group({ classType: Loot });
 
+        // ENTIDADES
         this.createBuildSlots();
         this.createSpawnIndicator();
-
         this.player = new Player(this, 640, 360, gameState.selectedClass, this.enemies, this.projectiles);
 
         // INPUTS
@@ -111,16 +116,17 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
 
+        // COLISIONES
         this.physics.add.overlap(this.enemies, this.projectiles, (enemy, projectile) => {
             if (projectile.hit) projectile.hit(enemy);
             else { enemy.takeDamage(projectile.damage || 10); projectile.destroy(); }
         });
         this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
-        // --- SISTEMAS DE UI ---
+        // UI
         this.createUI();
         this.createUpgradeUI();
-        this.createPauseMenu(); // Crear menú de pausa al final
+        this.createPauseMenu();
 
         this.startWaveTimer(15); 
         this.updateUI();
@@ -130,7 +136,10 @@ export default class GameScene extends Phaser.Scene {
         if (this.isPaused) return;
 
         if (this.player) this.player.update(time, delta);
-        this.towers.children.iterate(tower => { if (tower && tower.active) tower.update(time, delta); });
+        
+        this.towers.children.iterate(tower => {
+            if (tower && tower.active) tower.update(time, delta);
+        });
 
         if (gameState.heroLevel > this.lastHeroLevel) {
             this.showLevelUpEffect();
@@ -146,12 +155,12 @@ export default class GameScene extends Phaser.Scene {
                 this.startNextWave();
             } else {
                 const seconds = Math.ceil(this.timeToNextWave / 1000);
-                this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
+                if (this.waveTimerBtnText) this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
             }
         }
     }
 
-    // --- PAUSA ---
+    // --- PAUSA ROBUSTA ---
     createPauseMenu() {
         this.pauseContainer = this.add.container(640, 480).setDepth(10000).setVisible(false).setScrollFactor(0);
         
@@ -159,17 +168,26 @@ export default class GameScene extends Phaser.Scene {
         const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700);
         const title = this.add.text(0, -100, "PAUSA", { fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
         
+        // Botón Continuar
         const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true });
-        const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontSize: '20px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-        
+        const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontSize: '20px' }).setOrigin(0.5);
+        // Hacemos interactivo el texto también por si acaso
+        resumeTxt.setInteractive({ useHandCursor: true });
+
         const resumeAction = () => this.togglePause();
         resumeBtn.on('pointerdown', resumeAction);
         resumeTxt.on('pointerdown', resumeAction);
 
+        // Botón Salir
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true });
-        const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontSize: '20px' }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+        const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontSize: '20px' }).setOrigin(0.5);
+        exitTxt.setInteractive({ useHandCursor: true });
         
-        const exitAction = () => { this.scene.start('MainMenuScene'); };
+        const exitAction = () => { 
+            // Reiniciar estado crítico al salir
+            gameState.playerStats.hp = gameState.playerStats.maxHp;
+            this.scene.start('MainMenuScene'); 
+        };
         exitBtn.on('pointerdown', exitAction);
         exitTxt.on('pointerdown', exitAction);
 
@@ -191,11 +209,14 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- EFECTOS VISUALES ---
+    // --- EFECTOS VISUALES (SINTAXIS UNIVERSAL) ---
     createExplosion(x, y, color) {
-        // Usamos la textura 'pixel' que generamos en create()
-        // Sintaxis compatible v3.60+
-        const emitter = this.add.particles(x, y, 'pixel', {
+        // Esta sintaxis funciona en casi todas las versiones modernas de Phaser 3
+        const particles = this.add.particles('pixel');
+        
+        const emitter = particles.createEmitter({
+            x: x,
+            y: y,
             speed: { min: 50, max: 150 },
             angle: { min: 0, max: 360 },
             scale: { start: 2, end: 0 },
@@ -205,10 +226,10 @@ export default class GameScene extends Phaser.Scene {
             quantity: 10,
             tint: color
         });
-        
-        // Destruir automáticamente
+
+        // Destruir el sistema de partículas completo después de un tiempo
         this.time.delayedCall(600, () => {
-            if (emitter) emitter.destroy();
+            particles.destroy();
         });
     }
 
@@ -216,11 +237,16 @@ export default class GameScene extends Phaser.Scene {
         const isCrit = color === '#ffaa00';
         const fontSize = isCrit ? '32px' : '20px';
         const text = this.add.text(x, y, message, { fontSize: fontSize, fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: isCrit ? 6 : 3 }).setOrigin(0.5).setDepth(2000);
-        if (isCrit) {
-            this.tweens.add({ targets: text, y: y - 80, scale: { from: 2, to: 1 }, alpha: 0, duration: 1200, ease: 'Bounce.easeOut', onComplete: () => text.destroy() });
-        } else {
-            this.tweens.add({ targets: text, y: y - 50, alpha: 0, scale: 1.2, duration: 800, ease: 'Power2', onComplete: () => text.destroy() });
-        }
+        
+        this.tweens.add({ 
+            targets: text, 
+            y: y - 50, 
+            alpha: 0, 
+            scale: isCrit ? 1.5 : 1.2, 
+            duration: 800, 
+            ease: 'Power2', 
+            onComplete: () => text.destroy() 
+        });
     }
 
     showLevelUpEffect() {
@@ -228,10 +254,10 @@ export default class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: txt, scale: 1.5, duration: 500, ease: 'Back.out', yoyo: true, hold: 1000, onComplete: () => txt.destroy() });
         this.cameras.main.flash(500, 255, 215, 0);
         gameState.playerStats.hp = gameState.playerStats.maxHp;
-        this.player.createEffect('heal');
+        if (this.player && this.player.createEffect) this.player.createEffect('heal');
     }
 
-    // --- LÓGICA DE JUEGO (Igual que antes) ---
+    // --- LÓGICA DE JUEGO ---
     startNextWaveAction() { if (this.isTimerRunning) this.startNextWave(); }
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
     
@@ -242,8 +268,6 @@ export default class GameScene extends Phaser.Scene {
         if (this.currentWave > this.totalWaves) { this.victory(); return; }
         
         this.waveInProgress = true;
-        
-        // Director de Oleadas
         const levelDiff = this.currentLevelData.difficulty || 1;
         let enemyType = 'normal';
         let count = 5 + (this.currentWave * 2);
@@ -299,4 +323,5 @@ export default class GameScene extends Phaser.Scene {
     victory() { this.physics.pause(); if (this.currentLevelData.id >= gameState.levelsUnlocked) gameState.levelsUnlocked = this.currentLevelData.id + 1; const goldReward = this.currentLevelData.rewardGold || 100; gameState.gold += goldReward; SaveSystem.save(); const panel = this.add.container(640, 360).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.9).setStrokeStyle(4, 0xffd700); const t1 = this.add.text(0, -100, "¡VICTORIA!", {fontSize:'40px', color:'#00ff00', fontStyle:'bold'}).setOrigin(0.5); const t2 = this.add.text(0, -40, `Oro: +${goldReward}`, {fontSize:'24px'}).setOrigin(0.5); const btn = this.add.rectangle(0, 80, 200, 50, 0x006400).setInteractive({useHandCursor:true}); const btnT = this.add.text(0, 80, "CONTINUAR", {fontSize:'20px'}).setOrigin(0.5); panel.add([bg, t1, t2, btn, btnT]); btn.on('pointerdown', ()=>this.scene.start('WorldMapScene')); }
     createSpawnIndicator() { if (!this.pathPoints || this.pathPoints.length === 0) return; const startX = this.pathPoints[0].x; const startY = this.pathPoints[0].y; const marker = this.add.circle(startX, startY, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(startX, startY - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
     gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.waveInfoText.setText("DERROTA"); this.time.delayedCall(3000, () => { gameState.playerStats.hp = gameState.playerStats.maxHp; this.scene.start('MainMenuScene'); }); }
+    createUI() { const uiDepth = 1000; const accent = this.theme.accent; this.add.rectangle(640, 60, 1280, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); this.add.rectangle(640, 120, 1280, 4, accent).setScrollFactor(0).setDepth(uiDepth); this.livesText = this.add.text(30, 15, '', { fontSize: '18px', fontStyle: 'bold', color: '#fff' }).setScrollFactor(0).setDepth(uiDepth + 1); this.add.text(30, 45, 'XP:', { fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); this.xpBarBg = this.add.rectangle(60, 52, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); this.xpBarFill = this.add.rectangle(60, 52, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); this.lvlText = this.add.text(270, 45, 'Lvl 1', { fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); this.waveInfoText = this.add.text(1250, 40, 'OLEADA: 1', { fontSize: '28px', fontStyle: 'bold', color: accent }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); this.waveTimerContainer = this.add.container(640, 60).setScrollFactor(0).setDepth(uiDepth + 2); this.waveTimerContainer.setSize(320, 60); this.waveTimerContainer.setInteractive({ useHandCursor: true }); const timerBg = this.add.rectangle(0, 0, 320, 60, 0x006400).setStrokeStyle(2, 0xffffff); this.waveTimerBtnText = this.add.text(0, 0, "INICIAR", { fontSize: '18px', fontStyle: 'bold', align: 'center' }).setOrigin(0.5); this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]); this.waveTimerContainer.setVisible(false); this.waveTimerContainer.on('pointerdown', () => this.startNextWaveAction()); const botY = 900; this.add.rectangle(640, botY, 1280, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); this.add.rectangle(640, 840, 1280, 4, accent).setScrollFactor(0).setDepth(uiDepth); this.add.text(40, 860, 'TESORO:', { fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); this.economyText = this.add.text(40, 890, '$0', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); this.add.text(300, 865, 'SELECTOR DE TORRES (Teclas 1-3)', { fontSize: '14px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); this.buildText = this.add.text(300, 890, '', { fontSize: '20px', color: accent }).setScrollFactor(0).setDepth(uiDepth + 1); this.skillBtnContainer = this.add.container(1050, botY).setScrollFactor(0).setDepth(uiDepth + 1); const skillBg = this.add.rectangle(0, 0, 200, 80, 0x222222).setStrokeStyle(2, 0x555555); this.skillBar = this.add.rectangle(-100, 0, 0, 80, accent).setOrigin(0, 0.5); this.skillBtn = this.add.rectangle(0, 0, 200, 80, 0x000000, 0).setInteractive({ useHandCursor: true }); this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontSize: '16px', align: 'center', fontStyle: 'bold' }).setOrigin(0.5); this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]); this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill()); const exitBtn = this.add.rectangle(1220, botY, 80, 80, 0xaa0000).setInteractive({ useHandCursor: true }).setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff); this.add.text(1220, botY, 'X', { fontSize: '40px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene')); }
 }
