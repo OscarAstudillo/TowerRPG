@@ -36,6 +36,13 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     update(time, delta) { 
         if (!this.body) return;
 
+        // --- 1. BLOQUEO POR MUERTE ---
+        // Si está muerto, no hace NADA. Ni moverse, ni atacar, ni reducir cooldowns.
+        if (this.isDead) {
+            this.body.setVelocity(0);
+            return;
+        }
+
         // 1. Movimiento
         this.body.setVelocity(0);
         const speed = this.stats.moveSpeed;
@@ -63,6 +70,8 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     // --- NUEVA FUNCIÓN: ACTIVAR HABILIDAD ---
     castSkill() {
+        // Bloqueo por muerte
+        if (this.isDead) return { success: false, msg: '¡Estás muerto!' };
         if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' };
 
         const cls = gameState.selectedClass;
@@ -161,10 +170,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             targets: this, alpha: 0.2, yoyo: true, duration: 100, repeat: 1
         });
 
-        // Actualizar UI global
-        // (En un juego real usaríamos eventos, pero esto funciona rápido)
-        this.scene.updateUI();
-
         if (this.stats.hp <= 0) {
             this.die();
         }
@@ -173,7 +178,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     die() {
         this.isDead = true;
         this.stats.hp = 0;
-        this.scene.updateUI();
 
         // Convertirse en tumba
         this.setFillStyle(0x555555); // Gris muerto
@@ -210,7 +214,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out'
         });
         
-        this.scene.updateUI();
         console.log("¡Héroe revivido!");
     }
 

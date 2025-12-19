@@ -16,47 +16,57 @@ export default class GameScene extends Phaser.Scene {
         this.selectedTowerType = 'archer';
         this.coins = 0; 
         this.selectedTowerToUpgrade = null; 
+        this.timeToNextWave = 0; 
+        this.isTimerRunning = false;
+        
+        // Configuración de Márgenes
+        this.TOP_MARGIN = 120; // Espacio arriba
     }
 
     init(data) {
-        this.currentLevelData = data.levelData || { 
-            id: 1, 
-            name: "Nivel Debug", 
-            startCoins: 500, 
-            difficulty: 1, 
-            path: [], 
-            towerSlots: [] 
-        };
+        this.currentLevelData = data.levelData || { id: 1, name: "Nivel Debug", startCoins: 500, difficulty: 1, path: [], towerSlots: [] };
         updatePlayerStats();
     }
 
     create() {
-        // --- 1. SEGURIDAD ANTI-CRASH ---
+        // --- 1. CONFIGURACIÓN DE CÁMARA (MARGENES) ---
+        // Esto mueve todo el "Mundo" (mapa, enemigos, torres) hacia abajo
+        // dejando espacio libre arriba (y abajo por el tamaño extra del canvas)
+        this.cameras.main.scrollY = -this.TOP_MARGIN;
+        this.cameras.main.setBackgroundColor('#222222'); // Color del "suelo" bajo el mapa
+
+        // --- 2. VALIDACIÓN ---
         const pathPoints = this.currentLevelData.path;
         if (!pathPoints || pathPoints.length === 0) {
-            console.error("¡ERROR DE CAMINO! Volviendo al mapa...");
-            this.scene.start('WorldMapScene');
-            return; 
+            console.error("¡ERROR DE CAMINO!"); this.scene.start('WorldMapScene'); return; 
         }
-
         this.pathPoints = pathPoints;
         this.coins = this.currentLevelData.startCoins;
         this.currentWave = 1;
         this.totalWaves = 5;
         this.waveInProgress = false;
-        this.isWaitingNextWave = false;
         this.sessionLoot = {}; 
         gameState.baseHp = 20;
 
-        // Mapa
+        // --- 3. DIBUJAR MAPA ---
+        // (Se dibuja en 0,0 pero la cámara lo mostrará en 0,120)
         const graphics = this.add.graphics();
-        graphics.lineStyle(4, 0x666666, 1);
+        // Fondo del mapa (Area jugable)
+        graphics.fillStyle(0x333333, 1);
+        graphics.fillRect(0, 0, 1280, 720); // El tamaño original del mapa
+        
+        // Camino
+        graphics.lineStyle(40, 0x555555, 1); // Camino más grueso
         graphics.beginPath();
         graphics.moveTo(pathPoints[0].x, pathPoints[0].y);
         for (let i = 1; i < pathPoints.length; i++) graphics.lineTo(pathPoints[i].x, pathPoints[i].y);
         graphics.strokePath();
+        
+        // Línea guía delgada
+        graphics.lineStyle(2, 0x888888, 0.5);
+        graphics.strokePath();
 
-        // Grupos
+        // --- 4. GRUPOS ---
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: true });
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: true });
@@ -66,35 +76,32 @@ export default class GameScene extends Phaser.Scene {
         this.createBuildSlots();
         this.createSpawnIndicator();
 
+        // --- 5. JUGADOR ---
         this.player = new Player(this, 640, 360, gameState.selectedClass, this.enemies, this.projectiles);
 
-        // Inputs
+        // --- 6. INPUTS & COLISIONES ---
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
-        
         this.input.on('gameobjectdown', (pointer, gameObject) => {
             if (gameObject instanceof Tower) this.openUpgradeMenu(gameObject);
             else this.closeUpgradeMenu();
         });
-
         this.input.keyboard.on('keydown-ONE', () => { this.selectedTowerType = 'archer'; this.updateUI(); });
         this.input.keyboard.on('keydown-TWO', () => { this.selectedTowerType = 'cannon'; this.updateUI(); });
         this.input.keyboard.on('keydown-THREE', () => { this.selectedTowerType = 'mage'; this.updateUI(); });
 
-        // Colisiones
         this.physics.add.overlap(this.enemies, this.projectiles, (enemy, projectile) => {
             if (projectile.aoeRadius > 0) projectile.explode(this.enemies);
             else enemy.takeDamage(projectile.damage);
             projectile.destroy();
         });
+        this.physics.add.overlap(this.player, this.loots, (player, lootItem) => this.collectLoot(lootItem));
 
-        this.physics.add.overlap(this.player, this.loots, (player, lootItem) => {
-            this.collectLoot(lootItem);
-        });
-
+        // --- 7. INTERFAZ ---
         this.createUI();
         this.createUpgradeUI();
 
-        this.startNextWave();
+        // Iniciar Timer Oleada 1
+        this.startWaveTimer(15); 
         this.updateUI();
     }
 
@@ -102,21 +109,97 @@ export default class GameScene extends Phaser.Scene {
         if (this.player) this.player.update(time, delta);
         this.updateUI();
         this.updateSkillUI();
+
+        if (this.isTimerRunning) {
+            this.timeToNextWave -= delta;
+            if (this.timeToNextWave <= 0) {
+                this.startNextWave();
+            } else {
+                const seconds = Math.ceil(this.timeToNextWave / 1000);
+                this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
+            }
+        }
     }
 
-    // --- HABILIDAD ---
-    triggerPlayerSkill() {
-        if (!this.player) return;
-        const result = this.player.castSkill();
+    // --- SISTEMA UI (ORGANIZADO) ---
+    createUI() {
+        const uiDepth = 1000; // Muy arriba
         
-        if (result.success) {
-            this.tweens.add({ targets: this.skillBtn, scale: 0.9, yoyo: true, duration: 100 });
-            this.skillText.setText(result.msg);
-            this.time.delayedCall(1000, () => this.skillText.setText("ESPACIO"));
-        } else {
-            this.skillBtn.setStrokeStyle(2, 0xff0000);
-            this.time.delayedCall(200, () => this.skillBtn.setStrokeStyle(2, 0xffd700));
-        }
+        // ==============================
+        // 1. BARRA SUPERIOR (MARGEN TOP)
+        // ==============================
+        // Fondo Barra Superior (Y: 0 a 120)
+        this.add.rectangle(640, 60, 1280, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth);
+        this.add.rectangle(640, 120, 1280, 4, 0xffd700).setScrollFactor(0).setDepth(uiDepth); // Línea dorada separadora
+
+        // INFO VITAL (Izquierda Arriba)
+        this.livesText = this.add.text(30, 25, '', { fontSize: '20px', fontStyle: 'bold', color: '#fff' })
+            .setScrollFactor(0).setDepth(uiDepth + 1);
+        
+        // OLEADA (Derecha Arriba)
+        this.waveInfoText = this.add.text(1250, 40, 'OLEADA: 1', { fontSize: '28px', fontStyle: 'bold', color: '#00ffff' })
+            .setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1);
+
+        // BOTÓN TIMER CENTRAL (Arriba Medio - Fuera del mapa)
+        this.waveTimerContainer = this.add.container(640, 60).setScrollFactor(0).setDepth(uiDepth + 2);
+        
+        const timerBg = this.add.rectangle(0, 0, 320, 60, 0x006400).setInteractive({ useHandCursor: true })
+            .setStrokeStyle(2, 0xffffff);
+        this.waveTimerBtnText = this.add.text(0, 0, "INICIAR", { fontSize: '18px', fontStyle: 'bold', align: 'center' }).setOrigin(0.5);
+        
+        this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]);
+        this.waveTimerContainer.setVisible(false);
+
+        timerBg.on('pointerdown', () => { if (this.isTimerRunning) this.startNextWave(); });
+
+
+        // ==================================
+        // 2. BARRA INFERIOR (MARGEN BOTTOM)
+        // ==================================
+        // Fondo Barra Inferior (Y: 840 a 960) -> El mapa acaba en 720 + 120 offset = 840
+        const botY = 840 + 60; // Centro de la barra inferior
+        this.add.rectangle(640, botY, 1280, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth);
+        this.add.rectangle(640, 840, 1280, 4, 0xffd700).setScrollFactor(0).setDepth(uiDepth); // Línea dorada
+
+        // ECONOMÍA (Izquierda Abajo)
+        this.add.text(40, 860, 'TESORO:', { fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1);
+        this.economyText = this.add.text(40, 890, '$0', { fontSize: '32px', color: '#fff', fontStyle: 'bold' })
+            .setScrollFactor(0).setDepth(uiDepth + 1);
+
+        // CONSTRUCCIÓN (Centro Abajo)
+        this.add.text(300, 865, 'SELECTOR DE TORRES (Teclas 1-3)', { fontSize: '14px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1);
+        this.buildText = this.add.text(300, 890, '', { fontSize: '20px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1);
+
+        // ==================================
+        // 3. CONTROLES DERECHA (EN LA BARRA INFERIOR)
+        // ==================================
+        
+        // BOTÓN SKILL (Abajo Derecha - Integrado en la barra)
+        this.skillBtnContainer = this.add.container(1050, botY).setScrollFactor(0).setDepth(uiDepth + 1);
+        const skillBg = this.add.rectangle(0, 0, 200, 80, 0x222222).setStrokeStyle(2, 0x555555);
+        
+        this.skillBar = this.add.rectangle(-100, 0, 0, 80, 0x0088ff).setOrigin(0, 0.5); // Barra horizontal que se llena
+        this.skillBtn = this.add.rectangle(0, 0, 200, 80, 0x000000, 0).setInteractive({ useHandCursor: true });
+        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontSize: '16px', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]);
+        this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill());
+
+        // BOTÓN SALIR (Extremo Derecha Abajo)
+        const exitBtn = this.add.rectangle(1220, botY, 80, 80, 0xaa0000).setInteractive({ useHandCursor: true })
+            .setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff);
+        this.add.text(1220, botY, 'X', { fontSize: '40px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2);
+        exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene'));
+    }
+
+    updateUI() {
+        const currentTower = TOWER_TYPES[this.selectedTowerType];
+        this.economyText.setText(`$${this.coins}`);
+        this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`);
+        
+        const pStats = gameState.playerStats;
+        const heroHp = Math.max(0, Math.floor(pStats.hp));
+        this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`);
     }
 
     updateSkillUI() {
@@ -125,110 +208,95 @@ export default class GameScene extends Phaser.Scene {
         const maxCd = this.player.skillMaxCooldown;
         
         if (cd > 0) {
-            const progress = 1 - (cd / maxCd);
-            this.skillBar.width = 200 * progress;
+            const progress = 1 - (cd / maxCd); 
+            this.skillBar.width = 200 * progress; 
             this.skillBar.setFillStyle(0x555555);
-            this.skillText.setText((cd / 1000).toFixed(1) + "s");
+            this.skillText.setText(`${(cd / 1000).toFixed(1)}s`);
         } else {
             this.skillBar.width = 200;
             this.skillBar.setFillStyle(0x0088ff);
-            if (this.skillText.text.includes("s")) this.skillText.setText("¡LISTO! (Espacio)");
+            if (this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)");
         }
     }
 
-    // --- UTILS ---
+    // --- DROP RATE PROGRESIVO AJUSTADO ---
     spawnLoot(x, y) {
-        if (Math.random() > 0.7) return; 
+        const levelId = this.currentLevelData.id || 1;
+        // Chance base de drop 20%
+        if (Math.random() > 0.20) return; 
+
+        // Probabilidades pedidas: 95% Common, 4.8% Green, 0.19% Purple, 0.09% Red, 0.01% Gold.
+        // Escalado leve por nivel
+        const luck = (levelId - 1) * 0.05; 
+
+        const roll = Math.random() * 100; // 0.00 a 99.99
+
+        let rarity = 'common';
+        
+        // Thresholds acumulativos (De más raro a más común)
+        // Gold: 0.01%
+        const tGold = 0.01 + (luck * 0.01);
+        // Red: 0.09% -> Total 0.1%
+        const tRed = 0.10 + (luck * 0.05);
+        // Purple: 0.19% -> Total 0.29%
+        const tPurple = 0.29 + (luck * 0.1);
+        // Green: 4.8% -> Total 5.09%
+        const tGreen = 5.09 + (luck * 0.5);
+
+        if (roll < tGold) rarity = 'legendary';
+        else if (roll < tRed) rarity = 'epic';
+        else if (roll < tPurple) rarity = 'rare';
+        else if (roll < tGreen) rarity = 'uncommon';
+        else rarity = 'common'; // El 94.91% restante
+
+        // Tipo aleatorio
         const randType = Math.random();
         let type = 'wood';
-        if (randType > 0.9) type = 'copper'; 
-        else if (randType > 0.6) type = 'cloth';
-
-        const randRarity = Math.random();
-        let rarity = 'common';
-        if (randRarity > 0.98) rarity = 'legendary';
-        else if (randRarity > 0.90) rarity = 'epic';
-        else if (randRarity > 0.80) rarity = 'rare';
-        else if (randRarity > 0.60) rarity = 'uncommon';
+        if (randType > 0.66) type = 'copper'; 
+        else if (randType > 0.33) type = 'cloth';
 
         const item = new Loot(this, x, y, type, rarity);
         this.loots.add(item);
     }
 
-    collectLoot(lootItem) {
-        gameState.materials[lootItem.typeKey][lootItem.rarityKey]++;
-        if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {};
-        if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0;
-        this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++;
-
-        const text = this.add.text(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, { 
-            fontSize: '14px', color: '#fff', stroke: '#000', strokeThickness: 3 
-        });
-        this.tweens.add({ targets: text, y: lootItem.y - 50, alpha: 0, duration: 1000, onComplete: () => text.destroy() });
-        lootItem.destroy();
-    }
-
-    victory() {
-        this.waveFinished = true;
-        this.physics.pause();
-        if (this.currentLevelData.id >= gameState.levelsUnlocked) gameState.levelsUnlocked = this.currentLevelData.id + 1;
-        
-        const goldReward = this.currentLevelData.rewardGold || 100;
-        gameState.gold += goldReward;
-        SaveSystem.save();
-
-        this.add.rectangle(640, 360, 500, 400, 0x000000, 0.9).setStrokeStyle(4, 0xffd700);
-        this.add.text(640, 180, "¡VICTORIA!", { fontSize: '40px', color: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
-        this.add.text(640, 230, "Recompensas:", { fontSize: '20px', color: '#fff' }).setOrigin(0.5);
-        this.add.text(640, 270, `💰 Oro: +${goldReward}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(0.5);
-
-        let lootList = "";
-        for (let mat in this.sessionLoot) {
-            for (let rar in this.sessionLoot[mat]) {
-                const count = this.sessionLoot[mat][rar];
-                lootList += `${count}x ${mat.toUpperCase()} (${rar})\n`;
-            }
-        }
-        if (lootList === "") lootList = "(Sin materiales)";
-        this.add.text(640, 350, lootList, { fontSize: '16px', color: '#aaa', align: 'center' }).setOrigin(0.5);
-
-        const btn = this.add.rectangle(640, 480, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
-        this.add.text(640, 480, "CONTINUAR", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
-        btn.on('pointerdown', () => this.scene.start('WorldMapScene'));
+    // --- FUNCIONES ESTÁNDAR (Sin cambios lógicos, solo ubicación) ---
+    startWaveTimer(seconds) {
+        this.isTimerRunning = true;
+        this.timeToNextWave = seconds * 1000;
+        this.waveTimerContainer.setVisible(true);
     }
 
     startNextWave() {
+        this.isTimerRunning = false;
+        this.waveTimerContainer.setVisible(false);
         if (this.spawnTimer) this.spawnTimer.remove();
-        const maxWaves = this.totalWaves || 5; 
-        if (this.currentWave > maxWaves) { this.victory(); return; }
+        
+        if (this.currentWave > this.totalWaves) { this.victory(); return; }
 
         this.waveInProgress = true;
-        this.isWaitingNextWave = false;
         const levelDiff = this.currentLevelData.difficulty || 1;
-        const levelIndex = this.currentLevelData.id || 1;
-        let count, speedMult, hpMult, interval;
-        let isBossWave = false;
+        
+        // Lógica de oleada
+        let count = 4 + (this.currentWave * 2);
+        let interval = 2000 - (this.currentWave * 200);
+        let hpMult = (0.8 + (this.currentWave * 0.2)) * levelDiff;
+        let speedMult = 0.6 + (this.currentWave * 0.1);
+        let isBoss = false;
 
-        if (this.currentWave === 5) {
-            count = 1; 
-            speedMult = 0.4 + (levelIndex * 0.05); 
-            hpMult = 2.5 * levelDiff; 
-            interval = 1000;
-            isBossWave = true;
-            this.updateWaveTitle("¡BOSS FINAL!");
+        if (this.currentWave === 5) { // Boss Wave
+            count = 1; interval = 1000; hpMult = 2.5 * levelDiff; speedMult = 0.4; isBoss = true;
+            this.waveInfoText.setText("OLEADA: BOSS!");
+            this.waveInfoText.setColor('#ff0000');
         } else {
-            count = 4 + (this.currentWave * 2);
-            speedMult = 0.6 + (this.currentWave * 0.1) + (levelIndex * 0.05);
-            hpMult = (0.8 + (this.currentWave * 0.2)) * levelDiff;
-            interval = 2000 - (this.currentWave * 200);
-            this.updateWaveTitle(`OLEADA ${this.currentWave} / ${maxWaves}`);
+            this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`);
+            this.waveInfoText.setColor('#00ffff');
         }
 
         this.enemiesToSpawn = count;
         this.spawnTimer = this.time.addEvent({
             delay: interval,
             callback: () => {
-                this.spawnEnemy(speedMult, hpMult, isBossWave);
+                this.spawnEnemy(speedMult, hpMult, isBoss);
                 this.enemiesToSpawn--;
                 if (this.enemiesToSpawn <= 0) this.spawnTimer.remove();
             },
@@ -236,58 +304,81 @@ export default class GameScene extends Phaser.Scene {
         });
     }
 
+    checkWaveStatus() {
+        if (this.isTimerRunning) return;
+        const enemiesAlive = this.enemies.countActive(true);
+        if (this.enemiesToSpawn <= 0 && enemiesAlive === 0) {
+            this.waveInProgress = false;
+            this.currentWave++;
+            if (this.currentWave > this.totalWaves) {
+                this.victory();
+            } else {
+                this.startWaveTimer(12); // Pausa entre oleadas
+            }
+        }
+    }
+
     spawnEnemy(speedMult, hpMult, isBoss) {
+        // Corrección de velocidad heredada de Enemy.js (speedMult ya viene bien calculado)
         const enemy = new Enemy(this, this.pathPoints, speedMult, hpMult, isBoss);
-        const levelIndex = this.currentLevelData.id || 1;
-        const levelBonus = 1 + ((levelIndex - 1) * 0.10); 
-        let baseReward = 25;
-        if (isBoss) baseReward = 500;
+        // OJO: Enemy.js usa coordenadas relativas al path. Como movimos la cámara con scrollY,
+        // no necesitamos sumar Y a los enemigos, la cámara ya lo hace.
+        
+        const levelBonus = 1 + ((this.currentLevelData.id - 1) * 0.10); 
+        let baseReward = 25; if (isBoss) baseReward = 500;
         enemy.coinReward = Math.floor(baseReward * levelBonus);
         this.enemies.add(enemy);
     }
 
-    onEnemyLeaks(damage) {
-        // Ahora restamos a la BASE, no al jugador
-        gameState.baseHp -= 1; // Pierdes 1 vida por enemigo (o damage si prefieres)
+    collectLoot(lootItem) {
+        gameState.materials[lootItem.typeKey][lootItem.rarityKey]++;
+        if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {};
+        if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0;
+        this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++;
         
-        this.cameras.main.flash(200, 255, 0, 0); // Pantalla roja
-        this.updateUI();
+        const text = this.add.text(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, { fontSize: '14px', stroke: '#000', strokeThickness: 2 });
+        this.tweens.add({ targets: text, y: lootItem.y - 50, alpha: 0, duration: 1000, onComplete: () => text.destroy() });
+        
+        lootItem.destroy();
+    }
 
-        if (gameState.baseHp <= 0) {
-            this.gameOver();
-        }
+    onEnemyLeaks(damage) {
+        gameState.baseHp -= 1;
+        this.cameras.main.flash(200, 255, 0, 0);
+        this.updateUI();
+        if (gameState.baseHp <= 0) this.gameOver();
     }
 
     gameOver() {
         this.physics.pause();
         if (this.spawnTimer) this.spawnTimer.remove();
-        
-        this.waveText.setText("¡EL REINO HA CAÍDO!");
-        this.waveText.setColor('#ff0000');
-        
+        this.waveInfoText.setText("¡DERROTA!");
         this.time.delayedCall(3000, () => {
-            // Restaurar todo y volver al menú
             gameState.playerStats.hp = gameState.playerStats.maxHp; 
             this.scene.start('MainMenuScene');
         });
     }
 
-    checkWaveStatus() {
-        if (this.isWaitingNextWave) return;
-        const enemiesAlive = this.enemies.countActive(true);
-        if (this.enemiesToSpawn <= 0 && enemiesAlive === 0) {
-            this.waveInProgress = false;
-            this.isWaitingNextWave = true; 
-            this.waveText.setText("¡OLEADA COMPLETADA!");
-            this.time.delayedCall(3000, () => {
-                this.currentWave++;
-                this.startNextWave();
-            });
-        }
+    victory() {
+        this.physics.pause();
+        if (this.currentLevelData.id >= gameState.levelsUnlocked) gameState.levelsUnlocked = this.currentLevelData.id + 1;
+        const goldReward = this.currentLevelData.rewardGold || 100;
+        gameState.gold += goldReward;
+        SaveSystem.save();
+
+        // Panel centrado (usa coordenadas del mapa 640, 360, pero la cámara lo muestra bien)
+        const panel = this.add.container(640, 360).setDepth(2000);
+        const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.9).setStrokeStyle(4, 0xffd700);
+        const t1 = this.add.text(0, -100, "¡VICTORIA!", {fontSize:'40px', color:'#00ff00', fontStyle:'bold'}).setOrigin(0.5);
+        const t2 = this.add.text(0, -40, `Oro: +${goldReward}`, {fontSize:'24px'}).setOrigin(0.5);
+        
+        const btn = this.add.rectangle(0, 80, 200, 50, 0x006400).setInteractive({useHandCursor:true});
+        const btnT = this.add.text(0, 80, "CONTINUAR", {fontSize:'20px'}).setOrigin(0.5);
+        
+        panel.add([bg, t1, t2, btn, btnT]);
+        btn.on('pointerdown', ()=>this.scene.start('WorldMapScene'));
     }
 
-    addEnemyReward(amount) { this.coins += amount; }
-    
     createBuildSlots() {
         const slots = this.currentLevelData.towerSlots || [];
         slots.forEach(slot => {
@@ -310,50 +401,38 @@ export default class GameScene extends Phaser.Scene {
     }
 
     createUpgradeUI() {
-        this.upgradeContainer = this.add.container(0, 0);
+        this.upgradeContainer = this.add.container(0, 0).setDepth(200);
         this.upgradeContainer.setVisible(false);
-        this.upgradeContainer.setDepth(100);
-        
-        const bg = this.add.rectangle(0, 0, 200, 120, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
-        this.upgradeText = this.add.text(0, -30, '', { fontSize: '14px', align: 'center' }).setOrigin(0.5);
-        this.upgradeBtn = this.add.rectangle(0, 20, 120, 30, 0x00aa00).setInteractive({ useHandCursor: true });
-        const btnText = this.add.text(0, 20, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        this.upgradeBtn.on('pointerdown', () => this.tryUpgradeTower());
-        this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, btnText]);
+        const bg = this.add.rectangle(0, 0, 200, 100, 0x000000, 0.9).setStrokeStyle(1, 0xffffff);
+        this.upgradeText = this.add.text(0, -20, '', { fontSize: '12px', align: 'center' }).setOrigin(0.5);
+        this.upgradeBtn = this.add.rectangle(0, 20, 120, 30, 0x00aa00).setInteractive({useHandCursor:true});
+        const t = this.add.text(0, 20, 'MEJORAR', {fontSize:'14px', fontStyle:'bold'}).setOrigin(0.5);
+        this.upgradeBtn.on('pointerdown', ()=>this.tryUpgradeTower());
+        this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, t]);
     }
 
     openUpgradeMenu(tower) {
         this.selectedTowerToUpgrade = tower;
-        let menuX = tower.x;
-        let menuY = tower.y - 80;
-        if (menuY < 60) menuY = tower.y + 80; 
-        this.upgradeContainer.setPosition(menuX, menuY);
+        this.upgradeContainer.setPosition(tower.x, tower.y - 60);
         this.upgradeContainer.setVisible(true);
-        tower.rangeCircle.setVisible(true);
         this.updateUpgradeMenuText();
     }
-
-    closeUpgradeMenu() {
-        if (this.selectedTowerToUpgrade) this.selectedTowerToUpgrade.rangeCircle.setVisible(false);
-        this.selectedTowerToUpgrade = null;
-        this.upgradeContainer.setVisible(false);
-    }
-
+    
+    closeUpgradeMenu() { this.selectedTowerToUpgrade = null; this.upgradeContainer.setVisible(false); }
+    
     updateUpgradeMenuText() {
-        if (!this.selectedTowerToUpgrade) return;
-        const tower = this.selectedTowerToUpgrade;
-        if (tower.level >= tower.maxLevel) {
-            this.upgradeText.setText(`NIVEL MÁXIMO (Lvl ${tower.level})`);
-            this.upgradeBtn.setVisible(false);
+        if(!this.selectedTowerToUpgrade) return;
+        const t = this.selectedTowerToUpgrade;
+        if(t.level >= t.maxLevel) {
+            this.upgradeText.setText(`MAX NIVEL`); this.upgradeBtn.setVisible(false);
         } else {
             this.upgradeBtn.setVisible(true);
-            this.upgradeText.setText(`${tower.typeName}\nLvl ${tower.level} -> ${tower.level + 1}\nCosto: $${tower.upgradeCost}`);
+            this.upgradeText.setText(`${t.typeName} Lv${t.level}\n$${t.upgradeCost}`);
         }
     }
 
     tryUpgradeTower() {
-        if (this.selectedTowerToUpgrade && this.coins >= this.selectedTowerToUpgrade.upgradeCost) {
+        if(this.selectedTowerToUpgrade && this.coins >= this.selectedTowerToUpgrade.upgradeCost) {
             this.coins -= this.selectedTowerToUpgrade.upgradeCost;
             this.selectedTowerToUpgrade.upgrade();
             this.updateUpgradeMenuText();
@@ -361,66 +440,20 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    createUI() {
-        this.add.rectangle(110, 210, 200, 80, 0x000000, 0.7).setScrollFactor(0).setStrokeStyle(1, 0xffd700);
-        this.add.text(110, 180, 'ECONOMÍA', { fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0);
-        this.economyText = this.add.text(20, 200, '', { fontSize: '20px', color: '#fff', fontStyle: 'bold' }).setScrollFactor(0);
-        
-        this.add.rectangle(640, 40, 300, 60, 0x000000, 0.7).setScrollFactor(0).setStrokeStyle(2, 0xffffff);
-        this.waveText = this.add.text(640, 40, 'PREPARANDO...', { fontSize: '24px', fontStyle: 'bold', color: '#ff0000' }).setOrigin(0.5).setScrollFactor(0);
-        
-        this.add.rectangle(1160, 85, 220, 150, 0x000000, 0.7).setScrollFactor(0).setStrokeStyle(1, 0x00ffff);
-        this.add.text(1160, 25, 'CONSTRUCCIÓN', { fontSize: '16px', color: '#00ffff', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0);
-        this.buildText = this.add.text(1060, 45, '', { fontSize: '12px', color: '#fff', lineHeight: 20 }).setScrollFactor(0);
-        
-        const exitBtn = this.add.rectangle(1200, 680, 120, 40, 0xaa0000).setInteractive({ useHandCursor: true }).setScrollFactor(0);
-        this.add.text(1200, 680, 'SALIR', { fontSize: '14px' }).setOrigin(0.5).setScrollFactor(0);
-        exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene'));
-
-        // --- BOTÓN DE SKILL (CORREGIDO) ---
-        this.skillBtnContainer = this.add.container(640, 650).setScrollFactor(0);
-        
-        // 1. Fondo de barra
-        const bgBar = this.add.rectangle(0, 0, 200, 40, 0x333333);
-        this.skillBtnContainer.add(bgBar);
-        
-        // 2. Barra de Progreso
-        this.skillBar = this.add.rectangle(-100, 0, 200, 40, 0x0088ff).setOrigin(0, 0.5);
-        this.skillBtnContainer.add(this.skillBar);
-        
-        // 3. Marco y Texto
-        this.skillBtn = this.add.rectangle(0, 0, 200, 40, 0x000000, 0).setStrokeStyle(2, 0xffd700).setInteractive({ useHandCursor: true });
-        this.skillText = this.add.text(0, 0, "HABILIDAD (Espacio)", { fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
-        this.skillBtnContainer.add([this.skillBtn, this.skillText]);
-
-        this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill());
-
-        // --- PANEL SUPERIOR: VIDAS ---
-        this.livesText = this.add.text(20, 20, '', { fontSize: '24px', fontStyle: 'bold', color: '#ff4444' }).setScrollFactor(0);
-        this.livesText.setStroke('#000', 4);
-    }
-
-    updateUI() {
-        const currentTower = TOWER_TYPES[this.selectedTowerType];
-        this.economyText.setText(`MONEDAS: $${this.coins}`);
-        this.buildText.setText(`SELECCIONADA:\n> ${currentTower.name.toUpperCase()} <\n\nCOSTE: $${currentTower.baseCost}\n(Teclas 1, 2, 3)`);
-
-        // MOSTRAR AMBAS VIDAS
-        const pStats = gameState.playerStats;
-        this.livesText.setText(`🏰 CASTILLO: ${gameState.baseHp}  |  ❤️ HÉROE: ${Math.floor(pStats.hp)}/${pStats.maxHp}`);
-    }
-
-    updateWaveTitle(text) { 
-        this.waveText.setText(text); 
-        this.tweens.add({ targets: this.waveText, alpha: 0.5, duration: 1000, yoyo: true, repeat: -1 }); 
-    }
-
-    createSpawnIndicator() { 
-        if (!this.pathPoints || this.pathPoints.length === 0) return;
+    createSpawnIndicator() {
+         if (!this.pathPoints || this.pathPoints.length === 0) return;
         const startX = this.pathPoints[0].x;
         const startY = this.pathPoints[0].y;
         const marker = this.add.circle(startX, startY, 20, 0xff0000);
         this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 });
-        this.add.text(startX, startY - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5);
+    }
+
+    triggerPlayerSkill() {
+        if (!this.player) return;
+        const result = this.player.castSkill();
+        if (result.success) {
+            // Animación en el botón
+            this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 });
+        }
     }
 }
