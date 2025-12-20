@@ -4,28 +4,46 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // --- SISTEMA DE EXPERIENCIA (Restaurado) ---
+    // --- SISTEMA DE EXPERIENCIA ---
     gainHeroXP(amount) {
         if (!gameState) return;
-        
         gameState.heroXP += Math.floor(amount);
-        
-        // Usamos while por si gana suficiente XP para subir varios niveles de golpe
         while (gameState.heroXP >= gameState.heroMaxXP) {
             gameState.heroXP -= gameState.heroMaxXP;
             gameState.heroLevel++;
-            
-            // Curva de dificultad: Cada nivel requiere 50% más de XP
             gameState.heroMaxXP = Math.floor(gameState.heroMaxXP * 1.5);
-            
-            // Recompensa: 3 Puntos de atributo por nivel
             gameState.statPoints += 3; 
-            
-            // Curación completa al subir de nivel
-            if (gameState.playerStats) {
-                gameState.playerStats.hp = gameState.playerStats.maxHp;
+            if (gameState.playerStats) gameState.playerStats.hp = gameState.playerStats.maxHp;
+        }
+    }
+
+    // --- HELPER: OBTENER NIVEL DE PROFESIÓN ---
+    getProfessionLevelForType(type) {
+        let profKey = 'weaponsmith'; // Default
+        if (type === 'armor' || type === 'offhand') profKey = 'armorsmith';
+        if (type === 'accessory') profKey = 'jewelry';
+        if (type === 'tower_part') profKey = 'engineering';
+
+        // Asegurar que la profesión existe en el estado
+        if (!gameState.professions[profKey]) {
+            gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
+        }
+        
+        return gameState.professions[profKey].level;
+    }
+
+    // --- HELPER: APLICAR MEJORA DE STATS POR NIVEL ---
+    // Aplica la fórmula de crecimiento (+20% + 1) N veces
+    applyEnchantStats(statsObj, levels) {
+        for (let i = 0; i < levels; i++) {
+            for (let key in statsObj) {
+                const current = statsObj[key];
+                // Fórmula de escalado
+                const boost = Math.ceil(current * 0.20) + 1; 
+                statsObj[key] = current + boost;
             }
         }
+        return statsObj;
     }
 
     // --- CRAFTEO DE ITEMS (Héroe) ---
@@ -40,8 +58,14 @@ class RPGSystem {
 
         this.consumeMaterials(recipe.mat, 3, rarityKey);
         
+        // Calcular Encantamiento Inicial basado en Profesión
+        const profLevel = this.getProfessionLevelForType(recipe.type);
+        const bonusEnchant = Math.floor(profLevel / 10); // Lvl 10 -> +1, Lvl 100 -> +10
+
         // Generar Item
-        const item = this.generateItem(recipe, rarity);
+        const item = this.generateItem(recipe, rarity, bonusEnchant);
+        
+        // Ganar XP
         this.gainProfessionXP(recipe.type, rarityKey);
         
         return { success: true, item: item };
@@ -49,14 +73,11 @@ class RPGSystem {
 
     // --- CRAFTEO DE PIEZAS DE TORRE (Ingeniería) ---
     craftTowerPart(towerType, rarityKey) {
-        // Costo Elevado: 10 de cada material blanco + Oro
         const costAmount = 10; 
         const goldCost = 500;
 
         if (gameState.gold < goldCost) return { success: false, error: "Falta Oro ($500)" };
         
-        // Verificar materiales (usamos rareza base del selector o 'common' si se prefiere simple)
-        // Aquí asumimos que gasta materiales de la rareza seleccionada
         if (!this.checkMaterials('wood', costAmount, rarityKey) || 
             !this.checkMaterials('copper', costAmount, rarityKey) ||
             !this.checkMaterials('leather', costAmount, rarityKey)) {
@@ -68,37 +89,42 @@ class RPGSystem {
         this.consumeMaterials('copper', costAmount, rarityKey);
         this.consumeMaterials('leather', costAmount, rarityKey);
 
-        const item = this.generateTowerItem(towerType, RARITY[rarityKey]);
+        // Calcular Encantamiento Inicial (Ingeniería)
+        const profLevel = this.getProfessionLevelForType('tower_part');
+        const bonusEnchant = Math.floor(profLevel / 10);
+
+        const item = this.generateTowerItem(towerType, RARITY[rarityKey], bonusEnchant);
         
-        // Ingeniería sube XP (usamos lógica genérica)
-        if (!gameState.professions.engineering) gameState.professions.engineering = { level: 1, xp: 0, maxXp: 100 };
-        gameState.professions.engineering.xp += 50; 
+        // Ganar XP Ingeniería
+        this.gainProfessionXP('tower_part', rarityKey);
         
         return { success: true, item: item };
     }
 
-    generateTowerItem(towerType, rarity) {
+    generateTowerItem(towerType, rarity, initialEnchant = 0) {
         const stats = {};
-        // Posibles atributos para torres
         const possibleStats = [
             { key: 'damage', min: 2, max: 5 },
             { key: 'range', min: 10, max: 20 },
-            { key: 'attackSpeed', min: 50, max: 100 }, // Reducción en ms
-            { key: 'doubleAttack', min: 5, max: 10 } // Porcentaje
+            { key: 'attackSpeed', min: 50, max: 100 }, 
+            { key: 'doubleAttack', min: 5, max: 10 } 
         ];
 
-        // 1 Atributo base + extras por rareza
         const numStats = 1 + rarity.statCount; 
         
+        // 1. Generar Base
         for (let i = 0; i < numStats; i++) {
             const statDef = possibleStats[Math.floor(Math.random() * possibleStats.length)];
             const val = Math.floor(Math.random() * (statDef.max - statDef.min + 1)) + statDef.min;
-            
-            // Aplicar multiplicador de rareza al valor
             const finalVal = Math.floor(val * rarity.mult);
             
             if (stats[statDef.key]) stats[statDef.key] += finalVal;
             else stats[statDef.key] = finalVal;
+        }
+
+        // 2. Aplicar Bonos de Nivel de Profesión
+        if (initialEnchant > 0) {
+            this.applyEnchantStats(stats, initialEnchant);
         }
 
         return {
@@ -107,7 +133,7 @@ class RPGSystem {
             type: 'tower_part',
             towerType: towerType,
             rarity: rarity.id,
-            enchant: 0,
+            enchant: initialEnchant, // Guardar nivel
             stats: stats,
             color: rarity.color
         };
@@ -122,22 +148,15 @@ class RPGSystem {
              return { success: false, error: "Deben ser del mismo tipo" };
         }
 
-        // 50% de probabilidad de heredar stats base de item1 o item2
-        // Clonamos para no modificar las referencias originales
         const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
         
-        // POTENCIACIÓN: Aumentar stats para el siguiente nivel
-        for (let key in baseStats) {
-            const current = baseStats[key];
-            // Fórmula: +20% + 1 plano
-            const boost = Math.ceil(current * 0.20) + 1; 
-            baseStats[key] = current + boost;
-        }
+        // POTENCIACIÓN (Subir 1 nivel)
+        this.applyEnchantStats(baseStats, 1);
 
         const newItem = {
-            ...item1, // Hereda propiedades visuales del item1
+            ...item1, 
             id: Date.now(),
-            name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`,
+            name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, // Limpiar nombre anterior
             enchant: item1.enchant + 1,
             stats: baseStats
         };
@@ -146,7 +165,7 @@ class RPGSystem {
     }
 
     // --- GENERADORES AUXILIARES ---
-    generateItem(recipe, rarity) {
+    generateItem(recipe, rarity, initialEnchant = 0) {
         const stats = { ...recipe.baseStats };
         // Aplicar mult rareza a base
         for(let k in stats) stats[k] = Math.floor(stats[k] * rarity.mult);
@@ -160,15 +179,20 @@ class RPGSystem {
             else stats[stat.key] = val;
         }
 
+        // APLICAR BONO DE PROFESIÓN
+        if (initialEnchant > 0) {
+            this.applyEnchantStats(stats, initialEnchant);
+        }
+
         return {
             id: Date.now() + Math.random(),
             recipeId: recipe.id,
-            name: `${recipe.name}`,
+            name: `${recipe.name}`, // El enchant se muestra en la UI, no quemarlo en el nombre base aquí
             type: recipe.type,
             subType: recipe.subType, 
             twoHanded: recipe.twoHanded || false,
             rarity: rarity.id,
-            enchant: 0,
+            enchant: initialEnchant,
             stats: stats,
             color: rarity.color
         };
@@ -187,7 +211,6 @@ class RPGSystem {
             { key: 'thorns', min: 1, max: 3, label: 'Espinas' },
             { key: 'regenHp', min: 1, max: 2, label: 'Regen HP' }
         ];
-        // Accesorios
         return [ 
             { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque (ms)' },
             { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' },
@@ -199,9 +222,13 @@ class RPGSystem {
     gainProfessionXP(type, rarityKey) {
         let xp = 10 * RARITY[rarityKey].mult;
         let prof = 'weaponsmith';
-        if (type === 'armor') prof = 'armorsmith';
+        if (type === 'armor' || type === 'offhand') prof = 'armorsmith';
         if (type === 'accessory') prof = 'jewelry';
+        if (type === 'tower_part') prof = 'engineering';
         
+        // Init safety
+        if (!gameState.professions[prof]) gameState.professions[prof] = { level: 1, xp: 0, maxXp: 100 };
+
         gameState.professions[prof].xp += Math.floor(xp);
         if (gameState.professions[prof].xp >= gameState.professions[prof].maxXp) {
             gameState.professions[prof].level++;
@@ -219,12 +246,11 @@ class RPGSystem {
     spendStatPoint(stat) {
         if (gameState.statPoints > 0) {
             gameState.statPoints--;
-            // Asegurar que el objeto existe
             if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
             
             if (stat === 'damage') gameState.baseAttributes.damage += 1;
             else if (stat === 'hp') gameState.baseAttributes.maxHp += 10;
-            else if (stat === 'speed') gameState.baseAttributes.attackSpeed += 10; // En realidad resta delay, así que +10 es bueno
+            else if (stat === 'speed') gameState.baseAttributes.attackSpeed += 10; 
             else if (stat === 'defense') gameState.baseAttributes.defense += 1;
             return true;
         }
