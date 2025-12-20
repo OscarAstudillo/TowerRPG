@@ -265,23 +265,73 @@ export default class GameScene extends Phaser.Scene {
     startNextWaveAction() { if (this.isTimerRunning) this.startNextWave(); }
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
     startNextWave() {
-        this.isTimerRunning = false; this.waveTimerContainer.setVisible(false);
+        this.isTimerRunning = false;
+        this.waveTimerContainer.setVisible(false);
         if (this.spawnTimer) this.spawnTimer.remove();
+        
         if (this.currentWave > this.totalWaves) { this.victory(); return; }
+        
         this.waveInProgress = true;
+        
+        // Configuración de Oleada
         const levelDiff = this.currentLevelData.difficulty || 1;
-        let enemyType = 'normal'; let count = 5 + (this.currentWave * 2); let interval = 1500; let hpMult = levelDiff;
-        if (this.currentWave === 1) { enemyType = 'normal'; hpMult *= 1.0; } 
-        else if (this.currentWave === 2) { enemyType = 'speed'; count = 10; interval = 800; hpMult *= 0.8; } 
-        else if (this.currentWave === 3) { enemyType = 'tank'; count = 4; interval = 2500; hpMult *= 1.5; } 
-        else if (this.currentWave === 4) { enemyType = 'mix_healer'; count = 8; interval = 1200; hpMult *= 1.2; } 
-        else if (this.currentWave === 5) { enemyType = 'boss'; count = 1; hpMult *= 5.0; this.waveInfoText.setText("OLEADA: BOSS!"); this.waveInfoText.setColor('#ff0000'); }
-        if (this.currentWave !== 5) { this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`); this.waveInfoText.setColor(this.theme.accent); }
+        const levelId = this.currentLevelData.id || 1; // ID del Nivel actual
+
+        let enemyType = 'normal';
+        let count = 5 + (this.currentWave * 2);
+        let interval = 1500;
+        let hpMult = levelDiff;
+
+        if (this.currentWave === 1) { 
+            enemyType = 'normal'; hpMult *= 1.0; 
+        } 
+        else if (this.currentWave === 2) { 
+            enemyType = 'speed'; count = 10; interval = 800; hpMult *= 0.8; 
+        } 
+        else if (this.currentWave === 3) { 
+            enemyType = 'tank'; count = 4; interval = 2500; hpMult *= 1.5; 
+        } 
+        else if (this.currentWave === 4) { 
+            enemyType = 'mix_healer'; count = 8; interval = 1200; hpMult *= 1.2; 
+        } 
+        else if (this.currentWave === 5) { 
+            // --- JEFE FINAL ÚNICO POR NIVEL ---
+            count = 1; 
+            hpMult *= 1.0; // El jefe ya tiene mucha vida base en Enemy.js
+            
+            if (levelId === 1) enemyType = 'boss_goblin';
+            else if (levelId === 2) enemyType = 'boss_golem';
+            else if (levelId === 3) enemyType = 'boss_wizard';
+            else enemyType = 'boss'; // Fallback
+
+            this.waveInfoText.setText("¡JEFE FINAL!");
+            this.waveInfoText.setColor('#ff0000');
+            
+            // Música dramática (imaginaria)
+            this.cameras.main.shake(500, 0.01);
+        }
+
+        if (this.currentWave !== 5) {
+            this.waveInfoText.setText(`OLEADA: ${this.currentWave}/${this.totalWaves}`);
+            this.waveInfoText.setColor(this.theme.accent);
+        }
+
         this.enemiesToSpawn = count;
-        this.spawnTimer = this.time.addEvent({ delay: interval, callback: () => {
-            let actualType = enemyType; if (enemyType === 'mix_healer') actualType = Math.random() > 0.5 ? 'healer' : 'normal';
-            this.spawnEnemy(hpMult, actualType); this.enemiesToSpawn--; if (this.enemiesToSpawn <= 0) this.spawnTimer.remove();
-        }, repeat: count - 1 });
+        
+        this.spawnTimer = this.time.addEvent({
+            delay: interval,
+            callback: () => {
+                let actualType = enemyType;
+                if (enemyType === 'mix_healer') {
+                    actualType = Math.random() > 0.5 ? 'healer' : 'normal';
+                }
+                this.spawnEnemy(hpMult, actualType);
+                
+                this.enemiesToSpawn--;
+                if (this.enemiesToSpawn <= 0) this.spawnTimer.remove();
+            },
+            repeat: count - 1
+        });
     }
     spawnEnemy(hpMult, type) { const enemy = new Enemy(this, this.pathPoints, hpMult, type); this.enemies.add(enemy); }
     checkWaveStatus() { if (this.isTimerRunning) return; if (this.enemiesToSpawn <= 0 && this.enemies.countActive(true) === 0) { this.waveInProgress = false; this.currentWave++; if (this.currentWave > this.totalWaves) this.victory(); else this.startWaveTimer(12); } }
