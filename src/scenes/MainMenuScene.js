@@ -14,7 +14,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.selectedItem = null;
         
         this.itemToFuse1 = null; 
-        this.itemToFuse2 = null; // Nuevo: Segundo item seleccionado
+        this.itemToFuse2 = null; 
 
         this.expandedRecipeId = null; 
         this.expandedTowerType = null; 
@@ -168,7 +168,7 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    // --- MOCHILA Y FUSIÓN MEJORADA ---
+    // --- MOCHILA Y FUSIÓN MEJORADA (UI VISUAL ACTUALIZADA) ---
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
         this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
@@ -201,34 +201,37 @@ export default class MainMenuScene extends Phaser.Scene {
         // --- UI SELECCIÓN DE FUSIÓN (Lista de candidatos) ---
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
-        const fTitle = this.add.text(0, -200, "SELECCIONA ITEM PARA SACRIFICAR", { fontSize: '24px' }).setOrigin(0.5);
+        const fTitle = this.add.text(0, -200, "SELECCIONA ITEM PARA COMBINAR", { fontSize: '24px' }).setOrigin(0.5);
         this.fusionList = this.add.container(0, -150);
         const fCancel = this.add.text(0, 220, "CANCELAR", { fontSize: '20px', color: '#ff0000' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         fCancel.on('pointerdown', () => this.fusionListModal.setVisible(false));
         this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel]);
 
-        // --- NUEVO: UI CONFIRMACIÓN DE FUSIÓN (Comparación) ---
+        // --- UI CONFIRMACIÓN DE FUSIÓN (Comparación 50/50) ---
         this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
         const fcBg = this.add.rectangle(0, 0, 800, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
-        const fcTitle = this.add.text(0, -250, "CONFIRMAR FUSIÓN", { fontSize: '32px', color: '#ffd700' }).setOrigin(0.5);
+        const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { fontSize: '32px', color: '#ffd700' }).setOrigin(0.5);
         
-        // Panel Izquierdo (Base)
+        // TEXTO EXPLICATIVO CORREGIDO
+        const fcInfo = this.add.text(0, -220, "El item resultante heredará los stats de UNO de estos dos items (50% Probabilidad).\nAmbos items originales serán consumidos.", { fontSize: '16px', color: '#cccccc', align: 'center' }).setOrigin(0.5);
+
+        // Panel Izquierdo (Candidato A)
         const leftPanel = this.add.container(-200, 0);
-        const lBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xffffff);
-        const lLabel = this.add.text(0, -180, "ITEM BASE (Se Conserva)", { fontSize: '16px', color: '#00ff00' }).setOrigin(0.5);
+        const lBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0x00ffff); // Cyan
+        const lLabel = this.add.text(0, -180, "CANDIDATO A (50% Chance)", { fontSize: '16px', color: '#00ffff' }).setOrigin(0.5);
         this.fusionItem1Info = this.add.text(0, 0, "", { fontSize: '14px', align: 'center' }).setOrigin(0.5);
         leftPanel.add([lBg, lLabel, this.fusionItem1Info]);
 
-        // Panel Derecho (Sacrificio)
+        // Panel Derecho (Candidato B)
         const rightPanel = this.add.container(200, 0);
-        const rBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xff0000);
-        const rLabel = this.add.text(0, -180, "SACRIFICIO (Se Destruye)", { fontSize: '16px', color: '#ff0000' }).setOrigin(0.5);
+        const rBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xff00ff); // Magenta
+        const rLabel = this.add.text(0, -180, "CANDIDATO B (50% Chance)", { fontSize: '16px', color: '#ff00ff' }).setOrigin(0.5);
         this.fusionItem2Info = this.add.text(0, 0, "", { fontSize: '14px', align: 'center' }).setOrigin(0.5);
         rightPanel.add([rBg, rLabel, this.fusionItem2Info]);
 
         // Botones Confirmación
         const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true});
-        const confirmTxt = this.add.text(0, 250, "¡FUSIONAR AHORA!", { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
+        const confirmTxt = this.add.text(0, 250, "¡PROBAR SUERTE!", { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
         confirmBtn.on('pointerdown', () => this.executeFusion());
 
         const cancelConfirm = this.add.text(0, 320, "Volver", { fontSize: '18px', color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
@@ -237,7 +240,7 @@ export default class MainMenuScene extends Phaser.Scene {
             this.fusionListModal.setVisible(true); // Volver a la lista
         });
 
-        this.fusionConfirmModal.add([fcBg, fcTitle, leftPanel, rightPanel, confirmBtn, confirmTxt, cancelConfirm]);
+        this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftPanel, rightPanel, confirmBtn, confirmTxt, cancelConfirm]);
     }
 
     initiateFusion() {
@@ -267,7 +270,6 @@ export default class MainMenuScene extends Phaser.Scene {
             const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "...";
             const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { fontSize: '14px', color: '#fff' }).setOrigin(0.5);
             
-            // CAMBIO: Al hacer clic, vamos a la pantalla de confirmación
             btn.on('pointerdown', () => this.selectSecondItemForFusion(item));
             
             this.fusionList.add([btn, txt]);
@@ -280,11 +282,11 @@ export default class MainMenuScene extends Phaser.Scene {
         this.fusionListModal.setVisible(false);
         this.fusionConfirmModal.setVisible(true);
 
-        // Mostrar Stats Item 1
+        // Mostrar Stats Item 1 (Candidato A)
         const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, '');
         this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`);
 
-        // Mostrar Stats Item 2
+        // Mostrar Stats Item 2 (Candidato B)
         const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, '');
         this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`);
     }
@@ -304,13 +306,13 @@ export default class MainMenuScene extends Phaser.Scene {
             
             this.refreshInventory();
             SaveSystem.save();
-            alert(`¡Fusión Exitosa! Nuevo item: ${result.item.name}`);
+            alert(`¡Fusión Exitosa! El destino eligió y mejoró el item: ${result.item.name}`);
         } else {
             alert(result.error);
         }
     }
 
-    // --- RESTO DE FUNCIONES (Inventario, Forja, etc. sin cambios mayores) ---
+    // --- RESTO DE FUNCIONES (Sin cambios) ---
     createInvCategoryBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#888', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); }); this.invContainer.add(btn); }
     refreshInventory() {
         let matContent = "";
