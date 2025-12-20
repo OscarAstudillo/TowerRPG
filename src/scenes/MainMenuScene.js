@@ -1,83 +1,63 @@
 // src/scenes/MainMenuScene.js
 import Phaser from 'phaser';
-import { gameState, updatePlayerStats, RARITY } from '../config/GameState.js';
+import { gameState, updatePlayerStats, RARITY, getCurrentHero } from '../config/GameState.js'; // Importar getCurrentHero
 import RPGSystem from '../systems/RPGSystem.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import { RECIPES } from '../config/Recipes.js';
-import { TALENTS } from '../config/Talents.js'; // IMPORTAR TALENTOS
+import { TALENTS } from '../config/Talents.js';
 
 export default class MainMenuScene extends Phaser.Scene {
+    // ... Constructor igual que antes ...
     constructor() {
         super('MainMenuScene');
         this.currentTab = 'hero'; 
         this.inventoryCategory = 'all'; 
         this.forgeCategory = 'weapon';  
         this.selectedItem = null;
-        
         this.itemToFuse1 = null; 
         this.itemToFuse2 = null; 
-
         this.expandedRecipeId = null; 
         this.expandedTowerType = null; 
-        
         this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null };
         this.hasLoaded = false;
     }
 
+    // ... Create, SwitchTab, etc igual ...
+    // ... SOLO CAMBIA createHeroView, refreshHero, createTalentsView y refreshTalents ...
+    // Pego el archivo completo modificado para evitar errores de copy-paste.
+
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
-
-        if (!this.hasLoaded) {
-            SaveSystem.load();
-            // Inicializar talentos si no existen en el save antiguo
-            if (!gameState.talents) gameState.talents = [];
-            this.hasLoaded = true;
-        }
-
-        if (!gameState.selectedClass) {
-            this.scene.start('HeroSelectScene');
-            return;
-        }
-
+        if (!this.hasLoaded) { SaveSystem.load(); this.hasLoaded = true; }
+        if (!gameState.selectedClass) { this.scene.start('HeroSelectScene'); return; }
         updatePlayerStats();
 
-        const w = this.scale.width;
-        const h = this.scale.height;
-        const cx = w / 2;
-        const cy = h / 2;
-
+        const w = this.scale.width; const h = this.scale.height; const cx = w / 2; const cy = h / 2;
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.goldText = this.add.text(w - 50, h * 0.05, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
-        // TABS (Ahora son 5: Héroe, Talentos, Mochila, Forja, Torres)
-        const tabY = h * 0.12; 
-        const tabW = 160; // Más pequeños para que quepan
-        const startX = cx - (tabW * 2);
-        
+        const tabY = h * 0.12; const tabW = 160; const startX = cx - (tabW * 2);
         this.createTabButton(startX, tabY, 'HÉROE', 'hero', tabW);
-        this.createTabButton(startX + tabW, tabY, 'TALENTOS', 'talents', tabW); // NUEVO
+        this.createTabButton(startX + tabW, tabY, 'TALENTOS', 'talents', tabW);
         this.createTabButton(startX + tabW*2, tabY, 'MOCHILA', 'inventory', tabW);
         this.createTabButton(startX + tabW*3, tabY, 'FORJA', 'forge', tabW);
         this.createTabButton(startX + tabW*4, tabY, 'TORRES', 'towers', tabW);
 
-        // Contenedores
         this.heroContainer = this.add.container(0, 0);
-        this.talentsContainer = this.add.container(0, 0); // NUEVO
+        this.talentsContainer = this.add.container(0, 0);
         this.invContainer = this.add.container(0, 0);
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
-        // Inicializar Vistas
         this.createHeroView(w, h, cx, cy);
-        this.createTalentsView(w, h, cx, cy); // NUEVO
+        this.createTalentsView(w, h, cx, cy);
         this.createInventoryView(w, h, cx, cy);
         this.createForgeView(w, h, cx, cy);
         this.createTowersView(w, h, cx, cy);
 
         this.switchTab('hero');
 
-        // Footer
         const botY = h - 60;
         const playBtn = this.add.rectangle(cx, botY, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
         this.add.text(cx, botY, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
@@ -85,20 +65,11 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const resetBtn = this.add.text(50, h - 30, 'Borrar Datos', { fontSize: '14px', color: '#555' }).setInteractive({ useHandCursor: true });
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo?")) { SaveSystem.reset(); } });
-
         const changeHeroBtn = this.add.text(200, h - 30, 'Cambiar Héroe', { fontSize: '14px', color: '#00ffff' }).setInteractive({ useHandCursor: true });
-        changeHeroBtn.on('pointerdown', () => {
-            gameState.selectedClass = null; 
-            this.scene.start('HeroSelectScene');
-        });
+        changeHeroBtn.on('pointerdown', () => { gameState.selectedClass = null; this.scene.start('HeroSelectScene'); });
     }
 
-    createTabButton(x, y, text, tabKey, width) {
-        const btn = this.add.rectangle(x, y, width - 10, 40, 0x333333).setInteractive({ useHandCursor: true });
-        const txt = this.add.text(x, y, text, { fontSize: '16px' }).setOrigin(0.5);
-        btn.on('pointerdown', () => this.switchTab(tabKey));
-    }
-
+    createTabButton(x, y, text, tabKey, width) { const btn = this.add.rectangle(x, y, width - 10, 40, 0x333333).setInteractive({ useHandCursor: true }); const txt = this.add.text(x, y, text, { fontSize: '16px' }).setOrigin(0.5); btn.on('pointerdown', () => this.switchTab(tabKey)); }
     switchTab(tabKey) {
         this.currentTab = tabKey;
         this.heroContainer.setVisible(tabKey === 'hero');
@@ -106,96 +77,14 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invContainer.setVisible(tabKey === 'inventory');
         this.forgeContainer.setVisible(tabKey === 'forge');
         this.towersContainer.setVisible(tabKey === 'towers');
-        
         if (tabKey === 'inventory') this.refreshInventory();
         if (tabKey === 'hero') this.refreshHero();
-        if (tabKey === 'talents') this.refreshTalents(); // NUEVO
+        if (tabKey === 'talents') this.refreshTalents();
         if (tabKey === 'forge') this.refreshForge();
         if (tabKey === 'towers') this.refreshTowersView();
     }
 
-    // --- VISTA TALENTOS (NUEVA) ---
-    createTalentsView(w, h, cx, cy) {
-        this.talentPointsText = this.add.text(cx, h * 0.2, "PUNTOS DISPONIBLES: 0", { fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
-        this.talentsContainer.add(this.talentPointsText);
-
-        const note = this.add.text(cx, h * 0.25, "(Los talentos usan tus Puntos de Atributo)", { fontSize: '14px', color: '#aaa' }).setOrigin(0.5);
-        this.talentsContainer.add(note);
-
-        // Contenedor para los botones dinámicos
-        this.talentTreeContainer = this.add.container(0, 0);
-        this.talentsContainer.add(this.talentTreeContainer);
-    }
-
-    refreshTalents() {
-        this.talentPointsText.setText(`PUNTOS DISPONIBLES: ${gameState.statPoints}`);
-        this.talentTreeContainer.removeAll(true);
-
-        const cls = gameState.selectedClass;
-        const talents = TALENTS[cls] || [];
-        
-        const w = this.scale.width;
-        const h = this.scale.height;
-        let startY = h * 0.35;
-
-        talents.forEach((talent, i) => {
-            const isLearned = gameState.talents.includes(talent.id);
-            const hasPoints = gameState.statPoints >= talent.cost;
-            
-            // Verificar requisitos
-            let locked = false;
-            if (talent.req && !gameState.talents.includes(talent.req)) {
-                locked = true;
-            }
-
-            const bg = this.add.rectangle(w/2, startY, 500, 80, isLearned ? 0x006400 : (locked ? 0x333333 : 0x222222));
-            bg.setStrokeStyle(2, isLearned ? 0x00ff00 : (locked ? 0x555555 : 0xffd700));
-            
-            if (!isLearned && !locked) {
-                bg.setInteractive({ useHandCursor: true });
-                bg.on('pointerdown', () => this.learnTalent(talent));
-            }
-
-            const titleColor = isLearned ? '#00ff00' : (locked ? '#888' : '#fff');
-            const title = this.add.text(w/2 - 230, startY - 20, talent.name, { fontSize: '20px', fontStyle: 'bold', color: titleColor });
-            const desc = this.add.text(w/2 - 230, startY + 5, talent.desc, { fontSize: '14px', color: '#ccc', wordWrap: { width: 350 } });
-            
-            let statusText = "";
-            if (isLearned) statusText = "APRENDIDO";
-            else if (locked) statusText = `REQ: ${this.getTalentName(talent.req)}`;
-            else statusText = `APRENDER (Costo: ${talent.cost})`;
-
-            const btnTxt = this.add.text(w/2 + 150, startY, statusText, { fontSize: '16px', fontStyle: 'bold', color: isLearned ? '#fff' : '#ffd700' }).setOrigin(0.5);
-
-            this.talentTreeContainer.add([bg, title, desc, btnTxt]);
-            startY += 100;
-        });
-    }
-
-    getTalentName(id) {
-        // Buscar nombre en todas las listas
-        for (const cls in TALENTS) {
-            const t = TALENTS[cls].find(x => x.id === id);
-            if (t) return t.name;
-        }
-        return id;
-    }
-
-    learnTalent(talent) {
-        if (gameState.statPoints >= talent.cost) {
-            gameState.statPoints -= talent.cost;
-            gameState.talents.push(talent.id);
-            updatePlayerStats(); // Recalcular stats pasivos
-            SaveSystem.save();
-            this.refreshTalents();
-            // Efecto
-            this.cameras.main.flash(200, 0, 255, 0);
-        } else {
-            alert("No tienes suficientes puntos.");
-        }
-    }
-
-    // --- VISTA HÉROE (Sin Cambios significativos) ---
+    // --- VISTA HÉROE ACTUALIZADA (Usa getCurrentHero) ---
     createHeroView(w, h, cx, cy) {
         this.heroLevelText = this.add.text(cx, h * 0.2, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
         this.heroContainer.add(this.heroLevelText);
@@ -220,13 +109,96 @@ export default class MainMenuScene extends Phaser.Scene {
         this.heroContainer.add([btn, txt]);
     }
     refreshHero() {
-        updatePlayerStats(); const s = gameState.playerStats; const eq = gameState.equipment; const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase();
-        this.heroStatsText.setText(`CLASE ACTUAL: [ ${clsName} ]\n\n-- ATRIBUTOS --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  ⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}  ⚡ Vel: ${s.attackSpeed}\n\n-- EQUIPAMIENTO --\n🗡️ Arma: ${eq.mainHand ? eq.mainHand.name : '-'}\n🛡️ Off: ${eq.offHand ? eq.offHand.name : '-'}\n👕 Armadura: ${eq.armor ? eq.armor.name : '-'}\n💍 Joya: ${eq.accessory ? eq.accessory.name : '-'}`);
-        this.heroLevelText.setText(`NIVEL ${gameState.heroLevel} (XP: ${gameState.heroXP}/${gameState.heroMaxXP})`);
-        this.pointsText.setText(`PUNTOS DISPONIBLES: ${gameState.statPoints}`);
+        updatePlayerStats(); const s = gameState.playerStats; const eq = gameState.equipment; 
+        const hero = getCurrentHero();
+        const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase();
+        this.heroStatsText.setText(`CLASE: [ ${clsName} ]\n\n-- ATRIBUTOS --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  ⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}  ⚡ Vel: ${s.attackSpeed}\n\n-- EQUIPAMIENTO --\n🗡️ Arma: ${eq.mainHand ? eq.mainHand.name : '-'}\n🛡️ Off: ${eq.offHand ? eq.offHand.name : '-'}\n👕 Armadura: ${eq.armor ? eq.armor.name : '-'}\n💍 Joya: ${eq.accessory ? eq.accessory.name : '-'}`);
+        this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`);
+        this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`);
     }
 
-    // --- VISTA TORRES ---
+    // --- VISTA TALENTOS MEJORADA (TIERS Y EXCLUSIÓN) ---
+    createTalentsView(w, h, cx, cy) {
+        this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS DE TALENTO: 0", { fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        this.talentsContainer.add(this.talentPointsText);
+        const note = this.add.text(cx, h * 0.22, "(Elige 1 por Nivel 10 - Exclusivos)", { fontSize: '14px', color: '#aaa' }).setOrigin(0.5);
+        this.talentsContainer.add(note);
+        this.talentTreeContainer = this.add.container(0, 0);
+        this.talentsContainer.add(this.talentTreeContainer);
+    }
+
+    refreshTalents() {
+        const hero = getCurrentHero();
+        this.talentPointsText.setText(`PUNTOS DE TALENTO: ${hero.talentPoints}`);
+        this.talentTreeContainer.removeAll(true);
+
+        const cls = gameState.selectedClass;
+        const allTalents = TALENTS[cls] || [];
+        const w = this.scale.width;
+        let startY = this.scale.height * 0.3;
+
+        // Renderizar por Tiers (10, 20, 30...)
+        const tiers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+        tiers.forEach(tierLevel => {
+            const tierTalents = allTalents.filter(t => t.tier === tierLevel);
+            if (tierTalents.length === 0) return;
+
+            // Determinar estado del Tier
+            const isUnlocked = hero.level >= tierLevel;
+            const pickedTalent = tierTalents.find(t => hero.talents.includes(t.id));
+            
+            // Fondo Fila
+            const rowBg = this.add.rectangle(w/2, startY, 800, 70, 0x222222).setStrokeStyle(1, isUnlocked ? 0x555555 : 0x220000);
+            const rowLabel = this.add.text(w/2 - 380, startY, `NIVEL ${tierLevel}`, { fontSize: '16px', color: isUnlocked ? '#fff' : '#555', fontStyle:'bold' }).setOrigin(0, 0.5);
+            this.talentTreeContainer.add([rowBg, rowLabel]);
+
+            // Renderizar Opciones (A vs B)
+            tierTalents.forEach((talent, idx) => {
+                const isSelected = (pickedTalent && pickedTalent.id === talent.id);
+                const isBlocked = (pickedTalent && pickedTalent.id !== talent.id); // Bloqueado si ya elegí el otro
+                
+                // Posición: Izquierda o Derecha
+                const btnX = w/2 + (idx === 0 ? -150 : 150);
+                
+                let color = 0x333333; // Default
+                if (isSelected) color = 0x006400; // Verde
+                else if (isBlocked || !isUnlocked) color = 0x111111; // Gris oscuro
+
+                const btn = this.add.rectangle(btnX, startY, 280, 50, color).setStrokeStyle(1, isSelected ? 0x00ff00 : 0xaaaaaa);
+                const nameTxt = this.add.text(btnX, startY - 10, talent.name, { fontSize: '14px', fontStyle: 'bold', color: isBlocked || !isUnlocked ? '#555' : '#fff' }).setOrigin(0.5);
+                const descTxt = this.add.text(btnX, startY + 10, talent.desc, { fontSize: '10px', color: '#aaa' }).setOrigin(0.5);
+
+                if (isUnlocked && !pickedTalent && hero.talentPoints > 0) {
+                    btn.setInteractive({ useHandCursor: true });
+                    btn.on('pointerdown', () => this.learnTalent(talent));
+                    btn.setStrokeStyle(2, 0xffd700); // Resaltar disponible
+                }
+
+                this.talentTreeContainer.add([btn, nameTxt, descTxt]);
+            });
+
+            startY += 80;
+        });
+    }
+
+    learnTalent(talent) {
+        if (RPGSystem.spendTalentPoint(talent.id, 1)) { // Costo fijo 1
+            updatePlayerStats(); 
+            SaveSystem.save();
+            this.refreshTalents();
+            this.cameras.main.flash(200, 0, 255, 0);
+        }
+    }
+
+    // ... (El resto del código: createTowersView, createInventoryView, createForgeView y sus helpers se mantienen IGUAL que la versión anterior) ...
+    // Asegúrate de copiar el resto del archivo anterior aquí para que funcione todo.
+    // Solo por completitud del bloque, repito las funciones clave que no cambiaron pero son necesarias para que el archivo sea válido.
+    
+    // ... COPIA AQUÍ createTowersView, refreshTowersView, createInventoryView, refreshInventory, 
+    // createForgeView, refreshForge y todos los métodos auxiliares del mensaje anterior ...
+    
+    // (Para no hacer la respuesta infinita, asumo que mantienes el código de inventario/forja/torres del paso anterior)
     createTowersView(w, h, cx, cy) {
         const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3;
         types.forEach((type, i) => {
@@ -256,13 +228,9 @@ export default class MainMenuScene extends Phaser.Scene {
             }
         });
     }
-
-    // ... (INVENTARIO Y FUSIÓN - Mantener código anterior intacto) ...
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
-        this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
-        this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); 
-        this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats');
+        this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats');
         this.invMatsText = this.add.text(50, catY + 40, '', { fontSize: '14px', lineHeight: 20 }); this.invContainer.add(this.invMatsText);
         const gridX = w * 0.28; const gridY = h * 0.3;
         this.invItemsContainer = this.add.container(gridX, gridY); this.invContainer.add(this.invItemsContainer);
@@ -317,8 +285,6 @@ export default class MainMenuScene extends Phaser.Scene {
     swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
     forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
     removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
-
-    // --- FORJA ---
     createForgeView(w, h, cx, cy) { this.profText = this.add.text(cx, h * 0.18, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5); this.forgeContainer.add(this.profText); this.forgeMsg = this.add.text(cx, h - 100, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5); this.forgeContainer.add(this.forgeMsg); const catY = h * 0.25; this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon'); this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor'); this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory'); this.createForgeCatBtn(cx, catY + 50, "INGENIERÍA (Torres)", 'tower_part'); this.recipesContainer = this.add.container(0, 0); this.forgeContainer.add(this.recipesContainer); const detailX = w * 0.78; const detailY = h * 0.45; this.recipeDetailContainer = this.add.container(detailX, detailY); this.forgeContainer.add(this.recipeDetailContainer); const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700); this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5); this.recipeInfo = this.add.text(0, 50, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5); this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.handleCraftButton()); this.craftBtn.setVisible(false); this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]); }
     createForgeCatBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btn.on('pointerdown', () => { this.forgeCategory = cat; this.expandedRecipeId = null; this.expandedTowerType = null; this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null }; this.recipeDetailContainer.setVisible(false); this.refreshForge(); }); this.forgeContainer.add(btn); }
     refreshForge() {

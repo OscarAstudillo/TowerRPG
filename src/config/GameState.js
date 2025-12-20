@@ -12,71 +12,89 @@ export const INITIAL_STATS = {
 
 export const RARITY = {
     common:     { id: 'common',     name: 'Común',      color: 0xffffff, mult: 1.0, statCount: 1 },
-    uncommon:   { id: 'uncommon',   name: 'Poco Común', color: 0x00ff00, mult: 1.5, statCount: 2 }, // Buffed mult
-    rare:       { id: 'rare',       name: 'Raro',       color: 0x0000ff, mult: 2.5, statCount: 3 }, // Buffed mult
-    epic:       { id: 'epic',       name: 'Épico',      color: 0x800080, mult: 4.0, statCount: 4 }, // Buffed mult
-    legendary:  { id: 'legendary',  name: 'Legendario', color: 0xffaa00, mult: 6.0, statCount: 5 }  // Buffed mult
+    uncommon:   { id: 'uncommon',   name: 'Poco Común', color: 0x00ff00, mult: 1.5, statCount: 2 },
+    rare:       { id: 'rare',       name: 'Raro',       color: 0x0000ff, mult: 2.5, statCount: 3 },
+    epic:       { id: 'epic',       name: 'Épico',      color: 0x800080, mult: 4.0, statCount: 4 },
+    legendary:  { id: 'legendary',  name: 'Legendario', color: 0xffaa00, mult: 6.0, statCount: 5 }
 };
 
 export const gameState = {
-    selectedClass: null, // Se elige al inicio
+    selectedClass: null, 
     levelsUnlocked: 1,
     levelStars: {}, 
     gold: 5000,
-    talents: [],
 
-    heroLevel: 1,
-    heroXP: 0,
-    heroMaxXP: 100,
-    statPoints: 0, 
+    // --- NUEVA ESTRUCTURA: DATOS POR HÉROE ---
+    heroes: {
+        // Se llenará dinámicamente: 
+        // paladin: { level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, talents: [], baseStats: {...} }
+    },
 
+    // Datos Globales
     materials: {
         wood:   { common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cloth:  { common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         copper: { common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         leather:{ common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 }
     },
-
     inventory: [],
-    maxInventorySlots: 40, // Aumentado para manejar piezas de torre
-    
-    equipment: { 
-        mainHand: null, offHand: null, armor: null, accessory: null 
-    },
-
-    // NUEVO: Equipamiento de Torres (2 slots por tipo)
+    maxInventorySlots: 40,
+    equipment: { mainHand: null, offHand: null, armor: null, accessory: null },
     towerEquipment: {
         archer: { slot1: null, slot2: null },
         cannon: { slot1: null, slot2: null },
         mage:   { slot1: null, slot2: null }
     },
-
-    baseAttributes: {
-        damage: 0, maxHp: 0, attackSpeed: 0, defense: 0
-    },
-
     playerStats: { ...INITIAL_STATS },
     baseHp: 20,
-    
     professions: {
         weaponsmith: { level: 1, xp: 0, maxXp: 100 },
         armorsmith:  { level: 1, xp: 0, maxXp: 100 },
         jewelry:     { level: 1, xp: 0, maxXp: 100 },
-        engineering: { level: 1, xp: 0, maxXp: 100 } // Nueva profesión
+        engineering: { level: 1, xp: 0, maxXp: 100 }
     }
 };
 
+// Inicializar un héroe si no existe
+export function initHero(classId) {
+    if (!gameState.heroes[classId]) {
+        gameState.heroes[classId] = {
+            level: 1,
+            xp: 0,
+            maxXp: 100,
+            statPoints: 0,
+            talentPoints: 0, // Puntos para talentos
+            talents: [],     // IDs de talentos aprendidos
+            baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } // Stats comprados
+        };
+    }
+}
+
+// Obtener datos del héroe actual
+export function getCurrentHero() {
+    if (!gameState.selectedClass) return null;
+    initHero(gameState.selectedClass); // Asegurar que existe
+    return gameState.heroes[gameState.selectedClass];
+}
+
 export function updatePlayerStats() {
-    const classBase = CLASS_STATS[gameState.selectedClass || 'paladin'] || { ...INITIAL_STATS };
+    if (!gameState.selectedClass) return;
+    
+    const heroData = getCurrentHero();
+    const classBase = CLASS_STATS[gameState.selectedClass] || { ...INITIAL_STATS };
+    
+    // 1. Stats Base de la Clase
     const newStats = { ...INITIAL_STATS, ...classBase };
     newStats.maxHp = classBase.hp || 100; 
 
-    const attr = gameState.baseAttributes || { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
+    // 2. Sumar Atributos comprados (Específicos del Héroe)
+    const attr = heroData.baseAttributes;
     newStats.damage += (attr.damage || 0);
     newStats.maxHp += (attr.maxHp || 0);
     newStats.defense += (attr.defense || 0);
     newStats.attackSpeed -= (attr.attackSpeed || 0);
 
+    // 3. Sumar Equipamiento (Global)
     const eq = gameState.equipment || { mainHand: null, offHand: null, armor: null, accessory: null };
     ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => {
         const item = eq[slot];
@@ -89,59 +107,52 @@ export function updatePlayerStats() {
         }
     });
 
-    if (gameState.talents && gameState.selectedClass) {
+    // 4. Sumar Talentos (Específicos del Héroe)
+    if (heroData.talents) {
         const clsTalents = TALENTS[gameState.selectedClass] || [];
         clsTalents.forEach(t => {
-            if (gameState.talents.includes(t.id) && t.stats) {
+            if (heroData.talents.includes(t.id) && t.stats) {
                 for (let key in t.stats) {
-                    // Si es multiplicador (ej: maxHpMult)
                     if (key.endsWith('Mult')) {
                         const baseKey = key.replace('Mult', '');
                         if (newStats[baseKey] !== undefined) {
                             newStats[baseKey] = Math.floor(newStats[baseKey] * (1 + t.stats[key]));
                         }
                     } else {
-                        // Suma plana
-                        if (newStats[key] !== undefined) {
-                            newStats[key] += t.stats[key];
-                        } else {
-                            // Stat nuevo (ej: lifesteal si no existía)
-                            newStats[key] = t.stats[key];
-                        }
+                        if (newStats[key] !== undefined) newStats[key] += t.stats[key];
+                        else newStats[key] = t.stats[key];
                     }
                 }
             }
         });
     }
 
+    // Validaciones
     if (isNaN(newStats.damage)) newStats.damage = 1;
     if (isNaN(newStats.defense)) newStats.defense = 0;
     if (isNaN(newStats.maxHp)) newStats.maxHp = 100;
     if (newStats.attackSpeed < 100) newStats.attackSpeed = 100;
 
-    // Mantener consistencia de HP
+    // Ajuste de HP actual proporcional
     const oldMax = gameState.playerStats.maxHp;
     const oldHp = gameState.playerStats.hp;
-    const percent = oldHp / oldMax; // Mantener porcentaje de vida
+    let percent = oldHp / oldMax;
+    if (isNaN(percent)) percent = 1;
     
-    // Si cambio stats, ajustar vida actual proporcionalmente (o mantener si es igual)
-    if (isNaN(percent)) newStats.hp = newStats.maxHp;
-    else newStats.hp = Math.floor(newStats.maxHp * percent);
+    newStats.hp = Math.floor(newStats.maxHp * percent);
+    if (newStats.hp <= 0 && oldHp > 0) newStats.hp = 1; // Evitar muerte accidental al cambiar gear
 
     gameState.playerStats = newStats;
-    if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
 }
 
-// NUEVO: Calcular bonos de torres
 export function getTowerBonuses(towerType) {
     const bonuses = { range: 0, damage: 0, attackSpeed: 0, doubleAttack: 0 };
     const slots = gameState.towerEquipment[towerType];
-    
     [slots.slot1, slots.slot2].forEach(item => {
         if (item && item.stats) {
             if (item.stats.range) bonuses.range += item.stats.range;
             if (item.stats.damage) bonuses.damage += item.stats.damage;
-            if (item.stats.attackSpeed) bonuses.attackSpeed += item.stats.attackSpeed; // Reducción de delay
+            if (item.stats.attackSpeed) bonuses.attackSpeed += item.stats.attackSpeed;
             if (item.stats.doubleAttack) bonuses.doubleAttack += item.stats.doubleAttack;
         }
     });
