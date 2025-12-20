@@ -4,7 +4,31 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // --- CRAFTEO GENERAL ---
+    // --- SISTEMA DE EXPERIENCIA (Restaurado) ---
+    gainHeroXP(amount) {
+        if (!gameState) return;
+        
+        gameState.heroXP += Math.floor(amount);
+        
+        // Usamos while por si gana suficiente XP para subir varios niveles de golpe
+        while (gameState.heroXP >= gameState.heroMaxXP) {
+            gameState.heroXP -= gameState.heroMaxXP;
+            gameState.heroLevel++;
+            
+            // Curva de dificultad: Cada nivel requiere 50% más de XP
+            gameState.heroMaxXP = Math.floor(gameState.heroMaxXP * 1.5);
+            
+            // Recompensa: 3 Puntos de atributo por nivel
+            gameState.statPoints += 3; 
+            
+            // Curación completa al subir de nivel
+            if (gameState.playerStats) {
+                gameState.playerStats.hp = gameState.playerStats.maxHp;
+            }
+        }
+    }
+
+    // --- CRAFTEO DE ITEMS (Héroe) ---
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
@@ -23,7 +47,7 @@ class RPGSystem {
         return { success: true, item: item };
     }
 
-    // --- NUEVO: CRAFTEO DE PIEZAS DE TORRE ---
+    // --- CRAFTEO DE PIEZAS DE TORRE (Ingeniería) ---
     craftTowerPart(towerType, rarityKey) {
         // Costo Elevado: 10 de cada material blanco + Oro
         const costAmount = 10; 
@@ -31,8 +55,8 @@ class RPGSystem {
 
         if (gameState.gold < goldCost) return { success: false, error: "Falta Oro ($500)" };
         
-        // Verificar materiales (usamos rareza 'common' para la base, o la que pida el usuario)
-        // Por simplificación, pediremos 10 del material base de la rareza seleccionada
+        // Verificar materiales (usamos rareza base del selector o 'common' si se prefiere simple)
+        // Aquí asumimos que gasta materiales de la rareza seleccionada
         if (!this.checkMaterials('wood', costAmount, rarityKey) || 
             !this.checkMaterials('copper', costAmount, rarityKey) ||
             !this.checkMaterials('leather', costAmount, rarityKey)) {
@@ -45,13 +69,17 @@ class RPGSystem {
         this.consumeMaterials('leather', costAmount, rarityKey);
 
         const item = this.generateTowerItem(towerType, RARITY[rarityKey]);
-        gameState.professions.engineering.xp += 50; // XP Ingenieria
+        
+        // Ingeniería sube XP (usamos lógica genérica)
+        if (!gameState.professions.engineering) gameState.professions.engineering = { level: 1, xp: 0, maxXp: 100 };
+        gameState.professions.engineering.xp += 50; 
+        
         return { success: true, item: item };
     }
 
     generateTowerItem(towerType, rarity) {
         const stats = {};
-        // 1 Atributo base garantizado + (Nivel rareza) extras
+        // Posibles atributos para torres
         const possibleStats = [
             { key: 'damage', min: 2, max: 5 },
             { key: 'range', min: 10, max: 20 },
@@ -59,6 +87,7 @@ class RPGSystem {
             { key: 'doubleAttack', min: 5, max: 10 } // Porcentaje
         ];
 
+        // 1 Atributo base + extras por rareza
         const numStats = 1 + rarity.statCount; 
         
         for (let i = 0; i < numStats; i++) {
@@ -74,7 +103,7 @@ class RPGSystem {
 
         return {
             id: Date.now() + Math.random(),
-            name: `Mejora de ${towerType.toUpperCase()}`,
+            name: `Mejora ${towerType.toUpperCase()}`,
             type: 'tower_part',
             towerType: towerType,
             rarity: rarity.id,
@@ -84,8 +113,7 @@ class RPGSystem {
         };
     }
 
-    // --- NUEVO: FUSIÓN SELECTIVA (50/50) ---
-    // Recibe el objeto Item1 (Base) y Item2 (Sacrificio)
+    // --- FUSIÓN SELECTIVA (50/50) ---
     fuseSpecificItems(item1, item2) {
         if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) {
             return { success: false, error: "Deben ser misma rareza y nivel (+)" };
@@ -94,21 +122,22 @@ class RPGSystem {
              return { success: false, error: "Deben ser del mismo tipo" };
         }
 
-        // 50% de probabilidad de heredar stats de item1 o item2
-        const baseStats = (Math.random() > 0.5) ? { ...item1.stats } : { ...item2.stats };
+        // 50% de probabilidad de heredar stats base de item1 o item2
+        // Clonamos para no modificar las referencias originales
+        const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
         
-        // Aumentar stats para el siguiente nivel (+1)
-        // LOGICA BALANCEADA: Sumar un porcentaje fijo (20%) + un valor plano mínimo (1)
+        // POTENCIACIÓN: Aumentar stats para el siguiente nivel
         for (let key in baseStats) {
             const current = baseStats[key];
-            const boost = Math.ceil(current * 0.20) + 1; // Mínimo +1 siempre, +20% escalado
+            // Fórmula: +20% + 1 plano
+            const boost = Math.ceil(current * 0.20) + 1; 
             baseStats[key] = current + boost;
         }
 
         const newItem = {
-            ...item1,
+            ...item1, // Hereda propiedades visuales del item1
             id: Date.now(),
-            name: `${item1.name} +${item1.enchant + 1}`,
+            name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`,
             enchant: item1.enchant + 1,
             stats: baseStats
         };
@@ -116,7 +145,7 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
-    // --- GENERADORES Y UTILS ---
+    // --- GENERADORES AUXILIARES ---
     generateItem(recipe, rarity) {
         const stats = { ...recipe.baseStats };
         // Aplicar mult rareza a base
@@ -136,7 +165,7 @@ class RPGSystem {
             recipeId: recipe.id,
             name: `${recipe.name}`,
             type: recipe.type,
-            subType: recipe.subType, // sword, plate, etc.
+            subType: recipe.subType, 
             twoHanded: recipe.twoHanded || false,
             rarity: rarity.id,
             enchant: 0,
@@ -158,7 +187,8 @@ class RPGSystem {
             { key: 'thorns', min: 1, max: 3, label: 'Espinas' },
             { key: 'regenHp', min: 1, max: 2, label: 'Regen HP' }
         ];
-        return [ // Accessories
+        // Accesorios
+        return [ 
             { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque (ms)' },
             { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' },
             { key: 'cdr', min: 1, max: 5, label: 'CDR %' },
@@ -181,19 +211,20 @@ class RPGSystem {
     }
 
     checkMaterials(mat, amount, rarity) {
-        return gameState.materials[mat][rarity] >= amount;
+        return gameState.materials[mat] && gameState.materials[mat][rarity] >= amount;
     }
     consumeMaterials(mat, amount, rarity) {
-        gameState.materials[mat][rarity] -= amount;
+        if (gameState.materials[mat]) gameState.materials[mat][rarity] -= amount;
     }
     spendStatPoint(stat) {
         if (gameState.statPoints > 0) {
             gameState.statPoints--;
+            // Asegurar que el objeto existe
             if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
             
             if (stat === 'damage') gameState.baseAttributes.damage += 1;
             else if (stat === 'hp') gameState.baseAttributes.maxHp += 10;
-            else if (stat === 'speed') gameState.baseAttributes.attackSpeed += 10;
+            else if (stat === 'speed') gameState.baseAttributes.attackSpeed += 10; // En realidad resta delay, así que +10 es bueno
             else if (stat === 'defense') gameState.baseAttributes.defense += 1;
             return true;
         }
