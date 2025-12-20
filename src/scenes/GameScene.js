@@ -64,6 +64,8 @@ export default class GameScene extends Phaser.Scene {
         this.sx = w / 1280; 
         this.sy = h / 960;  
 
+        this.physics.world.setBounds(0, 0, w, h);
+
         const rawPath = this.currentLevelData.path;
         if (!rawPath || rawPath.length === 0) {
             console.error("¡ERROR DE CAMINO! Regresando al mapa..."); 
