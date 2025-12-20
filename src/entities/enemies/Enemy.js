@@ -1,7 +1,7 @@
 // src/entities/enemies/Enemy.js
 import Phaser from 'phaser';
 
-export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a Container para mejor manejo visual
+export default class Enemy extends Phaser.GameObjects.Container {
     constructor(scene, path, levelDifficulty, type = 'normal') {
         super(scene, path[0].x, path[0].y);
         scene.add.existing(this);
@@ -21,13 +21,17 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
         let castleDamage = 1;
         let name = "Enemigo";
 
-        // Tipos Normales
+        // --- BALANCEO DE VELOCIDAD ---
         if (type === 'normal') { hpBase = 100; speedBase = 1.0; }
         else if (type === 'tank') { hpBase = 250; speedBase = 0.6; armor = 5; color = 0x00008b; size = 26; name = "Tanque"; }
-        else if (type === 'speed') { hpBase = 60; speedBase = 1.8; color = 0xffff00; size = 16; name = "Corredor"; }
+        else if (type === 'speed') { 
+            hpBase = 60; 
+            speedBase = 1.4; // ANTES 1.8 (Reducido)
+            color = 0xffff00; size = 16; name = "Corredor"; 
+        }
         else if (type === 'healer') { hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; name = "Sanador"; }
         
-        // JEFES (Con mecánicas únicas)
+        // JEFES
         else if (type === 'boss_goblin') { 
             hpBase = 2000; speedBase = 0.4; armor = 5; color = 0x006400; size = 50; 
             castleDamage = 10; name = "Rey Goblin";
@@ -40,7 +44,6 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
             hpBase = 1500; speedBase = 0.6; armor = 2; color = 0x4b0082; size = 45; 
             castleDamage = 10; name = "Hechicero";
         }
-        // Fallback genérico para 'boss'
         else if (type === 'boss') {
             hpBase = 1500; speedBase = 0.5; armor = 10; color = 0x880000; size = 45; castleDamage = 10;
         }
@@ -48,11 +51,12 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
         // Stats Finales
         this.hp = Math.floor(hpBase * levelDifficulty);
         this.maxHp = this.hp;
-        this.baseSpeed = speedBase / 15000; 
+        // Ajuste global de velocidad (divisor aumentado ligeramente para frenar un poco todo el juego)
+        this.baseSpeed = speedBase / 16000; 
         this.currentSpeed = this.baseSpeed;
         this.armor = armor;
         this.leakDamage = castleDamage;
-        this.colorVal = color; // Guardar color para explosiones
+        this.colorVal = color;
 
         // Recompensas
         const isBoss = type.startsWith('boss');
@@ -60,32 +64,27 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
         this.xpReward = isBoss ? 200 : (type === 'tank' ? 20 : 10);
         this.damage = isBoss ? 50 : 15;
 
-        // Visual (Cuerpo)
+        // Visual
         const bodyShape = scene.add.rectangle(0, 0, size, size, color);
-        if (isBoss) bodyShape.setStrokeStyle(3, 0xffd700); // Borde dorado para bosses
+        if (isBoss) bodyShape.setStrokeStyle(3, 0xffd700);
         this.add(bodyShape);
         
-        // Barra de Vida (Relativa al container)
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 10, 40, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -size/2 - 10, 38, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
 
         this.setSize(size, size);
 
-        // Timers Habilidades
         this.lastAttackTime = 0;
         this.skillTimer = 0; 
-        this.skillCooldown = 5000; // Cada 5s intenta usar habilidad
-        
-        // Estado
-        this.isShielded = false; // Para el Golem
+        this.skillCooldown = 5000;
+        this.isShielded = false;
     }
 
     update(time, delta) {
         if (!this.scene) return;
 
-        // Movimiento
-        if (!this.isShielded) { // Si tiene escudo activo, se detiene (mecánica Golem)
+        if (!this.isShielded) {
             this.follower.t += this.currentSpeed * delta;
         }
 
@@ -94,7 +93,6 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
             return;
         }
         
-        // Posición en camino
         const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))];
         const p2 = this.path[Math.ceil(this.follower.t * (this.path.length - 1))];
         if (p1 && p2) {
@@ -103,12 +101,10 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
             this.y = Phaser.Math.Linear(p1.y, p2.y, segmentT);
         }
         
-        // Actualizar Barra Vida
         const hpPercent = Math.max(0, this.hp / this.maxHp);
         this.hpBar.width = 38 * hpPercent;
         this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00);
 
-        // Lógica Habilidades Boss
         if (this.type.startsWith('boss')) {
             this.skillTimer += delta;
             if (this.skillTimer > this.skillCooldown) {
@@ -117,7 +113,6 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
             }
         }
         
-        // Healer normal
         if (this.type === 'healer') {
             this.skillTimer += delta;
             if (this.skillTimer > 2000) {
@@ -131,43 +126,27 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
 
     useBossSkill() {
         if (this.type === 'boss_goblin') {
-            // Invocar 2 goblins rápidos
-            if (this.scene.spawnEnemy) {
+            // Llama a la función REAL de spawn en GameScene
+            if (this.scene.spawnMinion) {
                 this.scene.showFloatingText(this.x, this.y - 50, "¡ESBIRROS!", "#00ff00");
-                // Truco: Spawnearlos un poco atrás en el path
-                // Necesitamos acceder a la lógica de spawn de la escena, pero simplificado:
-                // Solo indicamos visualmente o creamos enemigos si tenemos acceso.
-                // Por ahora, efecto visual de "Grito de Guerra"
-                const shockwave = this.scene.add.circle(this.x, this.y, 10, 0xffffff, 0.5);
-                this.scene.tweens.add({ targets: shockwave, scale: 5, alpha: 0, duration: 500, onComplete: () => shockwave.destroy() });
-                
-                // Nota: Para spawnear realmente necesitamos pasar el path. 
-                // Asumimos que spawnEnemy de la escena puede manejar un 'startProgress' (complejo)
-                // O simplemente curarse:
-                this.hp = Math.min(this.hp + 200, this.maxHp);
-                this.scene.showFloatingText(this.x, this.y, "+200 HP", "#00ff00");
+                this.scene.spawnMinion(this); // Invocación 1
+                this.scene.time.delayedCall(500, () => this.scene.spawnMinion(this)); // Invocación 2
             }
         }
         else if (this.type === 'boss_golem') {
-            // Escudo de Hierro (Invulnerable 3s)
             this.isShielded = true;
             this.scene.showFloatingText(this.x, this.y - 50, "¡ESCUDO!", "#aaaaaa");
-            
-            // Visual escudo
             const shield = this.scene.add.circle(0, 0, 40, 0xaaaaaa, 0.3);
             shield.setStrokeStyle(2, 0xffffff);
             this.add(shield);
-
             this.scene.time.delayedCall(3000, () => {
                 this.isShielded = false;
                 shield.destroy();
             });
         }
         else if (this.type === 'boss_wizard') {
-            // Teletransporte (Avanzar 5% del camino)
             this.follower.t = Math.min(1, this.follower.t + 0.05);
             this.scene.showFloatingText(this.x, this.y - 50, "¡BLINK!", "#800080");
-            // Efecto flash
             const flash = this.scene.add.circle(this.x, this.y, 30, 0x800080);
             this.scene.tweens.add({ targets: flash, scale: 0, duration: 300, onComplete: () => flash.destroy() });
         }
@@ -193,57 +172,40 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
             if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
             return;
         }
-
         let dmg = Math.max(1, amount - this.armor);
         this.hp -= dmg;
-
         if (this.scene && this.scene.showFloatingText) {
             const isCrit = Math.random() > 0.8;
             if (isCrit) dmg *= 1.5;
             const color = isCrit ? '#ffaa00' : '#ffffff';
             this.scene.showFloatingText(this.x, this.y - 30, `-${Math.floor(dmg)}`, color);
         }
-
         if (this.hp <= 0) {
             this.die(true);
         } else {
-            // Flash rojo al recibir daño
-            this.scene.tweens.add({
-                targets: this, alpha: 0.5, yoyo: true, duration: 50
-            });
+            this.scene.tweens.add({ targets: this, alpha: 0.5, yoyo: true, duration: 50 });
         }
     }
 
     applySlow(factor, duration) {
-        if (this.type.startsWith('boss')) return; // Jefes inmunes a slow (o reducir menos)
+        if (this.type.startsWith('boss')) return; 
         if (this.isShielded) return;
-
-        // Lógica simple de slow
-        // (Nota: Como ahora recalculamos velocidad en update, necesitamos una variable de estado 'slowed')
-        // Por simplicidad, reducimos currentSpeed temporalmente, pero update lo sobrescribe con baseSpeed.
-        // Corrección: Usar un modificador de velocidad
         this.speedModifier = factor;
         this.scene.time.delayedCall(duration, () => { this.speedModifier = 1.0; });
     }
     
-    // Sobrescribimos get currentSpeed para usar modificador
-    get currentSpeed() {
-        return (this.baseSpeed * (this.speedModifier || 1.0));
-    }
-    set currentSpeed(val) { /* no-op, es calculado */ }
+    get currentSpeed() { return (this.baseSpeed * (this.speedModifier || 1.0)); }
+    set currentSpeed(val) { }
 
     checkAttackPlayer(time) {
         if (!this.scene || !this.scene.player) return;
         const player = this.scene.player;
         if (!player.active || player.isDead) return;
-        
         const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
         if (dist < 50) {
             if (time > this.lastAttackTime + 1000) {
                 player.takeDamage(this.damage);
                 this.lastAttackTime = time;
-                
-                // Animación golpe
                 this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 });
             }
         }
@@ -252,16 +214,12 @@ export default class Enemy extends Phaser.GameObjects.Container { // Cambiamos a
     die(killedByPlayer) {
         if (!this.scene) return;
         const scene = this.scene;
-        
         if (killedByPlayer) {
             if (scene.onEnemyKilled) scene.onEnemyKilled(this);
         } else {
             if (scene.onEnemyLeaks) scene.onEnemyLeaks(this.leakDamage);
         }
-        
         this.destroy();
-        
-        // Chequear estado oleada
         if (scene.checkWaveStatus) {
             scene.time.delayedCall(100, () => scene.checkWaveStatus());
         }

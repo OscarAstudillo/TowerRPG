@@ -334,6 +334,32 @@ export default class GameScene extends Phaser.Scene {
         });
     }
     spawnEnemy(hpMult, type) { const enemy = new Enemy(this, this.pathPoints, hpMult, type); this.enemies.add(enemy); }
+    // --- NUEVO: Spawn de esbirros del jefe ---
+    spawnMinion(parentBoss) {
+        if (!parentBoss || !parentBoss.active) return;
+
+        // Crear esbirro (tipo 'speed' pero con menos vida)
+        // Usamos un multiplicador bajo (0.3) para que sean débiles
+        const minion = new Enemy(this, this.pathPoints, 0.3, 'speed'); 
+        
+        // Sincronizar posición con el jefe
+        minion.follower.t = Math.max(0, parentBoss.follower.t - 0.02); // Aparece un poco detrás
+        
+        // Actualizar coordenadas inmediatamente
+        const p1 = this.pathPoints[Math.floor(minion.follower.t * (this.pathPoints.length - 1))];
+        const p2 = this.pathPoints[Math.ceil(minion.follower.t * (this.pathPoints.length - 1))];
+        if (p1 && p2) {
+            const segmentT = (minion.follower.t * (this.pathPoints.length - 1)) % 1;
+            minion.x = Phaser.Math.Linear(p1.x, p2.x, segmentT);
+            minion.y = Phaser.Math.Linear(p1.y, p2.y, segmentT);
+        }
+
+        // Efecto de aparición
+        minion.setScale(0);
+        this.tweens.add({ targets: minion, scale: 1, duration: 300, ease: 'Back.out' });
+
+        this.enemies.add(minion);
+    }
     checkWaveStatus() { if (this.isTimerRunning) return; if (this.enemiesToSpawn <= 0 && this.enemies.countActive(true) === 0) { this.waveInProgress = false; this.currentWave++; if (this.currentWave > this.totalWaves) this.victory(); else this.startWaveTimer(12); } }
     addEnemyReward(amount) { this.coins += amount; this.updateUI(); this.showFloatingText(80, 850, `+$${amount}`, '#ffff00'); }
     createBuildSlots() { const rawSlots = this.currentLevelData.towerSlots || []; rawSlots.forEach(slot => { const site = new BuildSite(this, slot.x * this.sx, slot.y * this.sy); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
