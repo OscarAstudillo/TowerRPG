@@ -1,6 +1,7 @@
 // src/entities/towers/Tower.js
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
+import { gameState, getTowerBonuses } from '../../config/GameState.js';
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -82,23 +83,32 @@ export default class Tower extends Phaser.GameObjects.Container {
     }
 
     fire(target) {
-        const proj = this.projectiles.get(this.x, this.y - 10);
-        if (proj) {
-            proj.fire(target, {
-                damage: this.damage,
-                type: this.typeKey,
-                aoeRadius: this.aoeRadius || 0,
-                slowFactor: this.slowFactor || 1
-            });
-            
-            // Retroceso visual al disparar
-            this.scene.tweens.add({
-                targets: this.turretGroup,
-                y: 5,
-                yoyo: true,
-                duration: 50
-            });
+        const fireProjectile = () => {
+            const proj = this.projectiles.get(this.x, this.y - 10);
+            if (proj) {
+                proj.fire(target, {
+                    damage: this.damage,
+                    type: this.typeKey,
+                    aoeRadius: this.aoeRadius || 0,
+                    slowFactor: this.slowFactor || 1
+                });
+            }
+        };
+
+        fireProjectile();
+
+        // Lógica Doble Ataque
+        if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance) {
+            this.scene.time.delayedCall(100, fireProjectile); // Disparo rápido extra
         }
+        
+        // Retroceso visual
+        this.scene.tweens.add({
+            targets: this.turretGroup,
+            y: 5,
+            yoyo: true,
+            duration: 50
+        });
     }
 
     upgrade() {
@@ -122,16 +132,26 @@ export default class Tower extends Phaser.GameObjects.Container {
         const currentStats = typeData.levels[levelIndex];
 
         if (currentStats) {
+            // 1. Stats Base
             this.damage = currentStats.damage;
             this.range = currentStats.range;
             this.attackSpeed = currentStats.fireRate; 
             this.upgradeCost = currentStats.upgradeCost;
             this.aoeRadius = currentStats.aoe || 0;
             this.slowFactor = currentStats.slow || 1;
+
+            // 2. APLICAR BONOS DE EQUIPAMIENTO
+            const bonuses = getTowerBonuses(this.typeKey);
             
+            this.damage += bonuses.damage;
+            this.range += bonuses.range;
+            // Attack Speed es "delay", así que restar es bueno. Mínimo 100ms
+            this.attackSpeed = Math.max(100, this.attackSpeed - bonuses.attackSpeed);
+            
+            // Probabilidad de Doble Ataque (Nueva mecánica)
+            this.doubleAttackChance = bonuses.doubleAttack || 0;
+
             if (this.rangeCircle) this.rangeCircle.setRadius(this.range);
-            
-            // --- ACTUALIZAR APARIENCIA ---
             this.updateAppearance();
         }
     }

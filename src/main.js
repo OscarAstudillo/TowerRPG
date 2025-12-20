@@ -4,6 +4,7 @@ import MainMenuScene from './scenes/MainMenuScene';
 import WorldMapScene from './scenes/WorldMapScene';
 import GameScene from './scenes/GameScene';
 import ResultScene from './scenes/ResultScene';
+import HeroSelectScene from './scenes/HeroSelectScene';
 
 const config = {
     type: Phaser.AUTO,
@@ -21,7 +22,7 @@ const config = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [MainMenuScene, WorldMapScene, GameScene, ResultScene]
+    scene: [HeroSelectScene,MainMenuScene, WorldMapScene, GameScene, ResultScene]
 };
 
 new Phaser.Game(config);

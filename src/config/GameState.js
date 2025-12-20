@@ -11,16 +11,16 @@ export const INITIAL_STATS = {
 
 export const RARITY = {
     common:     { id: 'common',     name: 'Común',      color: 0xffffff, mult: 1.0, statCount: 1 },
-    uncommon:   { id: 'uncommon',   name: 'Poco Común', color: 0x00ff00, mult: 1.2, statCount: 2 },
-    rare:       { id: 'rare',       name: 'Raro',       color: 0x0000ff, mult: 1.5, statCount: 3 },
-    epic:       { id: 'epic',       name: 'Épico',      color: 0x800080, mult: 2.0, statCount: 4 },
-    legendary:  { id: 'legendary',  name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 5 }
+    uncommon:   { id: 'uncommon',   name: 'Poco Común', color: 0x00ff00, mult: 1.5, statCount: 2 }, // Buffed mult
+    rare:       { id: 'rare',       name: 'Raro',       color: 0x0000ff, mult: 2.5, statCount: 3 }, // Buffed mult
+    epic:       { id: 'epic',       name: 'Épico',      color: 0x800080, mult: 4.0, statCount: 4 }, // Buffed mult
+    legendary:  { id: 'legendary',  name: 'Legendario', color: 0xffaa00, mult: 6.0, statCount: 5 }  // Buffed mult
 };
 
 export const gameState = {
-    selectedClass: 'paladin',
+    selectedClass: null, // Se elige al inicio
     levelsUnlocked: 1,
-    levelStars: {}, // NUEVO: Registro de estrellas por nivel { 1: 3, 2: 1 }
+    levelStars: {}, 
     gold: 5000,
 
     heroLevel: 1,
@@ -29,17 +29,24 @@ export const gameState = {
     statPoints: 0, 
 
     materials: {
-        wood:   { common: 20, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        cloth:  { common: 20, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        copper: { common: 20, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        leather:{ common: 20, uncommon: 0, rare: 0, epic: 0, legendary: 0 }
+        wood:   { common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        cloth:  { common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        copper: { common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        leather:{ common: 50, uncommon: 0, rare: 0, epic: 0, legendary: 0 }
     },
 
     inventory: [],
-    maxInventorySlots: 30,
+    maxInventorySlots: 40, // Aumentado para manejar piezas de torre
     
     equipment: { 
         mainHand: null, offHand: null, armor: null, accessory: null 
+    },
+
+    // NUEVO: Equipamiento de Torres (2 slots por tipo)
+    towerEquipment: {
+        archer: { slot1: null, slot2: null },
+        cannon: { slot1: null, slot2: null },
+        mage:   { slot1: null, slot2: null }
     },
 
     baseAttributes: {
@@ -47,17 +54,18 @@ export const gameState = {
     },
 
     playerStats: { ...INITIAL_STATS },
-    baseHp: 20, // Vida del castillo global
+    baseHp: 20,
     
     professions: {
         weaponsmith: { level: 1, xp: 0, maxXp: 100 },
         armorsmith:  { level: 1, xp: 0, maxXp: 100 },
-        jewelry:     { level: 1, xp: 0, maxXp: 100 }
+        jewelry:     { level: 1, xp: 0, maxXp: 100 },
+        engineering: { level: 1, xp: 0, maxXp: 100 } // Nueva profesión
     }
 };
 
 export function updatePlayerStats() {
-    const classBase = CLASS_STATS[gameState.selectedClass] || { ...INITIAL_STATS };
+    const classBase = CLASS_STATS[gameState.selectedClass || 'paladin'] || { ...INITIAL_STATS };
     const newStats = { ...INITIAL_STATS, ...classBase };
     newStats.maxHp = classBase.hp || 100; 
 
@@ -84,10 +92,31 @@ export function updatePlayerStats() {
     if (isNaN(newStats.maxHp)) newStats.maxHp = 100;
     if (newStats.attackSpeed < 100) newStats.attackSpeed = 100;
 
-    if (gameState.playerStats.hp > newStats.maxHp) newStats.hp = newStats.maxHp;
-    else if (isNaN(gameState.playerStats.hp)) newStats.hp = newStats.maxHp;
-    else newStats.hp = gameState.playerStats.hp;
+    // Mantener consistencia de HP
+    const oldMax = gameState.playerStats.maxHp;
+    const oldHp = gameState.playerStats.hp;
+    const percent = oldHp / oldMax; // Mantener porcentaje de vida
+    
+    // Si cambio stats, ajustar vida actual proporcionalmente (o mantener si es igual)
+    if (isNaN(percent)) newStats.hp = newStats.maxHp;
+    else newStats.hp = Math.floor(newStats.maxHp * percent);
 
     gameState.playerStats = newStats;
     if (!gameState.baseAttributes) gameState.baseAttributes = { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
+}
+
+// NUEVO: Calcular bonos de torres
+export function getTowerBonuses(towerType) {
+    const bonuses = { range: 0, damage: 0, attackSpeed: 0, doubleAttack: 0 };
+    const slots = gameState.towerEquipment[towerType];
+    
+    [slots.slot1, slots.slot2].forEach(item => {
+        if (item && item.stats) {
+            if (item.stats.range) bonuses.range += item.stats.range;
+            if (item.stats.damage) bonuses.damage += item.stats.damage;
+            if (item.stats.attackSpeed) bonuses.attackSpeed += item.stats.attackSpeed; // Reducción de delay
+            if (item.stats.doubleAttack) bonuses.doubleAttack += item.stats.doubleAttack;
+        }
+    });
+    return bonuses;
 }
