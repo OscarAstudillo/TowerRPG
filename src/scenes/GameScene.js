@@ -297,8 +297,89 @@ export default class GameScene extends Phaser.Scene {
     updateUI() { const w = this.scale.width; const h = this.scale.height; const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); if(this.xpBarFill) this.xpBarFill.width = 200 * Math.min(1, gameState.heroXP / gameState.heroMaxXP); if(this.lvlText) this.lvlText.setText(`Lvl ${gameState.heroLevel}`); }
     updateSkillUI() { if (!this.player) return; const cd = this.player.skillCooldown; const maxCd = this.player.skillMaxCooldown; if (cd > 0) { const progress = 1 - (cd / maxCd); this.skillBar.width = 200 * progress; this.skillBar.setFillStyle(0x555555); this.skillText.setText(`${(cd / 1000).toFixed(1)}s`); } else { this.skillBar.width = 200; this.skillBar.setFillStyle(this.theme.accent); if (this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)"); } }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
-    spawnLoot(x, y) { const levelId = this.currentLevelData.id || 1; if (Math.random() > 0.20) return; const luck = (levelId - 1) * 0.05; const roll = Math.random() * 100; let rarity = 'common'; const tGold = 0.01 + (luck * 0.01); const tRed = 0.10 + (luck * 0.05); const tPurple = 0.29 + (luck * 0.1); const tGreen = 5.09 + (luck * 0.5); if (roll < tGold) rarity = 'legendary'; else if (roll < tRed) rarity = 'epic'; else if (roll < tPurple) rarity = 'rare'; else if (roll < tGreen) rarity = 'uncommon'; else rarity = 'common'; const randType = Math.random(); let type = 'wood'; if (randType > 0.66) type = 'copper'; else if (randType > 0.33) type = 'cloth'; const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
-    collectLoot(lootItem) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); lootItem.destroy(); }
+    spawnLoot(x, y) { 
+        // 30% de probabilidad de soltar ALGO
+        if (Math.random() > 0.30) return; 
+
+        let type = 'wood';
+        let rarity = 'common';
+        
+        const rollType = Math.random();
+        
+        // --- PROBABILIDADES DE TIPO ---
+        if (rollType < 0.15) {
+            // 15% Consumible: Poción Vida
+            type = 'potion_hp';
+        } else if (rollType < 0.25) {
+            // 10% Consumible: Bolsa de Oro
+            type = 'coin_bag';
+        } else if (rollType < 0.30) {
+            // 5% Consumible: Tomo XP
+            type = 'xp_tome';
+        } else {
+            // 70% Material de Crafteo
+            const matRoll = Math.random();
+            if (matRoll < 0.25) type = 'wood';
+            else if (matRoll < 0.50) type = 'copper';
+            else if (matRoll < 0.75) type = 'cloth';
+            else type = 'leather';
+
+            // Solo los materiales tienen rareza variable por ahora
+            const levelId = this.currentLevelData.id || 1;
+            const luck = (levelId - 1) * 0.05; 
+            const rRoll = Math.random() * 100;
+            
+            // Ajuste de rareza
+            const tGold = 0.5 + (luck * 1);
+            const tPurple = 2 + (luck * 2);
+            const tBlue = 10 + (luck * 5);
+            
+            if (rRoll < tGold) rarity = 'legendary';
+            else if (rRoll < tPurple) rarity = 'epic';
+            else if (rRoll < tBlue) rarity = 'rare';
+            else if (rRoll < 40) rarity = 'uncommon';
+            else rarity = 'common';
+        }
+
+        const item = new Loot(this, x, y, type, rarity);
+        this.loots.add(item); 
+    }
+    collectLoot(lootItem) { 
+        // Reproducir sonido (si tuviéramos sistema de audio)
+        
+        if (lootItem.isConsumable) {
+            // --- EFECTOS INMEDIATOS ---
+            if (lootItem.typeKey === 'potion_hp') {
+                const heal = Math.floor(gameState.playerStats.maxHp * 0.25); // 25% Vida
+                gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp);
+                this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000');
+                if(this.player) this.player.createEffect('heal'); // Efecto visual en jugador
+            } 
+            else if (lootItem.typeKey === 'coin_bag') {
+                const gold = Phaser.Math.Between(30, 60);
+                this.coins += gold;
+                this.updateUI();
+                this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700');
+            }
+            else if (lootItem.typeKey === 'xp_tome') {
+                const xp = 50;
+                RPGSystem.gainHeroXP(xp);
+                this.showFloatingText(lootItem.x, lootItem.y, `+${xp} XP`, '#0000ff');
+            }
+        } else {
+            // --- MATERIALES (Inventario) ---
+            gameState.materials[lootItem.typeKey][lootItem.rarityKey]++;
+            
+            // Registro de sesión (opcional, para resultados)
+            if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {};
+            if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0;
+            this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++;
+            
+            this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff');
+        }
+
+        lootItem.destroy(); 
+    }
     createSpawnIndicator() { if (!this.pathPoints || this.pathPoints.length === 0) return; const startX = this.pathPoints[0].x; const startY = this.pathPoints[0].y; const marker = this.add.circle(startX, startY, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(startX, startY - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
     gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); }
     victory() { this.physics.pause(); const goldReward = this.currentLevelData.rewardGold || 100; gameState.gold += goldReward; this.scene.start('ResultScene', { success: true, levelId: this.currentLevelData.id, castleHp: gameState.baseHp, rewards: { gold: goldReward } }); }
