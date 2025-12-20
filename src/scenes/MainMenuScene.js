@@ -12,54 +12,61 @@ export default class MainMenuScene extends Phaser.Scene {
         this.inventoryCategory = 'all'; 
         this.forgeCategory = 'weapon';  
         this.selectedItem = null;
-        this.itemToFuse1 = null; // Para la fusión selectiva
+        this.itemToFuse1 = null; 
         this.hasLoaded = false;
     }
 
     create() {
-        // Validar si hay héroe seleccionado
+        // --- TRANSICIÓN VISUAL (Fix Pantalla Negra) ---
+        this.cameras.main.fadeIn(500, 0, 0, 0);
+
+        // --- CARGA DE DATOS ---
+        if (!this.hasLoaded) {
+            SaveSystem.load(); // Carga el save
+            this.hasLoaded = true;
+        }
+
+        // --- VALIDACIÓN DE HÉROE ---
+        // Si después de cargar, no hay clase, ir a selección
         if (!gameState.selectedClass) {
+            console.log("No class selected, redirecting...");
             this.scene.start('HeroSelectScene');
             return;
         }
 
+        // Asegurar stats actualizados
+        updatePlayerStats();
+
+        // --- UI DRAWING ---
         const w = this.scale.width;
         const h = this.scale.height;
         const cx = w / 2;
         const cy = h / 2;
-
-        if (!this.hasLoaded) {
-            SaveSystem.load();
-            if (!gameState.equipment) gameState.equipment = { mainHand: null, offHand: null, armor: null, accessory: null };
-            if (!gameState.towerEquipment) gameState.towerEquipment = { archer: { slot1: null, slot2: null }, cannon: { slot1: null, slot2: null }, mage: { slot1: null, slot2: null } };
-            updatePlayerStats();
-            this.hasLoaded = true;
-        }
 
         // Fondo
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.goldText = this.add.text(w - 50, h * 0.05, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
-        // TABS (Ahora son 4)
+        // TABS
         const tabY = h * 0.12; 
         const tabW = 200;
         this.createTabButton(cx - tabW * 1.5, tabY, 'HÉROE', 'hero');
         this.createTabButton(cx - tabW * 0.5, tabY, 'MOCHILA', 'inventory');
         this.createTabButton(cx + tabW * 0.5, tabY, 'FORJA', 'forge');
-        this.createTabButton(cx + tabW * 1.5, tabY, 'TORRES', 'towers'); // NUEVO TAB
+        this.createTabButton(cx + tabW * 1.5, tabY, 'TORRES', 'towers');
 
         // Contenedores
         this.heroContainer = this.add.container(0, 0);
         this.invContainer = this.add.container(0, 0);
         this.forgeContainer = this.add.container(0, 0);
-        this.towersContainer = this.add.container(0, 0); // Nuevo
+        this.towersContainer = this.add.container(0, 0);
 
         // Inicializar Vistas
         this.createHeroView(w, h, cx, cy);
         this.createInventoryView(w, h, cx, cy);
         this.createForgeView(w, h, cx, cy);
-        this.createTowersView(w, h, cx, cy); // Nueva Vista
+        this.createTowersView(w, h, cx, cy);
 
         this.switchTab('hero');
 
@@ -71,10 +78,14 @@ export default class MainMenuScene extends Phaser.Scene {
 
         // Reset y Cambio Héroe
         const resetBtn = this.add.text(50, h - 30, 'Borrar Datos', { fontSize: '14px', color: '#555' }).setInteractive({ useHandCursor: true });
-        resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo?")) { SaveSystem.reset(); this.scene.start('HeroSelectScene'); } });
+        resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo?")) { SaveSystem.reset(); } });
 
         const changeHeroBtn = this.add.text(200, h - 30, 'Cambiar Héroe', { fontSize: '14px', color: '#00ffff' }).setInteractive({ useHandCursor: true });
-        changeHeroBtn.on('pointerdown', () => this.scene.start('HeroSelectScene'));
+        changeHeroBtn.on('pointerdown', () => {
+            // Forzar selección manual
+            gameState.selectedClass = null; 
+            this.scene.start('HeroSelectScene');
+        });
     }
 
     createTabButton(x, y, text, tabKey) {
@@ -96,7 +107,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'towers') this.refreshTowersView();
     }
 
-    // --- VISTA HÉROE (Limpia) ---
+    // --- VISTA HÉROE ---
     createHeroView(w, h, cx, cy) {
         this.heroLevelText = this.add.text(cx, h * 0.2, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
         this.heroContainer.add(this.heroLevelText);
@@ -108,7 +119,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.heroStatsText = this.add.text(leftX - (w * 0.18), contentY, '', { fontSize: '16px', lineHeight: 26, color: '#ffffff' });
         this.heroContainer.add(this.heroStatsText);
 
-        // Stats Upgrade (Derecha)
         const rightX = w * 0.7;
         let upgradeY = h * 0.3;
         this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { fontSize: '20px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
@@ -136,7 +146,8 @@ export default class MainMenuScene extends Phaser.Scene {
         updatePlayerStats();
         const s = gameState.playerStats;
         const eq = gameState.equipment;
-        const clsName = gameState.selectedClass.toUpperCase();
+        // PROTECCIÓN CONTRA CLASE NULA
+        const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase();
         
         this.heroStatsText.setText(`
         CLASE ACTUAL: [ ${clsName} ]
@@ -155,9 +166,8 @@ export default class MainMenuScene extends Phaser.Scene {
         this.pointsText.setText(`PUNTOS DISPONIBLES: ${gameState.statPoints}`);
     }
 
-    // --- NUEVO: VISTA TORRES ---
+    // --- VISTA TORRES ---
     createTowersView(w, h, cx, cy) {
-        // 3 Columnas para las 3 torres
         const types = ['archer', 'cannon', 'mage'];
         const names = ['ARQUERO', 'CAÑÓN', 'MAGO'];
         const startX = w * 0.2;
@@ -167,23 +177,19 @@ export default class MainMenuScene extends Phaser.Scene {
             const x = startX + (i * gap);
             const y = h * 0.25;
 
-            // Titulo Torre
             const title = this.add.text(x, y, names[i], { fontSize: '24px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
             this.towersContainer.add(title);
 
-            // Stats info
             const statsText = this.add.text(x, y + 100, "Stats...", { fontSize: '14px', align: 'center', color: '#aaa' }).setOrigin(0.5);
-            statsText.name = `stats_${type}`; // Tag para actualizar
+            statsText.name = `stats_${type}`; 
             this.towersContainer.add(statsText);
 
-            // Slots de equipamiento (2)
             for (let s = 1; s <= 2; s++) {
                 const slotY = y + 200 + (s * 80);
                 const slotBg = this.add.rectangle(x, slotY, 220, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true });
                 const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { fontSize: '12px', wordWrap: {width: 200}, align: 'center' }).setOrigin(0.5);
-                slotTxt.name = `txt_${type}_slot${s}`; // Tag
+                slotTxt.name = `txt_${type}_slot${s}`; 
 
-                // Click para desequipar (simple)
                 slotBg.on('pointerdown', () => {
                     const item = gameState.towerEquipment[type][`slot${s}`];
                     if (item) {
@@ -202,7 +208,6 @@ export default class MainMenuScene extends Phaser.Scene {
     refreshTowersView() {
         const types = ['archer', 'cannon', 'mage'];
         types.forEach(type => {
-            // Actualizar Texto Stats
             const eq = gameState.towerEquipment[type];
             let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 };
             
@@ -220,7 +225,6 @@ export default class MainMenuScene extends Phaser.Scene {
                 statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`);
             }
 
-            // Actualizar Slots
             for (let s = 1; s <= 2; s++) {
                 const item = eq[`slot${s}`];
                 const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`);
@@ -238,11 +242,11 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    // --- MOCHILA & FUSIÓN MEJORADA ---
+    // --- MOCHILA ---
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
-        this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); // Simplificado
-        this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); // Categoria nueva
+        this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
+        this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); 
         this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats');
 
         this.invMatsText = this.add.text(50, catY + 40, '', { fontSize: '14px', lineHeight: 20 });
@@ -263,13 +267,11 @@ export default class MainMenuScene extends Phaser.Scene {
         this.detailStats = this.add.text(0, 50, "", { fontSize: '14px', align: 'center' }).setOrigin(0.5);
         
         this.equipBtn = this.createActionButton(0, 180, "EQUIPAR", () => this.actionEquip(), 0x006400);
-        // Botón Fusión inicia el modo selección
         this.fuseBtn = this.createActionButton(0, 230, "FUSIONAR...", () => this.initiateFusion(), 0x00008b);
         this.sellBtn = this.createActionButton(0, 280, "VENDER", () => this.actionSell(), 0x8b0000);
 
         this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn, this.sellBtn]);
 
-        // --- UI SELECCIÓN DE FUSIÓN (Modal) ---
         this.fusionModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
         const fTitle = this.add.text(0, -200, "SELECCIONA ITEM PARA SACRIFICAR", { fontSize: '24px' }).setOrigin(0.5);
@@ -339,7 +341,6 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     refreshInventory() {
-        // ... (Lógica similar a la anterior, ajustada para filtrar)
         let matContent = "";
         if (this.inventoryCategory === 'mats') {
             ['wood', 'cloth', 'copper', 'leather'].forEach(mat => {
@@ -390,7 +391,6 @@ export default class MainMenuScene extends Phaser.Scene {
             `Rareza: ${RARITY[item.rarity].name}\n` +
             `Stats:\n${statsStr}`
         );
-        // Si es pieza de torre, cambiar botón Equipar
         if (item.type === 'tower_part') {
             this.equipBtn.list[1].setText("EQUIPAR EN...");
         } else {
@@ -398,45 +398,66 @@ export default class MainMenuScene extends Phaser.Scene {
         }
     }
 
+    createActionButton(x, y, text, callback, color = 0x006400) {
+        const container = this.add.container(x, y);
+        const bg = this.add.rectangle(0, 0, 200, 35, color).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
+        bg.on('pointerdown', callback);
+        container.add([bg, txt]);
+        return container;
+    }
+
     actionEquip() {
         if (!this.selectedItem) return;
         const item = this.selectedItem;
 
-        // Lógica para Equipar Piezas de Torre
         if (item.type === 'tower_part') {
-            // Equipar automáticamente en slot vacío o reemplazar slot 1
             const type = item.towerType;
             if (!gameState.towerEquipment[type].slot1) {
                 gameState.towerEquipment[type].slot1 = item;
             } else if (!gameState.towerEquipment[type].slot2) {
                 gameState.towerEquipment[type].slot2 = item;
             } else {
-                // Swap slot 1
                 gameState.inventory.push(gameState.towerEquipment[type].slot1);
                 gameState.towerEquipment[type].slot1 = item;
             }
             this.removeItemFromInventory(item);
             this.refreshInventory();
-            this.switchTab('towers'); // Ir a tab torres para ver
+            this.switchTab('towers'); 
             SaveSystem.save();
             return;
         }
 
-        // ... (Logica Equipar Héroe existente) ...
         const cls = gameState.selectedClass;
-        // ... (Copia las validaciones de clase que ya tenías) ...
-        
-        // Copia tu lógica de equipamiento de héroe aquí...
-        // Para brevedad, asumo que mantienes la lógica anterior del archivo previo
-        // Simplemente añadiendo:
+        let error = "";
+        if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida";
+        if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida";
+        if (error) { alert(error); return; }
+
         if (item.type === 'armor') this.swapping('armor', item);
         else if (item.type === 'accessory') this.swapping('accessory', item);
         else if (item.type === 'offhand') this.swapping('offHand', item);
         else if (item.type === 'weapon') {
-             // ... lógica armas ...
-             this.swapping('mainHand', item); // Simplificado para este snippet
+            if (item.twoHanded) {
+                this.forceUnequip('mainHand');
+                this.forceUnequip('offHand');
+                gameState.equipment.mainHand = item;
+                this.removeItemFromInventory(item);
+            } else {
+                if (!gameState.equipment.mainHand) {
+                    gameState.equipment.mainHand = item;
+                    this.removeItemFromInventory(item);
+                } else if (this.canDualWield(cls) && !gameState.equipment.offHand) {
+                    gameState.equipment.offHand = item;
+                    this.removeItemFromInventory(item);
+                } else {
+                    this.swapping('mainHand', item);
+                }
+            }
         }
-        
         updatePlayerStats();
         this.selectedItem = null;
         this.itemDetailContainer.setVisible(false);
@@ -444,23 +465,68 @@ export default class MainMenuScene extends Phaser.Scene {
         SaveSystem.save();
     }
 
-    // --- FORJA TORRES ---
+    actionSell() {
+        if (!this.selectedItem) return;
+        const item = this.selectedItem;
+        let sellPrice = 50; 
+        const rData = RARITY[item.rarity];
+        if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10));
+        gameState.gold += sellPrice;
+        this.removeItemFromInventory(item);
+        this.selectedItem = null;
+        this.itemDetailContainer.setVisible(false);
+        this.refreshInventory();
+        SaveSystem.save();
+    }
+
+    // --- FORJA ---
     createForgeView(w, h, cx, cy) {
-        // ... Agregamos botón Ingenieria
-        this.createForgeCatBtn(w * 0.5, h * 0.25, "INGENIERÍA (Torres)", 'tower_part'); 
-        // ... Resto de tu lógica de forja, asegurate de incluir 'tower_part' en el filtro refreshForge
-        
-        // Al final de createForgeView original:
+        this.profText = this.add.text(cx, h * 0.18, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5);
+        this.forgeContainer.add(this.profText);
+        this.forgeMsg = this.add.text(cx, h - 100, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
+        this.forgeContainer.add(this.forgeMsg);
+
+        const catY = h * 0.25;
+        this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon');
+        this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor');
+        this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory');
+        this.createForgeCatBtn(cx, catY + 50, "INGENIERÍA (Torres)", 'tower_part'); // Botón extra
+
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
-        // ... Panel detalle igual al original ...
-        // Importante: Si la categoría es tower_part, mostramos botones de crafteo especial
+
+        const detailX = w * 0.78;
+        const detailY = h * 0.45;
+        this.recipeDetailContainer = this.add.container(detailX, detailY);
+        this.forgeContainer.add(this.recipeDetailContainer);
+        
+        const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700);
+        this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.recipeInfo = this.add.text(0, 50, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.actionCraft());
+        this.craftBtn.setVisible(false);
+        this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]);
+        
+        this.selectedRecipe = null;
+        this.selectedRarity = null;
     }
-    
-    // Sobrescribimos refreshForge para incluir las mejoras de torre como "Recetas"
+
+    createForgeCatBtn(x, y, label, cat) {
+        const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        btn.on('pointerdown', () => {
+            this.forgeCategory = cat;
+            this.refreshForge();
+        });
+        this.forgeContainer.add(btn);
+    }
+
     refreshForge() {
+        this.goldText.setText(`ORO: ${gameState.gold}`);
+        const p = gameState.professions;
+        this.profText.setText(`HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\nSASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\nJOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`);
+        
         this.recipesContainer.removeAll(true);
-        // Si es Ingeniería, mostramos 3 botones fijos para crear mejoras de Arquero, Cañón, Mago
+
         if (this.forgeCategory === 'tower_part') {
             const types = ['archer', 'cannon', 'mage'];
             let y = 0;
@@ -475,7 +541,85 @@ export default class MainMenuScene extends Phaser.Scene {
             });
             return;
         }
-        // ... Lógica normal de recetas ...
+
+        const filteredRecipes = RECIPES.filter(r => {
+            if (this.forgeCategory === 'weapon') return r.type === 'weapon';
+            if (this.forgeCategory === 'armor') return r.type === 'armor' || r.type === 'offhand';
+            if (this.forgeCategory === 'accessory') return r.type === 'accessory';
+            return false;
+        });
+
+        const w = this.scale.width;
+        const h = this.scale.height;
+        let startX = w * 0.15; 
+        let startY = h * 0.35;
+        let col = 0;
+
+        filteredRecipes.forEach(recipe => {
+            ['common', 'uncommon', 'rare', 'epic'].forEach((rarity, i) => { 
+                this.createRecipeBtn(startX + (col * 220), startY + (i * 55), recipe, rarity);
+            });
+            col++;
+            if (col > 1) { 
+                col = 0; 
+                startY += 240; 
+            } 
+        });
+    }
+
+    createRecipeBtn(x, y, recipe, rarity) {
+        const rarityData = RARITY[rarity];
+        const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0');
+        const btn = this.add.rectangle(x, y, 200, 45, 0x333333).setInteractive({ useHandCursor: true });
+        btn.setStrokeStyle(1, rarityData.color);
+        const txt = this.add.text(x, y, `${recipe.name} (${rarityData.name})`, { fontSize: '12px', color: hexColor }).setOrigin(0.5);
+        btn.on('pointerdown', () => { this.selectRecipe(recipe, rarity); });
+        this.recipesContainer.add([btn, txt]);
+    }
+
+    selectRecipe(recipe, rarityKey) {
+        this.selectedRecipe = recipe;
+        this.selectedRarity = rarityKey;
+        const rarity = RARITY[rarityKey];
+        const cost = Math.floor(recipe.cost * rarity.mult);
+        const hexColor = '#' + rarity.color.toString(16).padStart(6, '0');
+        this.recipeTitle.setText(recipe.name);
+        this.recipeTitle.setColor(hexColor);
+        let info = `Rareza: ${rarity.name}\nCosto: $${cost}\nMaterial: 3 ${recipe.mat}\n\n`;
+        info += "-- BASE --\n";
+        for (let key in recipe.baseStats) { info += `${key}: ${recipe.baseStats[key]}\n`; }
+        info += `\n-- ALEATORIOS (${rarity.statCount}) --\nPosibles:\n`;
+        const pool = RPGSystem.getStatPool(recipe);
+        pool.forEach(stat => { info += `• ${stat.label}\n`; });
+        this.recipeInfo.setText(info);
+        this.craftBtn.setVisible(true);
+        this.forgeMsg.setText("");
+    }
+
+    actionCraft() {
+        if (!this.selectedRecipe || !this.selectedRarity) return;
+        const recipe = this.selectedRecipe;
+        const rarityKey = this.selectedRarity;
+        const rarity = RARITY[rarityKey];
+        const cost = Math.floor(recipe.cost * rarity.mult);
+        if (gameState.gold < cost) {
+            this.forgeMsg.setText("¡Falta Oro!");
+            this.forgeMsg.setColor('#ff0000');
+            return;
+        }
+        const result = RPGSystem.craftItem(recipe.id, rarityKey);
+        if (result.success) {
+            gameState.gold -= cost;
+            gameState.inventory.push(result.item);
+            this.forgeMsg.setText(`¡ÉXITO! Creado: ${result.item.name}`);
+            this.forgeMsg.setColor('#00ff00');
+            this.refreshForge();
+            SaveSystem.save();
+            this.tweens.add({ targets: this.craftBtn, scale: 1.1, yoyo: true, duration: 100 });
+        } else {
+            this.forgeMsg.setText(`ERROR: ${result.error}`);
+            this.forgeMsg.setColor('#ff0000');
+        }
     }
 
     craftTowerPartAction(type, rarity) {
@@ -490,16 +634,8 @@ export default class MainMenuScene extends Phaser.Scene {
         }
     }
 
-    // ... Helpers (swapping, removeItem, etc) ...
+    canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
     swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
+    forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
     removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
-    actionSell() { 
-        if(this.selectedItem) {
-            gameState.gold += 100; // Simplificado
-            this.removeItemFromInventory(this.selectedItem);
-            this.selectedItem = null;
-            this.itemDetailContainer.setVisible(false);
-            this.refreshInventory();
-        }
-    }
 }
