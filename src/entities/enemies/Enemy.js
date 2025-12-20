@@ -21,7 +21,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         let castleDamage = 1;
         
         // --- BALANCEO DE RECOMPENSAS ($$$) ---
-        let goldDrop = 25; // Base aumentada (antes 10)
+        let goldDrop = 25; 
         let xpDrop = 15;
 
         // Tipos Normales
@@ -30,29 +30,29 @@ export default class Enemy extends Phaser.GameObjects.Container {
         }
         else if (type === 'tank') { 
             hpBase = 250; speedBase = 0.6; armor = 5; color = 0x00008b; size = 26; 
-            goldDrop = 40; xpDrop = 30; // Más recompensa
+            goldDrop = 40; xpDrop = 30; 
         }
         else if (type === 'speed') { 
             hpBase = 60; 
-            speedBase = 1.4; // Velocidad ajustada
+            speedBase = 1.4; // Velocidad 1.4
             color = 0xffff00; size = 16; 
-            goldDrop = 15; // Menos oro por ser fácil de matar (pero vienen muchos)
+            goldDrop = 15; 
         }
         else if (type === 'healer') { 
             hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; 
             goldDrop = 30;
         }
         
-        // JEFES (Recompensas Masivas)
+        // JEFES
         else if (type.startsWith('boss')) {
             speedBase = 0.4; armor = 10; size = 50; castleDamage = 20;
-            goldDrop = 500; // Gran impulso económico al matar al jefe
+            goldDrop = 500; 
             xpDrop = 200;
 
             if (type === 'boss_goblin') { hpBase = 2000; color = 0x006400; }
             else if (type === 'boss_golem') { hpBase = 3500; armor = 25; color = 0x808080; size = 60; speedBase = 0.3; }
             else if (type === 'boss_wizard') { hpBase = 1500; armor = 2; color = 0x4b0082; speedBase = 0.6; }
-            else { hpBase = 2000; color = 0x880000; } // Fallback
+            else { hpBase = 2000; color = 0x880000; } 
         }
 
         // Stats Finales
@@ -83,6 +83,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.skillTimer = 0; 
         this.skillCooldown = 5000;
         this.isShielded = false;
+        this.speedModifier = 1.0;
     }
 
     update(time, delta) {
@@ -144,7 +145,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.add(shield);
             this.scene.time.delayedCall(3000, () => {
                 this.isShielded = false;
-                shield.destroy();
+                if(shield.active) shield.destroy();
             });
         }
         else if (this.type === 'boss_wizard') {
@@ -190,11 +191,23 @@ export default class Enemy extends Phaser.GameObjects.Container {
         }
     }
 
+    // --- AQUÍ ESTÁ EL ARREGLO ---
     applySlow(factor, duration) {
+        // 1. Si no hay escena (objeto destruido) o no está activo, salimos inmediatamente.
+        if (!this.scene || !this.active) return;
+
         if (this.type.startsWith('boss')) return; 
         if (this.isShielded) return;
+        
         this.speedModifier = factor;
-        this.scene.time.delayedCall(duration, () => { this.speedModifier = 1.0; });
+        
+        // 2. Usamos el temporizador de la escena de forma segura
+        this.scene.time.delayedCall(duration, () => { 
+            // 3. Verificamos de nuevo al terminar el timer, por si murió mientras estaba lento
+            if (this.active) {
+                this.speedModifier = 1.0; 
+            }
+        });
     }
     
     get currentSpeed() { return (this.baseSpeed * (this.speedModifier || 1.0)); }
