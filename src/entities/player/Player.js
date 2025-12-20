@@ -1,6 +1,7 @@
 // src/entities/player/Player.js
 import Phaser from 'phaser';
 import { gameState } from '../../config/GameState.js'; 
+import { TALENTS } from '../../config/Talents.js';
 
 export default class Player extends Phaser.GameObjects.Rectangle {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
@@ -29,6 +30,30 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             left: Phaser.Input.Keyboard.KeyCodes.A, 
             right: Phaser.Input.Keyboard.KeyCodes.D 
         });
+
+        // Cargar Efectos Pasivos
+        this.loadPassives();
+    }
+
+    loadPassives() {
+        this.passives = {
+            blockChance: 0,
+            doubleStrike: 0,
+            pierce: 0,
+            frostHit: 0
+        };
+
+        if (gameState.talents) {
+            const clsTalents = TALENTS[gameState.selectedClass] || [];
+            clsTalents.forEach(t => {
+                if (gameState.talents.includes(t.id) && t.effect) {
+                    if (t.effect === 'block_chance') this.passives.blockChance = t.val;
+                    if (t.effect === 'double_strike') this.passives.doubleStrike = t.val;
+                    if (t.effect === 'pierce') this.passives.pierce = t.val;
+                    if (t.effect === 'frost_hit') this.passives.frostHit = t.val;
+                }
+            });
+        }
     }
 
     get stats() {
@@ -36,7 +61,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     }
 
     update(time, delta) {
-        // SI ESTÁ MUERTO, NO MOVER, NO ATACAR
         if (this.isDead) {
             if(this.body) this.body.setVelocity(0);
             return;
@@ -58,6 +82,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             this.findTargetAndAttack(time);
         }
 
+        // Regeneración Pasiva (incluida en stats si talento aprendido)
         this.regenTimer += delta;
         if (this.regenTimer >= 5000) { 
             this.regenTimer = 0;
@@ -68,16 +93,16 @@ export default class Player extends Phaser.GameObjects.Rectangle {
                 }
             }
         }
-
-        this.auraTimer += delta;
-        if (this.auraTimer >= 1000) {
-            this.auraTimer = 0;
-            this.applyAuras();
-        }
     }
 
     takeDamage(amount) {
         if (this.isDead) return;
+
+        // TALENTO: Bloqueo (Paladin)
+        if (this.passives.blockChance > 0 && Math.random() * 100 < this.passives.blockChance) {
+            this.scene.showFloatingText(this.x, this.y - 40, "¡BLOQUEADO!", "#ffffff");
+            return;
+        }
 
         let safeAmount = Number(amount);
         if (isNaN(safeAmount)) safeAmount = 0;
@@ -106,36 +131,47 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     findTargetAndAttack(time) {
         const target = this.findClosestEnemy(this.stats.range);
         if (target) {
-            const projectile = this.projectilesGroup.get(this.x, this.y);
-            if (projectile) {
-                projectile.fire(target, {
-                    damage: this.stats.damage,
-                    type: 'hero',
-                    aoeRadius: 0,
-                    slowFactor: 1
-                });
-                
-                if (this.stats.lifesteal > 0) {
-                    const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
-                    if (heal > 0 && this.stats.hp < this.stats.maxHp) {
-                        gameState.playerStats.hp += heal;
+            // TALENTO: Doble Golpe (Guerrero)
+            let hits = 1;
+            if (this.passives.doubleStrike > 0 && Math.random() * 100 < this.passives.doubleStrike) {
+                hits = 2;
+                this.scene.showFloatingText(this.x, this.y - 40, "¡DOBLE!", "#ff0000");
+            }
+
+            for(let i=0; i<hits; i++) {
+                this.scene.time.delayedCall(i * 100, () => {
+                    const projectile = this.projectilesGroup.get(this.x, this.y);
+                    if (projectile) {
+                        let dmg = this.stats.damage;
+                        let slow = 1;
+
+                        // TALENTO: Perforación (Arquero) - Ignora armadura enemiga simulando más daño
+                        if (this.passives.pierce > 0) dmg += 5; 
+
+                        // TALENTO: Toque Gélido (Mago)
+                        if (this.passives.frostHit > 0) slow = 0.7;
+
+                        projectile.fire(target, {
+                            damage: dmg,
+                            type: 'hero',
+                            aoeRadius: 0,
+                            slowFactor: slow
+                        });
+                        
+                        if (this.stats.lifesteal > 0) {
+                            const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
+                            if (heal > 0 && this.stats.hp < this.stats.maxHp) {
+                                gameState.playerStats.hp += heal;
+                            }
+                        }
                     }
-                }
+                });
             }
             this.lastAttackTime = time;
         }
     }
 
-    applyAuras() {
-        if (this.stats.coldAura > 0) {
-            this.enemiesGroup.children.iterate(enemy => {
-                if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) < 200) {
-                    // Logic aura
-                }
-            });
-        }
-    }
-
+    // ... (Resto de funciones igual: castSkill, findClosestEnemy, createAOE, die, respawn)
     castSkill() {
         if (this.isDead) return { success: false, msg: '¡Estás muerto!' };
         if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' };
@@ -189,28 +225,20 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         if (this.isDead) return;
         this.isDead = true;
         gameState.playerStats.hp = 0; 
-        
-        // Visual
         this.setFillStyle(0x555555); 
         this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000});
-        
-        // Desactivar físicas
         this.body.enable = false;
-        
         this.respawnText = this.scene.add.text(this.x, this.y - 30, "Reviviendo...", { fontSize: '14px', color: '#fff', backgroundColor: '#000' }).setOrigin(0.5);
         this.scene.time.delayedCall(10000, () => { this.respawn(); });
     }
 
     respawn() {
         this.isDead = false;
-        // Restaurar vida y físicas
         gameState.playerStats.hp = this.stats.maxHp; 
         this.body.enable = true; 
-        this.lastAttackTime = 0; // Resetear ataque
-        
+        this.lastAttackTime = 0; 
         this.setFillStyle(this.stats.color); 
         if (this.respawnText) this.respawnText.destroy();
-        
         this.scene.tweens.add({ targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out' });
         this.scene.showFloatingText(this.x, this.y - 50, "¡RESUCITADO!", "#00ff00");
     }

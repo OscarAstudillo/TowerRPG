@@ -1,5 +1,6 @@
 // src/config/GameState.js
 import { CLASS_STATS } from '../entities/player/PlayerStats.js';
+import { TALENTS } from './Talents.js';
 
 export const INITIAL_STATS = {
     hp: 100, maxHp: 100, damage: 10, defense: 0, 
@@ -22,6 +23,7 @@ export const gameState = {
     levelsUnlocked: 1,
     levelStars: {}, 
     gold: 5000,
+    talents: [],
 
     heroLevel: 1,
     heroXP: 0,
@@ -86,6 +88,31 @@ export function updatePlayerStats() {
             }
         }
     });
+
+    if (gameState.talents && gameState.selectedClass) {
+        const clsTalents = TALENTS[gameState.selectedClass] || [];
+        clsTalents.forEach(t => {
+            if (gameState.talents.includes(t.id) && t.stats) {
+                for (let key in t.stats) {
+                    // Si es multiplicador (ej: maxHpMult)
+                    if (key.endsWith('Mult')) {
+                        const baseKey = key.replace('Mult', '');
+                        if (newStats[baseKey] !== undefined) {
+                            newStats[baseKey] = Math.floor(newStats[baseKey] * (1 + t.stats[key]));
+                        }
+                    } else {
+                        // Suma plana
+                        if (newStats[key] !== undefined) {
+                            newStats[key] += t.stats[key];
+                        } else {
+                            // Stat nuevo (ej: lifesteal si no existía)
+                            newStats[key] = t.stats[key];
+                        }
+                    }
+                }
+            }
+        });
+    }
 
     if (isNaN(newStats.damage)) newStats.damage = 1;
     if (isNaN(newStats.defense)) newStats.defense = 0;

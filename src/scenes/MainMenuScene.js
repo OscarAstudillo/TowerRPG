@@ -4,6 +4,7 @@ import { gameState, updatePlayerStats, RARITY } from '../config/GameState.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import { RECIPES } from '../config/Recipes.js';
+import { TALENTS } from '../config/Talents.js'; // IMPORTAR TALENTOS
 
 export default class MainMenuScene extends Phaser.Scene {
     constructor() {
@@ -19,13 +20,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.expandedRecipeId = null; 
         this.expandedTowerType = null; 
         
-        this.craftSelection = {
-            type: null, 
-            recipe: null,
-            rarity: null,
-            towerType: null
-        };
-
+        this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null };
         this.hasLoaded = false;
     }
 
@@ -34,6 +29,8 @@ export default class MainMenuScene extends Phaser.Scene {
 
         if (!this.hasLoaded) {
             SaveSystem.load();
+            // Inicializar talentos si no existen en el save antiguo
+            if (!gameState.talents) gameState.talents = [];
             this.hasLoaded = true;
         }
 
@@ -53,25 +50,34 @@ export default class MainMenuScene extends Phaser.Scene {
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.goldText = this.add.text(w - 50, h * 0.05, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
+        // TABS (Ahora son 5: Héroe, Talentos, Mochila, Forja, Torres)
         const tabY = h * 0.12; 
-        const tabW = 200;
-        this.createTabButton(cx - tabW * 1.5, tabY, 'HÉROE', 'hero');
-        this.createTabButton(cx - tabW * 0.5, tabY, 'MOCHILA', 'inventory');
-        this.createTabButton(cx + tabW * 0.5, tabY, 'FORJA', 'forge');
-        this.createTabButton(cx + tabW * 1.5, tabY, 'TORRES', 'towers');
+        const tabW = 160; // Más pequeños para que quepan
+        const startX = cx - (tabW * 2);
+        
+        this.createTabButton(startX, tabY, 'HÉROE', 'hero', tabW);
+        this.createTabButton(startX + tabW, tabY, 'TALENTOS', 'talents', tabW); // NUEVO
+        this.createTabButton(startX + tabW*2, tabY, 'MOCHILA', 'inventory', tabW);
+        this.createTabButton(startX + tabW*3, tabY, 'FORJA', 'forge', tabW);
+        this.createTabButton(startX + tabW*4, tabY, 'TORRES', 'towers', tabW);
 
+        // Contenedores
         this.heroContainer = this.add.container(0, 0);
+        this.talentsContainer = this.add.container(0, 0); // NUEVO
         this.invContainer = this.add.container(0, 0);
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
+        // Inicializar Vistas
         this.createHeroView(w, h, cx, cy);
+        this.createTalentsView(w, h, cx, cy); // NUEVO
         this.createInventoryView(w, h, cx, cy);
         this.createForgeView(w, h, cx, cy);
         this.createTowersView(w, h, cx, cy);
 
         this.switchTab('hero');
 
+        // Footer
         const botY = h - 60;
         const playBtn = this.add.rectangle(cx, botY, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
         this.add.text(cx, botY, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
@@ -87,26 +93,109 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    createTabButton(x, y, text, tabKey) {
-        const btn = this.add.rectangle(x, y, 180, 40, 0x333333).setInteractive({ useHandCursor: true });
-        const txt = this.add.text(x, y, text, { fontSize: '18px' }).setOrigin(0.5);
+    createTabButton(x, y, text, tabKey, width) {
+        const btn = this.add.rectangle(x, y, width - 10, 40, 0x333333).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(x, y, text, { fontSize: '16px' }).setOrigin(0.5);
         btn.on('pointerdown', () => this.switchTab(tabKey));
     }
 
     switchTab(tabKey) {
         this.currentTab = tabKey;
         this.heroContainer.setVisible(tabKey === 'hero');
+        this.talentsContainer.setVisible(tabKey === 'talents');
         this.invContainer.setVisible(tabKey === 'inventory');
         this.forgeContainer.setVisible(tabKey === 'forge');
         this.towersContainer.setVisible(tabKey === 'towers');
         
         if (tabKey === 'inventory') this.refreshInventory();
         if (tabKey === 'hero') this.refreshHero();
+        if (tabKey === 'talents') this.refreshTalents(); // NUEVO
         if (tabKey === 'forge') this.refreshForge();
         if (tabKey === 'towers') this.refreshTowersView();
     }
 
-    // --- VISTA HÉROE ---
+    // --- VISTA TALENTOS (NUEVA) ---
+    createTalentsView(w, h, cx, cy) {
+        this.talentPointsText = this.add.text(cx, h * 0.2, "PUNTOS DISPONIBLES: 0", { fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        this.talentsContainer.add(this.talentPointsText);
+
+        const note = this.add.text(cx, h * 0.25, "(Los talentos usan tus Puntos de Atributo)", { fontSize: '14px', color: '#aaa' }).setOrigin(0.5);
+        this.talentsContainer.add(note);
+
+        // Contenedor para los botones dinámicos
+        this.talentTreeContainer = this.add.container(0, 0);
+        this.talentsContainer.add(this.talentTreeContainer);
+    }
+
+    refreshTalents() {
+        this.talentPointsText.setText(`PUNTOS DISPONIBLES: ${gameState.statPoints}`);
+        this.talentTreeContainer.removeAll(true);
+
+        const cls = gameState.selectedClass;
+        const talents = TALENTS[cls] || [];
+        
+        const w = this.scale.width;
+        const h = this.scale.height;
+        let startY = h * 0.35;
+
+        talents.forEach((talent, i) => {
+            const isLearned = gameState.talents.includes(talent.id);
+            const hasPoints = gameState.statPoints >= talent.cost;
+            
+            // Verificar requisitos
+            let locked = false;
+            if (talent.req && !gameState.talents.includes(talent.req)) {
+                locked = true;
+            }
+
+            const bg = this.add.rectangle(w/2, startY, 500, 80, isLearned ? 0x006400 : (locked ? 0x333333 : 0x222222));
+            bg.setStrokeStyle(2, isLearned ? 0x00ff00 : (locked ? 0x555555 : 0xffd700));
+            
+            if (!isLearned && !locked) {
+                bg.setInteractive({ useHandCursor: true });
+                bg.on('pointerdown', () => this.learnTalent(talent));
+            }
+
+            const titleColor = isLearned ? '#00ff00' : (locked ? '#888' : '#fff');
+            const title = this.add.text(w/2 - 230, startY - 20, talent.name, { fontSize: '20px', fontStyle: 'bold', color: titleColor });
+            const desc = this.add.text(w/2 - 230, startY + 5, talent.desc, { fontSize: '14px', color: '#ccc', wordWrap: { width: 350 } });
+            
+            let statusText = "";
+            if (isLearned) statusText = "APRENDIDO";
+            else if (locked) statusText = `REQ: ${this.getTalentName(talent.req)}`;
+            else statusText = `APRENDER (Costo: ${talent.cost})`;
+
+            const btnTxt = this.add.text(w/2 + 150, startY, statusText, { fontSize: '16px', fontStyle: 'bold', color: isLearned ? '#fff' : '#ffd700' }).setOrigin(0.5);
+
+            this.talentTreeContainer.add([bg, title, desc, btnTxt]);
+            startY += 100;
+        });
+    }
+
+    getTalentName(id) {
+        // Buscar nombre en todas las listas
+        for (const cls in TALENTS) {
+            const t = TALENTS[cls].find(x => x.id === id);
+            if (t) return t.name;
+        }
+        return id;
+    }
+
+    learnTalent(talent) {
+        if (gameState.statPoints >= talent.cost) {
+            gameState.statPoints -= talent.cost;
+            gameState.talents.push(talent.id);
+            updatePlayerStats(); // Recalcular stats pasivos
+            SaveSystem.save();
+            this.refreshTalents();
+            // Efecto
+            this.cameras.main.flash(200, 0, 255, 0);
+        } else {
+            alert("No tienes suficientes puntos.");
+        }
+    }
+
+    // --- VISTA HÉROE (Sin Cambios significativos) ---
     createHeroView(w, h, cx, cy) {
         this.heroLevelText = this.add.text(cx, h * 0.2, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
         this.heroContainer.add(this.heroLevelText);
@@ -168,37 +257,24 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    // --- MOCHILA Y FUSIÓN MEJORADA (UI VISUAL ACTUALIZADA) ---
+    // ... (INVENTARIO Y FUSIÓN - Mantener código anterior intacto) ...
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
         this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
         this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); 
         this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats');
-
-        this.invMatsText = this.add.text(50, catY + 40, '', { fontSize: '14px', lineHeight: 20 });
-        this.invContainer.add(this.invMatsText);
-
-        const gridX = w * 0.28;
-        const gridY = h * 0.3;
-        this.invItemsContainer = this.add.container(gridX, gridY);
-        this.invContainer.add(this.invItemsContainer);
-        
+        this.invMatsText = this.add.text(50, catY + 40, '', { fontSize: '14px', lineHeight: 20 }); this.invContainer.add(this.invMatsText);
+        const gridX = w * 0.28; const gridY = h * 0.3;
+        this.invItemsContainer = this.add.container(gridX, gridY); this.invContainer.add(this.invItemsContainer);
         const detailX = w * 0.78;
-        this.itemDetailContainer = this.add.container(detailX, gridY);
-        this.itemDetailContainer.setVisible(false);
-        this.invContainer.add(this.itemDetailContainer);
-
+        this.itemDetailContainer = this.add.container(detailX, gridY); this.itemDetailContainer.setVisible(false); this.invContainer.add(this.itemDetailContainer);
         const bg = this.add.rectangle(0, 150, 280, 400, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
         this.detailTitle = this.add.text(0, -30, "", { fontSize: '18px', fontStyle: 'bold', align: 'center' }).setOrigin(0.5);
         this.detailStats = this.add.text(0, 50, "", { fontSize: '14px', align: 'center' }).setOrigin(0.5);
-        
         this.equipBtn = this.createActionButton(0, 180, "EQUIPAR", () => this.actionEquip(), 0x006400);
         this.fuseBtn = this.createActionButton(0, 230, "FUSIONAR...", () => this.initiateFusion(), 0x00008b);
         this.sellBtn = this.createActionButton(0, 280, "VENDER", () => this.actionSell(), 0x8b0000);
-
         this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn, this.sellBtn]);
-
-        // --- UI SELECCIÓN DE FUSIÓN (Lista de candidatos) ---
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
         const fTitle = this.add.text(0, -200, "SELECCIONA ITEM PARA COMBINAR", { fontSize: '24px' }).setOrigin(0.5);
@@ -206,146 +282,36 @@ export default class MainMenuScene extends Phaser.Scene {
         const fCancel = this.add.text(0, 220, "CANCELAR", { fontSize: '20px', color: '#ff0000' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         fCancel.on('pointerdown', () => this.fusionListModal.setVisible(false));
         this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel]);
-
-        // --- UI CONFIRMACIÓN DE FUSIÓN (Comparación 50/50) ---
         this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
         const fcBg = this.add.rectangle(0, 0, 800, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
         const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { fontSize: '32px', color: '#ffd700' }).setOrigin(0.5);
-        
-        // TEXTO EXPLICATIVO CORREGIDO
         const fcInfo = this.add.text(0, -220, "El item resultante heredará los stats de UNO de estos dos items (50% Probabilidad).\nAmbos items originales serán consumidos.", { fontSize: '16px', color: '#cccccc', align: 'center' }).setOrigin(0.5);
-
-        // Panel Izquierdo (Candidato A)
         const leftPanel = this.add.container(-200, 0);
-        const lBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0x00ffff); // Cyan
+        const lBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0x00ffff); 
         const lLabel = this.add.text(0, -180, "CANDIDATO A (50% Chance)", { fontSize: '16px', color: '#00ffff' }).setOrigin(0.5);
         this.fusionItem1Info = this.add.text(0, 0, "", { fontSize: '14px', align: 'center' }).setOrigin(0.5);
         leftPanel.add([lBg, lLabel, this.fusionItem1Info]);
-
-        // Panel Derecho (Candidato B)
         const rightPanel = this.add.container(200, 0);
-        const rBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xff00ff); // Magenta
+        const rBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xff00ff); 
         const rLabel = this.add.text(0, -180, "CANDIDATO B (50% Chance)", { fontSize: '16px', color: '#ff00ff' }).setOrigin(0.5);
         this.fusionItem2Info = this.add.text(0, 0, "", { fontSize: '14px', align: 'center' }).setOrigin(0.5);
         rightPanel.add([rBg, rLabel, this.fusionItem2Info]);
-
-        // Botones Confirmación
         const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true});
         const confirmTxt = this.add.text(0, 250, "¡PROBAR SUERTE!", { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
         confirmBtn.on('pointerdown', () => this.executeFusion());
-
         const cancelConfirm = this.add.text(0, 320, "Volver", { fontSize: '18px', color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
-        cancelConfirm.on('pointerdown', () => {
-            this.fusionConfirmModal.setVisible(false);
-            this.fusionListModal.setVisible(true); // Volver a la lista
-        });
-
+        cancelConfirm.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
         this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftPanel, rightPanel, confirmBtn, confirmTxt, cancelConfirm]);
     }
-
-    initiateFusion() {
-        if (!this.selectedItem) return;
-        this.itemToFuse1 = this.selectedItem;
-        this.fusionListModal.setVisible(true);
-        this.populateFusionList();
-    }
-
-    populateFusionList() {
-        this.fusionList.removeAll(true);
-        const candidates = gameState.inventory.filter(i => 
-            i !== this.itemToFuse1 && 
-            i.type === this.itemToFuse1.type && 
-            i.rarity === this.itemToFuse1.rarity &&
-            i.enchant === this.itemToFuse1.enchant
-        );
-
-        if (candidates.length === 0) {
-            this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { align: 'center' }).setOrigin(0.5));
-            return;
-        }
-
-        let y = 0;
-        candidates.forEach(item => {
-            const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true});
-            const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "...";
-            const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { fontSize: '14px', color: '#fff' }).setOrigin(0.5);
-            
-            btn.on('pointerdown', () => this.selectSecondItemForFusion(item));
-            
-            this.fusionList.add([btn, txt]);
-            y += 50;
-        });
-    }
-
-    selectSecondItemForFusion(item2) {
-        this.itemToFuse2 = item2;
-        this.fusionListModal.setVisible(false);
-        this.fusionConfirmModal.setVisible(true);
-
-        // Mostrar Stats Item 1 (Candidato A)
-        const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, '');
-        this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`);
-
-        // Mostrar Stats Item 2 (Candidato B)
-        const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, '');
-        this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`);
-    }
-
-    executeFusion() {
-        const result = RPGSystem.fuseSpecificItems(this.itemToFuse1, this.itemToFuse2);
-        
-        if (result.success) {
-            this.removeItemFromInventory(this.itemToFuse1);
-            this.removeItemFromInventory(this.itemToFuse2);
-            gameState.inventory.push(result.item);
-            
-            // Cerrar todo
-            this.fusionConfirmModal.setVisible(false);
-            this.selectedItem = null;
-            this.itemDetailContainer.setVisible(false);
-            
-            this.refreshInventory();
-            SaveSystem.save();
-            alert(`¡Fusión Exitosa! El destino eligió y mejoró el item: ${result.item.name}`);
-        } else {
-            alert(result.error);
-        }
-    }
-
-    // --- RESTO DE FUNCIONES (Sin cambios) ---
+    initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
+    populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => i !== this.itemToFuse1 && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { align: 'center' }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "..."; const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { fontSize: '14px', color: '#fff' }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
+    selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`); const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`); }
+    executeFusion() { const result = RPGSystem.fuseSpecificItems(this.itemToFuse1, this.itemToFuse2); if (result.success) { this.removeItemFromInventory(this.itemToFuse1); this.removeItemFromInventory(this.itemToFuse2); gameState.inventory.push(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); alert(`¡Fusión Exitosa! El destino eligió y mejoró el item: ${result.item.name}`); } else { alert(result.error); } }
     createInvCategoryBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#888', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); }); this.invContainer.add(btn); }
-    refreshInventory() {
-        let matContent = "";
-        if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); }
-        this.invMatsText.setText(matContent);
-        this.invItemsContainer.removeAll(true);
-        const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; return true; });
-        let col = 0; let row = 0;
-        filteredItems.forEach(item => { let itemColor = item.color || 0xffffff; const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); const nameTxt = this.add.text(10, 12, item.name || "Ítem", { fontSize: '12px', color: colorHex, wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } });
-        this.goldText.setText(`ORO: ${gameState.gold}`);
-    }
-    selectItem(item) {
-        this.selectedItem = item; this.itemDetailContainer.setVisible(true);
-        const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
-        this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex);
-        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
-        this.detailStats.setText(`Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`);
-        if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); }
-    }
+    refreshInventory() { let matContent = ""; if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); } this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; return true; }); let col = 0; let row = 0; filteredItems.forEach(item => { let itemColor = item.color || 0xffffff; const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); const nameTxt = this.add.text(10, 12, item.name || "Ítem", { fontSize: '12px', color: colorHex, wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
+    selectItem(item) { this.selectedItem = item; this.itemDetailContainer.setVisible(true); const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex); const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats"; this.detailStats.setText(`Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`); if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); } }
     createActionButton(x, y, text, callback, color = 0x006400) { const container = this.add.container(x, y); const bg = this.add.rectangle(0, 0, 200, 35, color).setInteractive({ useHandCursor: true }); const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); bg.on('pointerdown', callback); container.add([bg, txt]); return container; }
-    actionEquip() {
-        if (!this.selectedItem) return; const item = this.selectedItem;
-        if (item.type === 'tower_part') { const type = item.towerType; if (!gameState.towerEquipment[type].slot1) { gameState.towerEquipment[type].slot1 = item; } else if (!gameState.towerEquipment[type].slot2) { gameState.towerEquipment[type].slot2 = item; } else { gameState.inventory.push(gameState.towerEquipment[type].slot1); gameState.towerEquipment[type].slot1 = item; } this.removeItemFromInventory(item); this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); return; }
-        const cls = gameState.selectedClass; let error = "";
-        if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida";
-        if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida";
-        if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida";
-        if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida";
-        if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida";
-        if (error) { alert(error); return; }
-        if (item.type === 'armor') this.swapping('armor', item); else if (item.type === 'accessory') this.swapping('accessory', item); else if (item.type === 'offhand') this.swapping('offHand', item); else if (item.type === 'weapon') { if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else { if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; this.removeItemFromInventory(item); } else { this.swapping('mainHand', item); } } }
-        updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save();
-    }
+    actionEquip() { if (!this.selectedItem) return; const item = this.selectedItem; if (item.type === 'tower_part') { const type = item.towerType; if (!gameState.towerEquipment[type].slot1) { gameState.towerEquipment[type].slot1 = item; } else if (!gameState.towerEquipment[type].slot2) { gameState.towerEquipment[type].slot2 = item; } else { gameState.inventory.push(gameState.towerEquipment[type].slot1); gameState.towerEquipment[type].slot1 = item; } this.removeItemFromInventory(item); this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); return; } const cls = gameState.selectedClass; let error = ""; if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (error) { alert(error); return; } if (item.type === 'armor') this.swapping('armor', item); else if (item.type === 'accessory') this.swapping('accessory', item); else if (item.type === 'offhand') this.swapping('offHand', item); else if (item.type === 'weapon') { if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else { if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; this.removeItemFromInventory(item); } else { this.swapping('mainHand', item); } } } updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
     actionSell() { if (!this.selectedItem) return; const item = this.selectedItem; let sellPrice = 50; const rData = RARITY[item.rarity]; if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10)); gameState.gold += sellPrice; this.removeItemFromInventory(item); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
     swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
@@ -353,31 +319,11 @@ export default class MainMenuScene extends Phaser.Scene {
     removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
 
     // --- FORJA ---
-    createForgeView(w, h, cx, cy) {
-        this.profText = this.add.text(cx, h * 0.18, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5);
-        this.forgeContainer.add(this.profText);
-        this.forgeMsg = this.add.text(cx, h - 100, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5);
-        this.forgeContainer.add(this.forgeMsg);
-        const catY = h * 0.25;
-        this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon');
-        this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor');
-        this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory');
-        this.createForgeCatBtn(cx, catY + 50, "INGENIERÍA (Torres)", 'tower_part'); 
-        this.recipesContainer = this.add.container(0, 0); this.forgeContainer.add(this.recipesContainer);
-        const detailX = w * 0.78; const detailY = h * 0.45;
-        this.recipeDetailContainer = this.add.container(detailX, detailY); this.forgeContainer.add(this.recipeDetailContainer);
-        const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700);
-        this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
-        this.recipeInfo = this.add.text(0, 50, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
-        this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.handleCraftButton());
-        this.craftBtn.setVisible(false);
-        this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]);
-    }
+    createForgeView(w, h, cx, cy) { this.profText = this.add.text(cx, h * 0.18, '', { fontSize: '16px', align: 'center', color: '#00ff00', lineHeight: 24 }).setOrigin(0.5); this.forgeContainer.add(this.profText); this.forgeMsg = this.add.text(cx, h - 100, '', { fontSize: '18px', color: '#fff' }).setOrigin(0.5); this.forgeContainer.add(this.forgeMsg); const catY = h * 0.25; this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon'); this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor'); this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory'); this.createForgeCatBtn(cx, catY + 50, "INGENIERÍA (Torres)", 'tower_part'); this.recipesContainer = this.add.container(0, 0); this.forgeContainer.add(this.recipesContainer); const detailX = w * 0.78; const detailY = h * 0.45; this.recipeDetailContainer = this.add.container(detailX, detailY); this.forgeContainer.add(this.recipeDetailContainer); const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700); this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { fontSize: '20px', fontStyle: 'bold', color: '#ffd700', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5); this.recipeInfo = this.add.text(0, 50, "", { fontSize: '14px', color: '#fff', align: 'center', wordWrap: {width: 260} }).setOrigin(0.5); this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.handleCraftButton()); this.craftBtn.setVisible(false); this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]); }
     createForgeCatBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btn.on('pointerdown', () => { this.forgeCategory = cat; this.expandedRecipeId = null; this.expandedTowerType = null; this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null }; this.recipeDetailContainer.setVisible(false); this.refreshForge(); }); this.forgeContainer.add(btn); }
     refreshForge() {
         this.goldText.setText(`ORO: ${gameState.gold}`); const p = gameState.professions; this.profText.setText(`HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\nSASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\nJOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`);
-        this.recipesContainer.removeAll(true);
-        const w = this.scale.width; const h = this.scale.height; let startX = w * 0.15; let startY = h * 0.35; let col = 0;
+        this.recipesContainer.removeAll(true); const w = this.scale.width; const h = this.scale.height; let startX = w * 0.15; let startY = h * 0.35; let col = 0;
         if (this.forgeCategory === 'tower_part') {
             const types = ['archer', 'cannon', 'mage'];
             types.forEach((t, index) => {
@@ -422,10 +368,7 @@ export default class MainMenuScene extends Phaser.Scene {
         let info = `Rareza: ${rarity.name}\nCosto: $500\nMat: 10 Madera, 10 Cuero, 10 Cobre\n\n`; info += `Stats Garantizados: 1\nStats Extra: ${rarity.statCount}\n\nPosibles:\n• Daño\n• Rango\n• Velocidad Ataque\n• Doble Ataque`;
         this.recipeInfo.setText(info); this.craftBtn.setVisible(true); this.forgeMsg.setText("");
     }
-    handleCraftButton() {
-        const sel = this.craftSelection; if (!sel.type) return;
-        if (sel.type === 'item') { this.executeCraftItem(sel.recipe, sel.rarity); } else if (sel.type === 'tower') { this.executeCraftTower(sel.towerType, sel.rarity); }
-    }
+    handleCraftButton() { const sel = this.craftSelection; if (!sel.type) return; if (sel.type === 'item') { this.executeCraftItem(sel.recipe, sel.rarity); } else if (sel.type === 'tower') { this.executeCraftTower(sel.towerType, sel.rarity); } }
     executeCraftItem(recipe, rarityKey) {
         const rarity = RARITY[rarityKey]; const cost = Math.floor(recipe.cost * rarity.mult);
         if (gameState.gold < cost) { this.forgeMsg.setText("¡Falta Oro!"); this.forgeMsg.setColor('#ff0000'); return; }
