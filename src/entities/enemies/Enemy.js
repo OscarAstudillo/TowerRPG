@@ -19,54 +19,58 @@ export default class Enemy extends Phaser.GameObjects.Container {
         let speedBase = 1.0;
         let armor = 0;
         let castleDamage = 1;
-        let name = "Enemigo";
+        
+        // --- BALANCEO DE RECOMPENSAS ($$$) ---
+        let goldDrop = 25; // Base aumentada (antes 10)
+        let xpDrop = 15;
 
-        // --- BALANCEO DE VELOCIDAD ---
-        if (type === 'normal') { hpBase = 100; speedBase = 1.0; }
-        else if (type === 'tank') { hpBase = 250; speedBase = 0.6; armor = 5; color = 0x00008b; size = 26; name = "Tanque"; }
+        // Tipos Normales
+        if (type === 'normal') { 
+            hpBase = 100; speedBase = 1.0; goldDrop = 25; 
+        }
+        else if (type === 'tank') { 
+            hpBase = 250; speedBase = 0.6; armor = 5; color = 0x00008b; size = 26; 
+            goldDrop = 40; xpDrop = 30; // Más recompensa
+        }
         else if (type === 'speed') { 
             hpBase = 60; 
-            speedBase = 1.4; // ANTES 1.8 (Reducido)
-            color = 0xffff00; size = 16; name = "Corredor"; 
+            speedBase = 1.4; // Velocidad ajustada
+            color = 0xffff00; size = 16; 
+            goldDrop = 15; // Menos oro por ser fácil de matar (pero vienen muchos)
         }
-        else if (type === 'healer') { hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; name = "Sanador"; }
+        else if (type === 'healer') { 
+            hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; 
+            goldDrop = 30;
+        }
         
-        // JEFES
-        else if (type === 'boss_goblin') { 
-            hpBase = 2000; speedBase = 0.4; armor = 5; color = 0x006400; size = 50; 
-            castleDamage = 10; name = "Rey Goblin";
-        }
-        else if (type === 'boss_golem') { 
-            hpBase = 3500; speedBase = 0.3; armor = 20; color = 0x808080; size = 60; 
-            castleDamage = 15; name = "Golem Hierro";
-        }
-        else if (type === 'boss_wizard') { 
-            hpBase = 1500; speedBase = 0.6; armor = 2; color = 0x4b0082; size = 45; 
-            castleDamage = 10; name = "Hechicero";
-        }
-        else if (type === 'boss') {
-            hpBase = 1500; speedBase = 0.5; armor = 10; color = 0x880000; size = 45; castleDamage = 10;
+        // JEFES (Recompensas Masivas)
+        else if (type.startsWith('boss')) {
+            speedBase = 0.4; armor = 10; size = 50; castleDamage = 20;
+            goldDrop = 500; // Gran impulso económico al matar al jefe
+            xpDrop = 200;
+
+            if (type === 'boss_goblin') { hpBase = 2000; color = 0x006400; }
+            else if (type === 'boss_golem') { hpBase = 3500; armor = 25; color = 0x808080; size = 60; speedBase = 0.3; }
+            else if (type === 'boss_wizard') { hpBase = 1500; armor = 2; color = 0x4b0082; speedBase = 0.6; }
+            else { hpBase = 2000; color = 0x880000; } // Fallback
         }
 
         // Stats Finales
         this.hp = Math.floor(hpBase * levelDifficulty);
         this.maxHp = this.hp;
-        // Ajuste global de velocidad (divisor aumentado ligeramente para frenar un poco todo el juego)
         this.baseSpeed = speedBase / 16000; 
         this.currentSpeed = this.baseSpeed;
         this.armor = armor;
         this.leakDamage = castleDamage;
         this.colorVal = color;
 
-        // Recompensas
-        const isBoss = type.startsWith('boss');
-        this.coinReward = isBoss ? 200 : (type === 'tank' ? 20 : 10);
-        this.xpReward = isBoss ? 200 : (type === 'tank' ? 20 : 10);
-        this.damage = isBoss ? 50 : 15;
+        this.coinReward = goldDrop;
+        this.xpReward = xpDrop;
+        this.damage = type.startsWith('boss') ? 50 : 15;
 
         // Visual
         const bodyShape = scene.add.rectangle(0, 0, size, size, color);
-        if (isBoss) bodyShape.setStrokeStyle(3, 0xffd700);
+        if (type.startsWith('boss')) bodyShape.setStrokeStyle(3, 0xffd700);
         this.add(bodyShape);
         
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 10, 40, 6, 0x000000);
@@ -126,11 +130,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     useBossSkill() {
         if (this.type === 'boss_goblin') {
-            // Llama a la función REAL de spawn en GameScene
             if (this.scene.spawnMinion) {
                 this.scene.showFloatingText(this.x, this.y - 50, "¡ESBIRROS!", "#00ff00");
-                this.scene.spawnMinion(this); // Invocación 1
-                this.scene.time.delayedCall(500, () => this.scene.spawnMinion(this)); // Invocación 2
+                this.scene.spawnMinion(this); 
+                this.scene.time.delayedCall(500, () => this.scene.spawnMinion(this)); 
             }
         }
         else if (this.type === 'boss_golem') {
