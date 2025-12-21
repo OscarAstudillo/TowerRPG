@@ -70,6 +70,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
+        // Inicializar Vistas
         this.createHeroView(w, h, cx, cy);
         this.createTalentsView(w, h, cx, cy);
         this.createInventoryView(w, h, cx, cy);
@@ -78,6 +79,7 @@ export default class MainMenuScene extends Phaser.Scene {
 
         this.switchTab('hero');
 
+        // Footer
         const botY = h - 50;
         const playBtn = this.add.rectangle(cx, botY, 220, 50, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00);
         this.add.text(cx, botY, 'IR AL MAPA', { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5);
@@ -93,7 +95,10 @@ export default class MainMenuScene extends Phaser.Scene {
     createTabButton(x, y, text, tabKey, width) {
         const btn = this.add.rectangle(x, y, width - 8, 45, 0x222222).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x555555);
         const txt = this.add.text(x, y, text, this.fontBtn).setOrigin(0.5);
-        btn.on('pointerdown', () => { this.switchTab(tabKey); this.tweens.add({ targets: btn, scale: 0.95, yoyo: true, duration: 50 }); });
+        btn.on('pointerdown', () => { 
+            this.switchTab(tabKey); 
+            this.tweens.add({ targets: btn, scale: 0.95, yoyo: true, duration: 50 }); 
+        });
     }
 
     switchTab(tabKey) {
@@ -193,38 +198,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.heroContainer.add(modal);
     }
 
-    // --- VISTA TORRES ---
-    createTowersView(w, h, cx, cy) {
-        const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3;
-        types.forEach((type, i) => {
-            const x = startX + (i * gap); const y = h * 0.25;
-            const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title);
-            const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText);
-            for (let s = 1; s <= 2; s++) {
-                const slotY = y + 200 + (s * 80);
-                const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true });
-                const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5);
-                slotTxt.name = `txt_${type}_slot${s}`; 
-                slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { gameState.towerEquipment[type][`slot${s}`] = null; gameState.inventory.push(item); this.refreshTowersView(); SaveSystem.save(); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } });
-                this.towersContainer.add([slotBg, slotTxt]);
-            }
-        });
-    }
-    refreshTowersView() {
-        const types = ['archer', 'cannon', 'mage'];
-        types.forEach(type => {
-            const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 };
-            [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } });
-            const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`);
-            if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); }
-            for (let s = 1; s <= 2; s++) {
-                const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`);
-                if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } }
-            }
-        });
-    }
-
-    // --- TALENTOS ---
+    // --- VISTA TALENTOS ---
     createTalentsView(w, h, cx, cy) {
         this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS DE TALENTO: 0", { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5);
         this.talentsContainer.add(this.talentPointsText);
@@ -262,7 +236,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invMatsText = this.add.text(50, catY + 40, '', { ...this.fontBody, lineHeight: 20 }); this.invContainer.add(this.invMatsText);
         const gridX = w * 0.28; const gridY = h * 0.3; this.invItemsContainer = this.add.container(gridX, gridY); this.invContainer.add(this.invItemsContainer);
         const detailX = w * 0.78; this.itemDetailContainer = this.add.container(detailX, gridY); this.itemDetailContainer.setVisible(false); this.invContainer.add(this.itemDetailContainer);
-        // FONDO MAS ALTO PARA QUE QUEPA TODO
         const bg = this.add.rectangle(0, 150, 300, 600, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
         this.detailTitle = this.add.text(0, -100, "", { ...this.fontHeader, fontSize:'18px', align: 'center', wordWrap: {width: 280} }).setOrigin(0.5);
         this.detailStats = this.add.text(0, 50, "", { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5);
@@ -293,7 +266,76 @@ export default class MainMenuScene extends Phaser.Scene {
     executeFusion() { const result = RPGSystem.fuseSpecificItems(this.itemToFuse1, this.itemToFuse2); if (result.success) { this.removeItemFromInventory(this.itemToFuse1); this.removeItemFromInventory(this.itemToFuse2); gameState.inventory.push(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); } else { alert(result.error); } }
     createInvCategoryBtn(x, y, label, cat) { const color = this.inventoryCategory === cat ? '#ffffff' : '#888888'; const btn = this.add.text(x, y, label, { ...this.fontHeader, color: color }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); this.createInventoryView(this.scale.width, this.scale.height, this.scale.width/2, this.scale.height/2); }); this.invContainer.add(btn); }
     refreshInventory() { let matContent = ""; if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); } this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; if (this.inventoryCategory === 'weapon') return i.type === 'weapon'; if (this.inventoryCategory === 'armor') return i.type === 'armor' || i.type === 'offhand'; if (this.inventoryCategory === 'accessory') return i.type === 'accessory'; return true; }); let col = 0; let row = 0; filteredItems.forEach(item => { const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); bg.setStrokeStyle(1, item.color); const nameTxt = this.add.text(10, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
-    selectItem(item) { this.selectedItem = item; this.itemDetailContainer.setVisible(true); const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex); const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats"; let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`; if (item.type !== 'tower_part') { let equipped = null; if (item.type === 'weapon') equipped = gameState.equipment.mainHand; else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand; else if (item.type === 'armor') equipped = gameState.equipment.armor; else if (item.type === 'accessory') equipped = gameState.equipment.accessory; if (equipped) { infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`; for (let key in item.stats) { const newVal = item.stats[key]; const oldVal = equipped.stats[key] || 0; const diff = newVal - oldVal; let isBetter = diff > 0; if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; infoText += `${key}: ${newVal} vs ${oldVal} ${isBetter ? '▲' : (diff===0 ? '=' : '▼')}\n`; } } else { infoText += `\n\n(Nada Equipado)`; } } this.detailStats.setText(infoText); if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); } }
+    
+    selectItem(item) {
+        this.selectedItem = item; 
+        this.itemDetailContainer.setVisible(true);
+        const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
+        this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex);
+        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
+        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`;
+        if (item.type !== 'tower_part') {
+            let equipped = null;
+            if (item.type === 'weapon') equipped = gameState.equipment.mainHand;
+            else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand;
+            else if (item.type === 'armor') equipped = gameState.equipment.armor;
+            else if (item.type === 'accessory') equipped = gameState.equipment.accessory;
+            if (equipped) {
+                infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`;
+                for (let key in item.stats) {
+                    const newVal = item.stats[key]; const oldVal = equipped.stats[key] || 0; const diff = newVal - oldVal;
+                    let isBetter = diff > 0; if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; 
+                    infoText += `${key}: ${newVal} vs ${oldVal} ${isBetter ? '▲' : (diff===0 ? '=' : '▼')}\n`;
+                }
+            } else { infoText += `\n\n(Nada Equipado)`; }
+        }
+        this.detailStats.setText(infoText);
+        if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); }
+    }
+
+    // --- ACCIONES DE INVENTARIO ---
+    actionEquip() { if (!this.selectedItem) return; const item = this.selectedItem; if (item.type === 'tower_part') { const type = item.towerType; if (!gameState.towerEquipment[type].slot1) { gameState.towerEquipment[type].slot1 = item; } else if (!gameState.towerEquipment[type].slot2) { gameState.towerEquipment[type].slot2 = item; } else { gameState.inventory.push(gameState.towerEquipment[type].slot1); gameState.towerEquipment[type].slot1 = item; } this.removeItemFromInventory(item); this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); return; } const cls = gameState.selectedClass; let error = ""; if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (error) { alert(error); return; } if (item.type === 'armor') this.swapping('armor', item); else if (item.type === 'accessory') this.swapping('accessory', item); else if (item.type === 'offhand') this.swapping('offHand', item); else if (item.type === 'weapon') { if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else { if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; this.removeItemFromInventory(item); } else { this.swapping('mainHand', item); } } } updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
+    actionSell() { if (!this.selectedItem) return; const item = this.selectedItem; let sellPrice = 50; const rData = RARITY[item.rarity]; if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10)); gameState.gold += sellPrice; this.removeItemFromInventory(item); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
+    canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
+    swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
+    forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
+    removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
+
+    // --- VISTA TORRES ---
+    createTowersView(w, h, cx, cy) {
+        const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3;
+        types.forEach((type, i) => {
+            const x = startX + (i * gap); const y = h * 0.25;
+            const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title);
+            const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText);
+            for (let s = 1; s <= 2; s++) {
+                const slotY = y + 200 + (s * 80);
+                const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true });
+                const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5);
+                slotTxt.name = `txt_${type}_slot${s}`; 
+                
+                slotBg.on('pointerdown', () => { 
+                    const item = gameState.towerEquipment[type][`slot${s}`]; 
+                    if (item) { gameState.towerEquipment[type][`slot${s}`] = null; gameState.inventory.push(item); this.refreshTowersView(); SaveSystem.save(); } 
+                    else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); }
+                });
+                this.towersContainer.add([slotBg, slotTxt]);
+            }
+        });
+    }
+    refreshTowersView() {
+        const types = ['archer', 'cannon', 'mage'];
+        types.forEach(type => {
+            const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 };
+            [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } });
+            const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`);
+            if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); }
+            for (let s = 1; s <= 2; s++) {
+                const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`);
+                if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } }
+            }
+        });
+    }
 
     // --- FORJA ---
     createForgeView(w, h, cx, cy) {

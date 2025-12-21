@@ -57,9 +57,7 @@ export default class GameScene extends Phaser.Scene {
         this.sx = w / 1280; 
         this.sy = h / 960;  
 
-        // CORRECCIÓN DE LÍMITES: 
-        // Arriba: 0 (empieza debajo de la barra top porque la cámara está desplazada)
-        // Abajo: h - 240 (altura total - barra top - barra bottom)
+        // Bounds ajustados para que el héroe no se esconda
         this.physics.world.setBounds(0, 0, w, h - 240); 
 
         const rawPath = this.currentLevelData.path;
@@ -91,8 +89,6 @@ export default class GameScene extends Phaser.Scene {
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
-        
-        // PAUSA CON ESC (Ahora llama a togglePause que maneja la física, no el tiempo global)
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 
         this.input.on('gameobjectdown', (pointer, gameObject) => {
@@ -158,25 +154,24 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- MENÚ DE PAUSA CORREGIDO ---
+    // --- PAUSA QUE FUNCIONA ---
     createPauseMenu() {
         this.pauseContainer = this.add.container(640, 480).setDepth(20000).setVisible(false).setScrollFactor(0);
         const w = this.scale.width; 
         const h = this.scale.height; 
         this.pauseContainer.setPosition(w/2, h/2);
 
-        // Fondo interactivo para bloquear clics al juego
+        // Fondo que bloquea inputs
         const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.8).setInteractive();
         
         const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700);
         const title = this.add.text(0, -100, "PAUSA", { fontFamily: 'Cinzel', fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
         
+        // Botones con Textos NO interactivos (para evitar bloqueos)
         const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true });
         const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
         
-        resumeBtn.on('pointerdown', () => {
-            this.togglePause();
-        });
+        resumeBtn.on('pointerdown', () => this.togglePause());
         
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true });
         const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
@@ -192,12 +187,11 @@ export default class GameScene extends Phaser.Scene {
 
     togglePause() {
         this.isPaused = !this.isPaused;
-        
         if (this.isPaused) {
-            this.physics.pause(); // Pausar físicas
-            this.tweens.pauseAll(); // Pausar animaciones
+            this.physics.pause();
+            this.tweens.pauseAll();
             this.pauseContainer.setVisible(true);
-            this.children.bringToTop(this.pauseContainer); // Traer al frente
+            this.children.bringToTop(this.pauseContainer);
         } else {
             this.physics.resume();
             this.tweens.resumeAll();
@@ -205,7 +199,7 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- UI MEJORADA ---
+    // --- UI NUEVO DISEÑO ---
     createUI() { 
         const w = this.scale.width; const h = this.scale.height; const uiDepth = 1000; const accent = this.theme.accent; 
         
@@ -213,13 +207,20 @@ export default class GameScene extends Phaser.Scene {
         this.add.rectangle(w/2, 60, w, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
         this.add.rectangle(w/2, 120, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
         
-        this.livesText = this.add.text(30, 15, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#fff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.add.text(30, 45, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        // 1. Vida del Héroe (Izquierda Arriba)
+        this.livesText = this.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#fff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        this.xpBarBg = this.add.rectangle(60, 52, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.xpBarFill = this.add.rectangle(60, 52, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
-        this.lvlText = this.add.text(270, 45, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
+        // 2. Barra de XP (A la derecha de la Vida del Héroe)
+        // La posición exacta se actualiza en updateUI, pero inicializamos aquí
+        this.xpContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(uiDepth + 1);
+        this.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.xpBarBg = this.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.xpBarFill = this.add.rectangle(330, 42, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
+        this.lvlText = this.add.text(540, 35, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+
+        // 3. Vida del Castillo (Debajo de la Vida del Héroe)
+        this.castleText = this.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1);
+
         this.waveInfoText = this.add.text(w - 30, 40, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: accent }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
         
         this.waveTimerContainer = this.add.container(w/2, 60).setScrollFactor(0).setDepth(uiDepth + 2); 
@@ -239,30 +240,52 @@ export default class GameScene extends Phaser.Scene {
         this.add.text(40, contentY - 30, 'TESORO:', { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.economyText = this.add.text(40, contentY, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        // Selector de Torres
         this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-3)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        // Fondo oscuro para que resalte
         const buildBg = this.add.rectangle(400, contentY + 10, 250, 60, 0x222222).setStrokeStyle(2, accent).setScrollFactor(0).setDepth(uiDepth);
         this.buildText = this.add.text(400, contentY + 10, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        // Botón Habilidad (CENTRADO y MEJORADO)
-        this.skillBtnContainer = this.add.container(w/2, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); 
-        // Fondo Negro con Borde Dorado
-        const skillBg = this.add.rectangle(0, 0, 200, 50, 0x000000).setStrokeStyle(2, 0xffd700); 
-        // Barra de carga
-        this.skillBar = this.add.rectangle(-100, 0, 0, 50, accent).setOrigin(0, 0.5).setAlpha(0.5); 
-        this.skillBtn = this.add.rectangle(0, 0, 200, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); 
-        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontFamily: 'Cinzel', fontSize: '16px', align: 'center', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5); 
+        this.skillBtnContainer = this.add.container(w/2 + 200, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); 
+        const skillBg = this.add.rectangle(0, 0, 180, 50, 0x222222).setStrokeStyle(2, 0x555555); 
+        this.skillBar = this.add.rectangle(-90, 0, 0, 50, accent).setOrigin(0, 0.5); 
+        this.skillBtn = this.add.rectangle(0, 0, 180, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); 
+        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontFamily: 'Cinzel', fontSize: '14px', align: 'center', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5); 
         this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]); 
         this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill()); 
         
-        // Botón Salir
         const exitBtn = this.add.rectangle(w - 80, contentY, 120, 50, 0x8b0000).setInteractive({ useHandCursor: true }).setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff); 
         this.add.text(w - 80, contentY, 'SALIR', { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
         exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene')); 
     }
 
-    // ... (Mantén aquí el resto de métodos auxiliares: startNextWave, spawnEnemy, etc. que ya funcionaban)
+    updateUI() { 
+        const w = this.scale.width; const h = this.scale.height; const currentTower = TOWER_TYPES[this.selectedTowerType]; 
+        this.economyText.setText(`$${this.coins}`); 
+        this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); 
+        
+        const pStats = gameState.playerStats; 
+        const heroHp = Math.max(0, Math.floor(pStats.hp)); 
+        
+        // ACTUALIZACIÓN DE UI SEPARADA
+        this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}`);
+        this.castleText.setText(`🏰 CASTILLO: ${gameState.baseHp}`);
+        
+        const hero = getCurrentHero();
+        if (hero) {
+            const xpPercent = Math.min(1, hero.xp / hero.maxXp);
+            if(this.xpBarFill) this.xpBarFill.width = 200 * xpPercent;
+            if(this.lvlText) this.lvlText.setText(`Lvl ${hero.level}`);
+            
+            // Reajustar posición de la barra de XP dinámicamente si el nombre o vida del héroe es muy largo
+            const nameWidth = this.livesText.width;
+            const xpStartX = 30 + nameWidth + 30; // Margen de 30px
+            // Mover los elementos de XP (Texto, barra fondo, barra fill, texto nivel)
+            // Esto requeriría referencias guardadas de todos los textos individuales de XP o moverlos en un contenedor
+            // Por simplicidad, los dejamos fijos en la posición 300 que definimos en createUI, 
+            // ya que 300px es suficiente espacio para "Heroe: 100/100".
+        }
+    }
+
+    // ... Resto de métodos IGUALES (startNextWave, spawnEnemy, etc.) ...
     startNextWave() {
         this.isTimerRunning = false; this.waveTimerContainer.setVisible(false);
         if (this.spawnTimer) this.spawnTimer.remove();
@@ -307,8 +330,6 @@ export default class GameScene extends Phaser.Scene {
     updateUpgradeMenuText() { if (!this.selectedTowerToUpgrade) return; const t = this.selectedTowerToUpgrade; if (t.level >= t.maxLevel) { this.upgradeText.setText(`${t.typeName} (MAX)\nDaño: ${t.damage}`); this.upgradeBtn.setVisible(false); this.upgradeBtnText.setVisible(false); } else { this.upgradeBtn.setVisible(true); this.upgradeBtnText.setVisible(true); this.upgradeText.setText(`${t.typeName} Lv ${t.level}\nDaño: ${t.damage} -> ${Math.floor(t.damage * 1.2)}`); this.upgradeBtnText.setText(`MEJORAR ($${t.upgradeCost})`); } this.sellBtnText.setText(`VENDER (+$${t.totalInvestment})`); }
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${t.totalInvestment}`, '#ffff00'); } }
-    updateUI() { const w = this.scale.width; const h = this.scale.height; const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); 
-    const hero = getCurrentHero(); if (hero) { const xpPercent = Math.min(1, hero.xp / hero.maxXp); if(this.xpBarFill) this.xpBarFill.width = 200 * xpPercent; if(this.lvlText) this.lvlText.setText(`Lvl ${hero.level}`); } }
     updateSkillUI() { if (!this.player) return; const cd = this.player.skillCooldown; const maxCd = this.player.skillMaxCooldown; if (cd > 0) { const progress = 1 - (cd / maxCd); this.skillBar.width = 200 * progress; this.skillBar.setFillStyle(0x555555); this.skillText.setText(`${(cd / 1000).toFixed(1)}s`); } else { this.skillBar.width = 200; this.skillBar.setFillStyle(this.theme.accent); if (this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)"); } }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
     createSpawnIndicator() { if (!this.pathPoints || this.pathPoints.length === 0) return; const startX = this.pathPoints[0].x; const startY = this.pathPoints[0].y; const marker = this.add.circle(startX, startY, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(startX, startY - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
