@@ -12,6 +12,9 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.type = type;
         this.levelDifficulty = levelDifficulty;
 
+        // Detectar Bioma (Nivel 1, 2, 3)
+        const levelId = (scene.currentLevelData && scene.currentLevelData.id) ? scene.currentLevelData.id : 1;
+
         // Configuración Visual y Stats
         let color = 0xff0000;
         let size = 20;
@@ -24,19 +27,25 @@ export default class Enemy extends Phaser.GameObjects.Container {
         let goldDrop = 25; 
         let xpDrop = 15;
 
-        // Tipos Normales
+       // Tipos Normales
         if (type === 'normal') { 
             hpBase = 100; speedBase = 1.0; goldDrop = 25; 
+            if (levelId === 2) { color = 0xDAA520; speedBase = 1.2; hpBase = 90; } // Arena
+            else if (levelId === 3) { color = 0x8B0000; speedBase = 0.9; hpBase = 130; } // Magma
         }
         else if (type === 'tank') { 
             hpBase = 250; speedBase = 0.6; armor = 5; color = 0x00008b; size = 26; 
             goldDrop = 40; xpDrop = 30; 
+            if (levelId === 2) { color = 0x8B4513; armor = 3; } // Escarabajo
+            else if (levelId === 3) { color = 0x2F4F4F; armor = 10; hpBase = 300; } // Golem Obsidiana
         }
         else if (type === 'speed') { 
             hpBase = 60; 
-            speedBase = 1.4; // Velocidad 1.4
+            speedBase = 1.4; 
             color = 0xffff00; size = 16; 
             goldDrop = 15; 
+            if (levelId === 2) { speedBase = 1.6; color = 0xFFD700; } // Escorpión
+            else if (levelId === 3) { speedBase = 1.5; color = 0xFF4500; } // Diablillo
         }
         else if (type === 'healer') { 
             hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; 
@@ -71,6 +80,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
         // Visual
         const bodyShape = scene.add.rectangle(0, 0, size, size, color);
         if (type.startsWith('boss')) bodyShape.setStrokeStyle(3, 0xffd700);
+        
+
+        // Efecto visual para niveles altos (Bordes más oscuros)
+        if (levelId > 1 && !type.startsWith('boss')) {
+            bodyShape.setStrokeStyle(1, 0x000000);
+        }
+
         this.add(bodyShape);
         
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 10, 40, 6, 0x000000);
