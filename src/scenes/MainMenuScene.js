@@ -33,6 +33,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (!this.hasLoaded) {
             SaveSystem.load();
             if (!gameState.talents) gameState.talents = [];
+            this.sanitizeData(); // LIMPIEZA DE DATOS CORRUPTOS
             this.hasLoaded = true;
         }
 
@@ -71,7 +72,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
-        // Inicializar Vistas (Ahora sí están todas)
+        // Inicializar Vistas
         this.createHeroView(w, h, cx, cy);
         this.createTalentsView(w, h, cx, cy);
         this.createInventoryView(w, h, cx, cy);
@@ -91,6 +92,46 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const resetBtn = this.add.text(w - 50, botY, 'BORRAR DATOS', { ...this.fontBtn, color: '#ff5555' }).setInteractive({ useHandCursor: true }).setOrigin(1, 0.5);
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
+    }
+
+    // --- FUNCIÓN DE LIMPIEZA DE DATOS (ANTI-FANTASMAS) ---
+    sanitizeData() {
+        console.log("Sanitizando inventario...");
+        const equippedIds = new Set();
+
+        // 1. Registrar IDs equipados en Héroe
+        Object.values(gameState.equipment).forEach(item => {
+            if (item && item.id) equippedIds.add(item.id);
+        });
+
+        // 2. Registrar IDs equipados en Torres
+        Object.values(gameState.towerEquipment).forEach(tower => {
+            if (tower.slot1 && tower.slot1.id) equippedIds.add(tower.slot1.id);
+            if (tower.slot2 && tower.slot2.id) equippedIds.add(tower.slot2.id);
+        });
+
+        // 3. Filtrar inventario: Eliminar items que YA están equipados
+        const originalCount = gameState.inventory.length;
+        gameState.inventory = gameState.inventory.filter(item => !equippedIds.has(item.id));
+        
+        if (gameState.inventory.length < originalCount) {
+            console.warn(`Se eliminaron ${originalCount - gameState.inventory.length} items fantasmas (duplicados de equipo).`);
+        }
+
+        // 4. Eliminar duplicados dentro del mismo inventario (mismo ID dos veces)
+        const seenIds = new Set();
+        const cleanInv = [];
+        gameState.inventory.forEach(item => {
+            if (!seenIds.has(item.id)) {
+                seenIds.add(item.id);
+                cleanInv.push(item);
+            } else {
+                console.warn("Item duplicado en mochila eliminado:", item.name);
+            }
+        });
+        gameState.inventory = cleanInv;
+        
+        SaveSystem.save();
     }
 
     createTabButton(x, y, text, tabKey, width) {
@@ -142,9 +183,11 @@ export default class MainMenuScene extends Phaser.Scene {
         return gameState.inventory.length < initialLength;
     }
 
-    // --- ACCIONES DE EQUIPAR ---
+    // --- ACCIÓN DE EQUIPAR (Héroe y Torres) ---
     actionEquip() { 
         if (!this.selectedItem) return; 
+        
+        // Validar existencia real en inventario
         const realItem = gameState.inventory.find(i => i.id === this.selectedItem.id);
         if (!realItem) {
             this.showCentralAlert("¡ERROR: Item no existe!", "#ff0000");
@@ -153,34 +196,64 @@ export default class MainMenuScene extends Phaser.Scene {
         }
         const item = realItem;
 
-        // EQUIPAR TORRE
+        // --- EQUIPAR TORRE ---
         if (item.type === 'tower_part') { 
             const type = item.towerType; 
-            if (!this.removeItemFromInventory(item)) { this.showCentralAlert("Error crítico de inventario", "#ff0000"); return; }
-            if (!gameState.towerEquipment[type].slot1) { gameState.towerEquipment[type].slot1 = item; } else if (!gameState.towerEquipment[type].slot2) { gameState.towerEquipment[type].slot2 = item; } else { gameState.inventory.push(gameState.towerEquipment[type].slot1); gameState.towerEquipment[type].slot1 = item; } 
-            this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); return; 
+            
+            // 1. Borrar de inventario PRIMERO
+            if (!this.removeItemFromInventory(item)) { 
+                this.showCentralAlert("Error crítico de inventario", "#ff0000"); 
+                return; 
+            }
+            
+            // 2. Asignar a slot
+            if (!gameState.towerEquipment[type].slot1) { 
+                gameState.towerEquipment[type].slot1 = item; 
+            } else if (!gameState.towerEquipment[type].slot2) { 
+                gameState.towerEquipment[type].slot2 = item; 
+            } else { 
+                // Swap con slot 1
+                gameState.inventory.push(gameState.towerEquipment[type].slot1); 
+                gameState.towerEquipment[type].slot1 = item; 
+            } 
+            
+            this.selectedItem = null; 
+            this.itemDetailContainer.setVisible(false);
+            this.refreshInventory(); 
+            this.switchTab('towers'); 
+            SaveSystem.save(); 
+            return; 
         } 
         
-        // EQUIPAR HÉROE
-        const cls = gameState.selectedClass; let error = ""; 
+        // --- EQUIPAR HÉROE ---
+        const cls = gameState.selectedClass; 
+        let error = ""; 
         if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; 
         if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; 
         if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; 
         if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida"; 
         if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; 
+        
         if (error) { this.showCentralAlert(error, "#ff0000"); return; } 
         
+        // Borrar de inventario primero
         if (!this.removeItemFromInventory(item)) { this.showCentralAlert("Error al mover item", "#ff0000"); return; }
         
         if (item.type === 'armor') this.swapping('armor', item); 
         else if (item.type === 'accessory') this.swapping('accessory', item); 
         else if (item.type === 'offhand') this.swapping('offHand', item); 
         else if (item.type === 'weapon') { 
-            if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; } 
-            else { 
-                if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; } 
-                else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; } 
-                else { this.swapping('mainHand', item); } 
+            if (item.twoHanded) { 
+                this.forceUnequip('mainHand'); this.forceUnequip('offHand'); 
+                gameState.equipment.mainHand = item; 
+            } else { 
+                if (!gameState.equipment.mainHand) { 
+                    gameState.equipment.mainHand = item; 
+                } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { 
+                    gameState.equipment.offHand = item; 
+                } else { 
+                    this.swapping('mainHand', item); 
+                } 
             } 
         } 
         updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); 
@@ -191,14 +264,45 @@ export default class MainMenuScene extends Phaser.Scene {
         if (!this.selectedItem) return; 
         const realItem = gameState.inventory.find(i => i.id === this.selectedItem.id);
         if (!realItem) { this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); return; }
-        let sellPrice = 50; const rData = RARITY[realItem.rarity]; 
-        if (rData) sellPrice = Math.floor(50 * rData.mult + (realItem.enchant * 10)); 
-        if (this.removeItemFromInventory(realItem)) { gameState.gold += sellPrice; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); this.showCentralAlert(`Vendido por $${sellPrice}`, '#ffd700'); }
+        const item = realItem; 
+        let sellPrice = 50; const rData = RARITY[item.rarity]; 
+        if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10)); 
+        gameState.gold += sellPrice; this.removeItemFromInventory(item); 
+        this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); 
+        SaveSystem.save(); this.showCentralAlert(`Vendido por $${sellPrice}`, '#ffd700');
     }
 
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
     swapping(slot, newItem) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; }
     forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
+
+    // --- FUSIÓN ---
+    initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
+    populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => i !== this.itemToFuse1 && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { ...this.fontBody, align: 'center' }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "..."; const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { ...this.fontBody, fontSize:'14px', color: '#fff' }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
+    selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`); const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`); }
+    
+    executeFusion() { 
+        // 1. Validar existencia
+        const realItem1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id);
+        const realItem2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id);
+        if(!realItem1 || !realItem2) { this.showCentralAlert("Error: Items ya no existen", "#ff0000"); this.fusionConfirmModal.setVisible(false); return; }
+        
+        const result = RPGSystem.fuseSpecificItems(realItem1, realItem2); 
+        if (result.success) { 
+            // 2. Eliminar atómicamente
+            this.removeItemFromInventory(realItem1); 
+            this.removeItemFromInventory(realItem2); 
+            
+            gameState.inventory.push(result.item); 
+            this.fusionConfirmModal.setVisible(false); 
+            this.selectedItem = null; 
+            this.itemDetailContainer.setVisible(false); 
+            this.refreshInventory(); 
+            SaveSystem.save(); 
+            const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); 
+            this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); 
+        } else { alert(result.error); } 
+    }
 
     // --- VISTA HÉROE ---
     createHeroView(w, h, cx, cy) {
@@ -300,7 +404,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
     learnTalent(talent) { if (RPGSystem.spendTalentPoint(talent.id, 1)) { updatePlayerStats(); SaveSystem.save(); this.refreshTalents(); this.showCentralAlert(`¡TALENTO APRENDIDO: ${talent.name}!`, '#00ff00'); } }
 
-    // --- INVENTARIO ---
+    // --- VISTA INVENTARIO ---
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
         this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats');
@@ -333,17 +437,6 @@ export default class MainMenuScene extends Phaser.Scene {
         const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true}); const confirmTxt = this.add.text(0, 250, "¡PROBAR SUERTE!", this.fontBtn).setOrigin(0.5); confirmBtn.on('pointerdown', () => this.executeFusion());
         const cancelConfirm = this.add.text(0, 320, "Volver", { ...this.fontBtn, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); cancelConfirm.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
         this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftPanel, rightPanel, confirmBtn, confirmTxt, cancelConfirm]);
-    }
-    initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
-    populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => i !== this.itemToFuse1 && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { ...this.fontBody, align: 'center' }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "..."; const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { ...this.fontBody, fontSize:'14px', color: '#fff' }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
-    selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`); const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`); }
-    executeFusion() { 
-        // Validación Anti-Fantasma Fusión
-        const realItem1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id);
-        const realItem2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id);
-        if(!realItem1 || !realItem2) { this.showCentralAlert("Error: Items inválidos", "#ff0000"); this.fusionConfirmModal.setVisible(false); return; }
-        const result = RPGSystem.fuseSpecificItems(realItem1, realItem2); 
-        if (result.success) { this.removeItemFromInventory(realItem1); this.removeItemFromInventory(realItem2); gameState.inventory.push(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); } else { alert(result.error); } 
     }
     createInvCategoryBtn(x, y, label, cat) { const color = this.inventoryCategory === cat ? '#ffffff' : '#888888'; const btn = this.add.text(x, y, label, { ...this.fontHeader, color: color }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); this.createInventoryView(this.scale.width, this.scale.height, this.scale.width/2, this.scale.height/2); }); this.invContainer.add(btn); }
     refreshInventory() { let matContent = ""; if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); } this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; if (this.inventoryCategory === 'weapon') return i.type === 'weapon'; if (this.inventoryCategory === 'armor') return i.type === 'armor' || i.type === 'offhand'; if (this.inventoryCategory === 'accessory') return i.type === 'accessory'; return true; }); let col = 0; let row = 0; filteredItems.forEach(item => { const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); bg.setStrokeStyle(1, item.color); const nameTxt = this.add.text(10, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
