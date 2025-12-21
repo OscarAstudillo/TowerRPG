@@ -48,6 +48,7 @@ export default class MainMenuScene extends Phaser.Scene {
         const cx = w / 2;
         const cy = h / 2;
 
+        // Fondo
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { ...this.fontHeader, color: '#ffd700' }).setOrigin(1, 0.5);
@@ -70,7 +71,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
-        // Inicializar Vistas
+        // Inicializar Vistas (TODAS deben existir)
         this.createHeroView(w, h, cx, cy);
         this.createTalentsView(w, h, cx, cy);
         this.createInventoryView(w, h, cx, cy);
@@ -134,44 +135,25 @@ export default class MainMenuScene extends Phaser.Scene {
         }});
     }
 
-    // --- LOGICA DE BORRADO SEGURA (CRUCIAL PARA EVITAR DUPLICADOS) ---
     removeItemFromInventory(item) {
-        if (!item || !item.id) {
-            console.error("Intento de borrar item inválido:", item);
-            return false;
-        }
-        
-        // Buscar si el ID existe realmente en el inventario actual
+        if (!item || !item.id) return false;
         const initialLength = gameState.inventory.length;
-        
-        // Usamos filter para crear un nuevo array SIN el ítem que coincida con el ID
         gameState.inventory = gameState.inventory.filter(i => i.id !== item.id);
-        
-        const success = gameState.inventory.length < initialLength;
-        if (!success) {
-            console.warn(`No se encontró el item para borrar (posible fantasma): ${item.name} ID: ${item.id}`);
-        }
-        return success;
+        return gameState.inventory.length < initialLength;
     }
 
-    // --- ACCIÓN DE EQUIPAR (REFORZADA) ---
+    // --- ACCIÓN DE EQUIPAR ---
     actionEquip() { 
         if (!this.selectedItem) return; 
-        
-        // 1. VALIDACIÓN ESTRICTA: ¿El ítem sigue en el inventario?
-        // Esto evita equipar un "item fantasma" que la UI muestra pero que ya no existe en datos.
         const realItem = gameState.inventory.find(i => i.id === this.selectedItem.id);
         if (!realItem) {
             this.showCentralAlert("¡ERROR: Item no existe!", "#ff0000");
-            this.selectedItem = null;
-            this.itemDetailContainer.setVisible(false);
-            this.refreshInventory();
+            this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory();
             return;
         }
+        const item = realItem;
 
-        const item = realItem; // Usamos la referencia real del array
-
-        // --- EQUIPAR TORRE ---
+        // EQUIPAR TORRE
         if (item.type === 'tower_part') { 
             const type = item.towerType; 
             if (!gameState.towerEquipment[type].slot1) { 
@@ -179,24 +161,16 @@ export default class MainMenuScene extends Phaser.Scene {
             } else if (!gameState.towerEquipment[type].slot2) { 
                 gameState.towerEquipment[type].slot2 = item; 
             } else { 
-                // Swap slot 1
                 gameState.inventory.push(gameState.towerEquipment[type].slot1); 
                 gameState.towerEquipment[type].slot1 = item; 
             } 
-            
-            // BORRADO Y GUARDADO
             this.removeItemFromInventory(item); 
-            
-            this.selectedItem = null; // Limpiar selección
-            this.itemDetailContainer.setVisible(false);
-            
-            this.refreshInventory(); 
-            this.switchTab('towers'); 
-            SaveSystem.save(); 
+            this.selectedItem = null; this.itemDetailContainer.setVisible(false);
+            this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); 
             return; 
         } 
         
-        // --- EQUIPAR HÉROE ---
+        // EQUIPAR HÉROE
         const cls = gameState.selectedClass; 
         let error = ""; 
         if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; 
@@ -211,73 +185,35 @@ export default class MainMenuScene extends Phaser.Scene {
         else if (item.type === 'offhand') this.swapping('offHand', item); 
         else if (item.type === 'weapon') { 
             if (item.twoHanded) { 
-                this.forceUnequip('mainHand'); 
-                this.forceUnequip('offHand'); 
-                gameState.equipment.mainHand = item; 
-                this.removeItemFromInventory(item); 
+                this.forceUnequip('mainHand'); this.forceUnequip('offHand'); 
+                gameState.equipment.mainHand = item; this.removeItemFromInventory(item); 
             } else { 
                 if (!gameState.equipment.mainHand) { 
-                    gameState.equipment.mainHand = item; 
-                    this.removeItemFromInventory(item); 
+                    gameState.equipment.mainHand = item; this.removeItemFromInventory(item); 
                 } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { 
-                    gameState.equipment.offHand = item; 
-                    this.removeItemFromInventory(item); 
-                } else { 
-                    this.swapping('mainHand', item); 
-                } 
+                    gameState.equipment.offHand = item; this.removeItemFromInventory(item); 
+                } else { this.swapping('mainHand', item); } 
             } 
         } 
-        
-        updatePlayerStats(); 
-        this.selectedItem = null; 
-        this.itemDetailContainer.setVisible(false); 
-        this.refreshInventory(); 
-        SaveSystem.save(); 
+        updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); 
+        this.refreshInventory(); SaveSystem.save(); 
     }
 
     actionSell() { 
         if (!this.selectedItem) return; 
-        
-        // Validación anti-fantasma
         const realItem = gameState.inventory.find(i => i.id === this.selectedItem.id);
-        if (!realItem) {
-            this.selectedItem = null;
-            this.itemDetailContainer.setVisible(false);
-            this.refreshInventory();
-            return;
-        }
-
+        if (!realItem) { this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); return; }
         const item = realItem; 
-        let sellPrice = 50; 
-        const rData = RARITY[item.rarity]; 
+        let sellPrice = 50; const rData = RARITY[item.rarity]; 
         if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10)); 
-        
-        gameState.gold += sellPrice; 
-        this.removeItemFromInventory(item); 
-        
-        this.selectedItem = null; 
-        this.itemDetailContainer.setVisible(false); 
-        this.refreshInventory(); 
-        SaveSystem.save(); 
-        this.showCentralAlert(`Vendido por $${sellPrice}`, '#ffd700');
+        gameState.gold += sellPrice; this.removeItemFromInventory(item); 
+        this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); 
+        SaveSystem.save(); this.showCentralAlert(`Vendido por $${sellPrice}`, '#ffd700');
     }
 
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
-    
-    swapping(slot, newItem) { 
-        if (gameState.equipment[slot]) {
-            gameState.inventory.push(gameState.equipment[slot]); 
-        }
-        gameState.equipment[slot] = newItem; 
-        this.removeItemFromInventory(newItem); 
-    }
-    
-    forceUnequip(slot) { 
-        if (gameState.equipment[slot]) { 
-            gameState.inventory.push(gameState.equipment[slot]); 
-            gameState.equipment[slot] = null; 
-        } 
-    }
+    swapping(slot, newItem) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
+    forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
 
     // --- VISTA HÉROE ---
     createHeroView(w, h, cx, cy) {
@@ -338,18 +274,10 @@ export default class MainMenuScene extends Phaser.Scene {
         const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5);
         const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         btnUnequip.on('pointerdown', () => { 
-            // FIX: Validar que existe en equipo
             if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) {
-                gameState.equipment[slotKey] = null; 
-                gameState.inventory.push(item); 
-                SaveSystem.save(); 
-                updatePlayerStats(); 
-                this.refreshHero(); 
-                modal.destroy(); 
-            } else {
-                this.showCentralAlert("Error: Item ya no está equipado", "#ff0000");
-                modal.destroy();
-            }
+                gameState.equipment[slotKey] = null; gameState.inventory.push(item); 
+                SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); 
+            } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); }
         });
         btnClose.on('pointerdown', () => modal.destroy());
         modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]);
@@ -425,30 +353,12 @@ export default class MainMenuScene extends Phaser.Scene {
     populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => i !== this.itemToFuse1 && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { ...this.fontBody, align: 'center' }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "..."; const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { ...this.fontBody, fontSize:'14px', color: '#fff' }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
     selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`); const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`); }
     executeFusion() { 
-        // Validación anti-fantasma en fusión
+        // Validación Anti-Fantasma Fusión
         const realItem1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id);
         const realItem2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id);
-        if(!realItem1 || !realItem2) {
-            this.showCentralAlert("Error: Items inválidos", "#ff0000");
-            this.fusionConfirmModal.setVisible(false);
-            return;
-        }
-
+        if(!realItem1 || !realItem2) { this.showCentralAlert("Error: Items inválidos", "#ff0000"); this.fusionConfirmModal.setVisible(false); return; }
         const result = RPGSystem.fuseSpecificItems(realItem1, realItem2); 
-        if (result.success) { 
-            this.removeItemFromInventory(realItem1); 
-            this.removeItemFromInventory(realItem2); 
-            gameState.inventory.push(result.item); 
-            this.fusionConfirmModal.setVisible(false); 
-            this.selectedItem = null; 
-            this.itemDetailContainer.setVisible(false); 
-            this.refreshInventory(); 
-            SaveSystem.save(); 
-            const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); 
-            this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); 
-        } else { 
-            alert(result.error); 
-        } 
+        if (result.success) { this.removeItemFromInventory(realItem1); this.removeItemFromInventory(realItem2); gameState.inventory.push(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); } else { alert(result.error); } 
     }
     createInvCategoryBtn(x, y, label, cat) { const color = this.inventoryCategory === cat ? '#ffffff' : '#888888'; const btn = this.add.text(x, y, label, { ...this.fontHeader, color: color }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); this.createInventoryView(this.scale.width, this.scale.height, this.scale.width/2, this.scale.height/2); }); this.invContainer.add(btn); }
     refreshInventory() { let matContent = ""; if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); } this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; if (this.inventoryCategory === 'weapon') return i.type === 'weapon'; if (this.inventoryCategory === 'armor') return i.type === 'armor' || i.type === 'offhand'; if (this.inventoryCategory === 'accessory') return i.type === 'accessory'; return true; }); let col = 0; let row = 0; filteredItems.forEach(item => { const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); bg.setStrokeStyle(1, item.color); const nameTxt = this.add.text(10, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
@@ -469,8 +379,11 @@ export default class MainMenuScene extends Phaser.Scene {
                 
                 slotBg.on('pointerdown', () => { 
                     const item = gameState.towerEquipment[type][`slot${s}`]; 
-                    if (item) { gameState.towerEquipment[type][`slot${s}`] = null; gameState.inventory.push(item); this.refreshTowersView(); SaveSystem.save(); } 
-                    else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); }
+                    if (item) { 
+                        this.showTowerUnequipModal(item, type, `slot${s}`);
+                    } else { 
+                        this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); 
+                    }
                 });
                 this.towersContainer.add([slotBg, slotTxt]);
             }
@@ -488,6 +401,25 @@ export default class MainMenuScene extends Phaser.Scene {
                 if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } }
             }
         });
+    }
+    showTowerUnequipModal(item, towerType, slotKey) {
+        const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000);
+        const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color);
+        const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5);
+        const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '');
+        const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5);
+        const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true});
+        const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5);
+        const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        btnUnequip.on('pointerdown', () => { 
+            if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) {
+                gameState.towerEquipment[towerType][slotKey] = null; gameState.inventory.push(item); 
+                SaveSystem.save(); this.refreshTowersView(); modal.destroy(); this.showCentralAlert("Mejora desequipada", "#ffff00");
+            } else { this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); modal.destroy(); }
+        });
+        btnClose.on('pointerdown', () => modal.destroy());
+        modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]);
+        this.towersContainer.add(modal);
     }
 
     // --- FORJA ---
