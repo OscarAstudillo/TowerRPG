@@ -82,27 +82,34 @@ export function updatePlayerStats() {
     const newStats = { ...INITIAL_STATS, ...classBase };
     newStats.maxHp = classBase.hp || 100; 
 
-    // Stats del Héroe
+    // 2. Atributos Comprados (Manuales)
     const attr = heroData.baseAttributes;
     newStats.damage += (attr.damage || 0);
     newStats.maxHp += (attr.maxHp || 0);
     newStats.defense += (attr.defense || 0);
-    newStats.attackSpeed -= (attr.attackSpeed || 0);
+    
+    // IMPORTANTE: Puntos manuales en "Velocidad" REDUCEN el delay (10ms por punto)
+    newStats.attackSpeed -= (attr.attackSpeed || 0); 
 
-    // Equipo Global
+    // 3. Equipamiento
     const eq = gameState.equipment || { mainHand: null, offHand: null, armor: null, accessory: null };
     ['mainHand', 'offHand', 'armor', 'accessory'].forEach(slot => {
         const item = eq[slot];
         if (item && item.stats) {
             for (let key in item.stats) {
                 if (newStats[key] !== undefined) {
-                    newStats[key] += (item.stats[key] || 0);
+                    if (key === 'attackSpeed') {
+                        // Items que dan Attack Speed REDUCEN el delay
+                        newStats.attackSpeed -= (item.stats[key] || 0);
+                    } else {
+                        newStats[key] += (item.stats[key] || 0);
+                    }
                 }
             }
         }
     });
 
-    // Talentos del Héroe
+    // 4. Talentos
     if (heroData.talents) {
         const clsTalents = TALENTS[gameState.selectedClass] || [];
         clsTalents.forEach(t => {
@@ -113,6 +120,9 @@ export function updatePlayerStats() {
                         if (newStats[baseKey] !== undefined) {
                             newStats[baseKey] = Math.floor(newStats[baseKey] * (1 + t.stats[key]));
                         }
+                    } else if (key === 'attackSpeed') {
+                        // TALENTO: +100 Vel. Ataque = -100ms Delay
+                        newStats.attackSpeed -= t.stats[key];
                     } else {
                         if (newStats[key] !== undefined) newStats[key] += t.stats[key];
                         else newStats[key] = t.stats[key];
@@ -122,9 +132,12 @@ export function updatePlayerStats() {
         });
     }
 
+    // Validaciones
     if (isNaN(newStats.damage)) newStats.damage = 1;
     if (isNaN(newStats.defense)) newStats.defense = 0;
     if (isNaN(newStats.maxHp)) newStats.maxHp = 100;
+    
+    // Límite de velocidad (cap en 100ms para no crashear)
     if (newStats.attackSpeed < 100) newStats.attackSpeed = 100;
 
     const oldMax = gameState.playerStats.maxHp;

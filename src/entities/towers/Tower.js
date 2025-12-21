@@ -18,15 +18,13 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.typeName = stats.name;
         this.baseColor = stats.color;
         
-        // Base (Suelo)
+        // Base
         this.base = scene.add.rectangle(0, 0, 40, 40, 0x808080);
         this.base.setStrokeStyle(2, 0x000000);
         
-        // Torreta (Parte móvil/visual)
+        // Torreta
         this.turretGroup = scene.add.container(0, 0);
-        
         this.add([this.base, this.turretGroup]);
-        
         this.setSize(40, 40);
         this.setInteractive({ useHandCursor: true });
 
@@ -35,29 +33,37 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.rangeCircle.setVisible(false);
         this.rangeCircle.setDepth(5); 
 
+        // Barra de Progreso (Mejora)
+        this.upgradeBarBg = scene.add.rectangle(0, -30, 40, 6, 0x000000).setVisible(false);
+        this.upgradeBarFill = scene.add.rectangle(-20, -30, 0, 6, 0x00ff00).setOrigin(0, 0.5).setVisible(false);
+        this.add([this.upgradeBarBg, this.upgradeBarFill]);
+
         // Stats Iniciales
         this.level = 1;
         this.maxLevel = stats.levels.length; 
         this.lastAttackTime = 0;
+        this.isUpgrading = false; // Estado de mejora
         
         this.updateStats(); 
     }
 
     update(time, delta) {
+        // Si se está mejorando, no ataca
+        if (this.isUpgrading) return;
+
         if (time > this.lastAttackTime + this.attackSpeed) {
             this.findTargetAndFire(time);
         }
         
-        // Animación suave de la torreta (Idle)
         if (this.typeKey === 'mage') {
-            this.turretGroup.angle += 1; // El mago rota siempre
+            this.turretGroup.angle += 1; 
         }
     }
 
+    // ... (findTargetAndFire y fire SE MANTIENEN IGUALES) ...
     findTargetAndFire(time) {
         let target = null;
         let maxProgress = -1;
-
         this.enemies.children.iterate(enemy => {
             if (enemy.active && !enemy.isDead) {
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
@@ -69,14 +75,11 @@ export default class Tower extends Phaser.GameObjects.Container {
                 }
             }
         });
-
         if (target) {
-            // Apuntar
-            if (this.typeKey !== 'mage') { // El mago gira solo, los otros apuntan
+            if (this.typeKey !== 'mage') { 
                 const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
                 this.turretGroup.rotation = angle + (Math.PI / 2);
             }
-            
             this.fire(target);
             this.lastAttackTime = time;
         }
@@ -94,36 +97,55 @@ export default class Tower extends Phaser.GameObjects.Container {
                 });
             }
         };
-
         fireProjectile();
-
-        // Lógica Doble Ataque
         if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance) {
-            this.scene.time.delayedCall(100, fireProjectile); // Disparo rápido extra
+            this.scene.time.delayedCall(100, fireProjectile); 
         }
-        
-        // Retroceso visual
+        this.scene.tweens.add({ targets: this.turretGroup, y: 5, yoyo: true, duration: 50 });
+    }
+
+    // --- LÓGICA DE MEJORA (CORREGIDA) ---
+    upgrade() {
+        if (this.level >= this.maxLevel) return;
+        if (this.isUpgrading) return; // Evitar doble click
+
+        // Iniciar proceso de 3 segundos
+        this.isUpgrading = true;
+        this.upgradeBarBg.setVisible(true);
+        this.upgradeBarFill.setVisible(true);
+        this.upgradeBarFill.width = 0;
+
+        // Tween de la barra (3000 ms)
         this.scene.tweens.add({
-            targets: this.turretGroup,
-            y: 5,
-            yoyo: true,
-            duration: 50
+            targets: this.upgradeBarFill,
+            width: 40,
+            duration: 3000,
+            onComplete: () => {
+                this.finalizeUpgrade();
+            }
         });
     }
 
-    upgrade() {
-        if (this.level >= this.maxLevel) return;
-        
+    finalizeUpgrade() {
         this.totalInvestment += this.upgradeCost;
         this.level++;
+        this.isUpgrading = false;
+        
+        // Ocultar barra
+        this.upgradeBarBg.setVisible(false);
+        this.upgradeBarFill.setVisible(false);
+
         this.updateStats(); 
         
-        // Efecto Level Up
+        // Efectos visuales
         this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 });
-        
-        // Partículas doradas (simple circle flash)
         const flash = this.scene.add.circle(this.x, this.y, 10, 0xffff00, 0.8);
         this.scene.tweens.add({ targets: flash, scale: 5, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
+        
+        // Actualizar UI si el menú está abierto
+        if (this.scene && this.scene.selectedTowerToUpgrade === this) {
+            this.scene.updateUpgradeMenuText();
+        }
     }
 
     updateStats() {
@@ -132,23 +154,21 @@ export default class Tower extends Phaser.GameObjects.Container {
         const currentStats = typeData.levels[levelIndex];
 
         if (currentStats) {
-            // 1. Stats Base
             this.damage = currentStats.damage;
             this.range = currentStats.range;
             this.attackSpeed = currentStats.fireRate; 
-            this.upgradeCost = currentStats.upgradeCost;
+            
+            // IMPORTANTE: El costo es para el SIGUIENTE nivel.
+            // Si estamos en el último nivel, el costo es 0.
+            this.upgradeCost = currentStats.upgradeCost || 0;
+            
             this.aoeRadius = currentStats.aoe || 0;
             this.slowFactor = currentStats.slow || 1;
 
-            // 2. APLICAR BONOS DE EQUIPAMIENTO
             const bonuses = getTowerBonuses(this.typeKey);
-            
             this.damage += bonuses.damage;
             this.range += bonuses.range;
-            // Attack Speed es "delay", así que restar es bueno. Mínimo 100ms
             this.attackSpeed = Math.max(100, this.attackSpeed - bonuses.attackSpeed);
-            
-            // Probabilidad de Doble Ataque (Nueva mecánica)
             this.doubleAttackChance = bonuses.doubleAttack || 0;
 
             if (this.rangeCircle) this.rangeCircle.setRadius(this.range);
@@ -157,36 +177,24 @@ export default class Tower extends Phaser.GameObjects.Container {
     }
 
     updateAppearance() {
-        // Limpiar gráficos anteriores
         this.turretGroup.removeAll(true);
         const color = this.baseColor;
         
         if (this.typeKey === 'archer') {
-            // ARQUERO: Torreta cuadrada que gana detalles
             const body = this.scene.add.rectangle(0, 0, 24, 24, color);
             this.turretGroup.add(body);
-            
-            // Nivel 3+: Ballesta (Triángulo)
             if (this.level >= 3) {
                 const bow = this.scene.add.triangle(0, -10, 0, 0, -10, 10, 10, 10, 0xffffff);
                 this.turretGroup.add(bow);
             }
-            // Nivel 5: Bordes dorados
-            if (this.level >= 5) {
-                body.setStrokeStyle(4, 0xffd700);
-            }
+            if (this.level >= 5) body.setStrokeStyle(4, 0xffd700);
 
         } else if (this.typeKey === 'cannon') {
-            // CAÑÓN: Barril negro/rojo
             const barrelWidth = this.level >= 3 ? 16 : 10;
             const barrelLen = this.level >= 3 ? 30 : 20;
-            
             const barrel = this.scene.add.rectangle(0, -barrelLen/2, barrelWidth, barrelLen, 0x333333);
             const body = this.scene.add.circle(0, 0, 15, color);
-            
             this.turretGroup.add([barrel, body]);
-
-            // Nivel 5: Doble Cañón (Visual)
             if (this.level >= 5) {
                 const barrel2 = this.scene.add.rectangle(8, -15, 8, 30, 0x333333);
                 const barrel3 = this.scene.add.rectangle(-8, -15, 8, 30, 0x333333);
@@ -194,21 +202,16 @@ export default class Tower extends Phaser.GameObjects.Container {
             }
 
         } else if (this.typeKey === 'mage') {
-            // MAGO: Cristal flotante
             const size = 10 + (this.level * 2);
-            // Rombo
             const crystal = this.scene.add.rectangle(0, 0, size, size, color);
             crystal.rotation = Math.PI / 4; 
-            
             this.turretGroup.add(crystal);
-            
             if (this.level >= 3) {
                 const inner = this.scene.add.rectangle(0, 0, size/2, size/2, 0xffffff);
                 inner.rotation = Math.PI / 4;
                 this.turretGroup.add(inner);
             }
             if (this.level >= 5) {
-                // Aura giratoria extra
                 const aura = this.scene.add.circle(0, 0, size + 5, color, 0.3);
                 this.turretGroup.add(aura);
             }
