@@ -2,91 +2,118 @@
 
 // Helper para crear talentos rápido
 const t = (id, tier, name, desc, stats = {}, effect = null, val = 0) => ({ 
-    id, tier, name, desc, stats, effect, val 
+    id, tier, name, desc, stats, effect, val, cost: 1 // Costo siempre 1 punto
 });
 
 export const TALENTS = {
     paladin: [
-        // Nivel 10
         t('pal_10_a', 10, 'Fe Inquebrantable', '+20% Vida Máxima', { maxHpMult: 0.2 }),
         t('pal_10_b', 10, 'Martillo Justo', '+15% Daño', { damageMult: 0.15 }),
-        // Nivel 20
         t('pal_20_a', 20, 'Escudo Divino', '10% Chance de Bloqueo', {}, 'block_chance', 10),
-        t('pal_20_b', 20, 'Regeneración Sacra', '+10 Regen HP', { regenHp: 10 }),
-        // Nivel 30
-        t('pal_30_a', 30, 'Armadura de Placas', '+5 Defensa', { defense: 5 }),
-        t('pal_30_b', 30, 'Venganza', '+50% Daño Espinas', { thorns: 10 }), // Simulamos boost espinas
-        // Nivel 40 a 100 (Patrones)
-        t('pal_40_a', 40, 'Vitalidad I', '+300 HP', { maxHp: 300 }),
-        t('pal_40_b', 40, 'Fuerza I', '+20 Daño', { damage: 20 }),
-        t('pal_50_a', 50, 'Muro de Hierro', '+15% Bloqueo', {}, 'block_chance', 15),
-        t('pal_50_b', 50, 'Aura Curativa', '+20 Regen HP', { regenHp: 20 }),
-        t('pal_60_a', 60, 'Piel de Diamante', '+8 Defensa', { defense: 8 }),
-        t('pal_60_b', 60, 'Castigo Divino', '+30% Daño Crítico', { critDamage: 30 }),
-        t('pal_70_a', 70, 'Vitalidad II', '+500 HP', { maxHp: 500 }),
-        t('pal_70_b', 70, 'Fuerza II', '+40 Daño', { damage: 40 }),
-        t('pal_80_a', 80, 'Bastión', '+20% Bloqueo', {}, 'block_chance', 20),
-        t('pal_80_b', 80, 'Luz Eterna', '+50 Regen HP', { regenHp: 50 }),
-        t('pal_90_a', 90, 'Tanque Supremo', '+30% Vida', { maxHpMult: 0.3 }),
-        t('pal_90_b', 90, 'Cruzado', '+30% Daño', { damageMult: 0.3 }),
-        t('pal_100_a', 100, 'INMORTAL', '+20 Defensa y +1000 HP', { defense: 20, maxHp: 1000 }),
-        t('pal_100_b', 100, 'DIOS DE LA GUERRA', '+100 Daño y +100% Crítico', { damage: 100, critChance: 100 })
+        t('pal_20_b', 20, 'Luz Sanadora', '+10 Regen HP', { regenHp: 10 }),
+        t('pal_30_a', 30, 'Armadura de Placas', '+10 Defensa', { defense: 10 }),
+        t('pal_30_b', 30, 'Retribución', '+20 Daño Espinas', { thorns: 20 }),
+        t('pal_40_a', 40, 'Vitalidad I', '+500 HP', { maxHp: 500 }),
+        t('pal_40_b', 40, 'Fuerza I', '+30 Daño', { damage: 30 }),
+        t('pal_50_a', 50, 'Muro de Hierro', '+15% Bloqueo (Total 25%)', {}, 'block_chance', 25),
+        t('pal_50_b', 50, 'Aura Sagrada', '+30 Regen HP', { regenHp: 30 }),
+        t('pal_60_a', 60, 'Piel de Diamante', '+20 Defensa', { defense: 20 }),
+        t('pal_60_b', 60, 'Castigo', '+50% Daño Crítico', { critDamage: 50 }),
+        t('pal_70_a', 70, 'Vitalidad II', '+1000 HP', { maxHp: 1000 }),
+        t('pal_70_b', 70, 'Fuerza II', '+60 Daño', { damage: 60 }),
+        t('pal_80_a', 80, 'Bastión', '+20% Bloqueo (Total 45% si sumado)', {}, 'block_chance', 20),
+        t('pal_80_b', 80, 'Luz Eterna', '+100 Regen HP', { regenHp: 100 }),
+        t('pal_90_a', 90, 'Tanque Supremo', '+40% Vida', { maxHpMult: 0.4 }),
+        t('pal_90_b', 90, 'Cruzado', '+40% Daño', { damageMult: 0.4 }),
+        t('pal_100_a', 100, 'INMORTAL', '+50 Defensa y +5000 HP', { defense: 50, maxHp: 5000 }),
+        t('pal_100_b', 100, 'DIOS DE LA GUERRA', '+200 Daño y +100% Crítico', { damage: 200, critChance: 100 })
     ],
     guerrero: [
-        // Nivel 10
         t('war_10_a', 10, 'Sed de Sangre', '+5% Robo de Vida', { lifesteal: 5 }),
         t('war_10_b', 10, 'Golpe Brutal', '+20% Daño', { damageMult: 0.2 }),
-        // Nivel 20
         t('war_20_a', 20, 'Doble Filo', '10% Chance Doble Ataque', {}, 'double_strike', 10),
-        t('war_20_b', 20, 'Piel Dura', '+5 Defensa', { defense: 5 }),
-        // Nivel 30... (Genéricos para completar)
+        t('war_20_b', 20, 'Piel Dura', '+8 Defensa', { defense: 8 }),
         t('war_30_a', 30, 'Frenesí', '+100 Vel. Ataque', { attackSpeed: 100 }),
-        t('war_30_b', 30, 'Crítico', '+10% Chance Crítico', { critChance: 10 }),
-        t('war_40_a', 40, 'Maestría I', '+30 Daño', { damage: 30 }),
-        t('war_40_b', 40, 'Aguante I', '+400 HP', { maxHp: 400 }),
-        t('war_50_a', 50, 'Torbellino', '15% Chance Doble Ataque', {}, 'double_strike', 15),
-        t('war_50_b', 50, 'Vampirismo', '+5% Robo Vida', { lifesteal: 5 }),
+        t('war_30_b', 30, 'Enfoque', '+10% Chance Crítico', { critChance: 10 }),
+        t('war_40_a', 40, 'Maestría I', '+40 Daño', { damage: 40 }),
+        t('war_40_b', 40, 'Aguante I', '+600 HP', { maxHp: 600 }),
+        t('war_50_a', 50, 'Torbellino', '20% Chance Doble Ataque', {}, 'double_strike', 20),
+        t('war_50_b', 50, 'Vampirismo', '+8% Robo Vida', { lifesteal: 8 }),
         t('war_60_a', 60, 'Ira', '+200 Vel. Ataque', { attackSpeed: 200 }),
         t('war_60_b', 60, 'Precisión', '+15% Chance Crítico', { critChance: 15 }),
-        t('war_70_a', 70, 'Maestría II', '+60 Daño', { damage: 60 }),
-        t('war_70_b', 70, 'Aguante II', '+800 HP', { maxHp: 800 }),
-        t('war_80_a', 80, 'Masacre', '20% Chance Doble Ataque', {}, 'double_strike', 20),
-        t('war_80_b', 80, 'Inmortal', '+10% Robo Vida', { lifesteal: 10 }),
-        t('war_90_a', 90, 'Berserker', '+40% Daño', { damageMult: 0.4 }),
-        t('war_90_b', 90, 'Coloso', '+40% Vida', { maxHpMult: 0.4 }),
-        t('war_100_a', 100, 'SEÑOR DE LA GUERRA', '+200 Daño', { damage: 200 }),
-        t('war_100_b', 100, 'INDESTRUCTIBLE', '+5000 HP', { maxHp: 5000 })
+        t('war_70_a', 70, 'Maestría II', '+80 Daño', { damage: 80 }),
+        t('war_70_b', 70, 'Aguante II', '+1200 HP', { maxHp: 1200 }),
+        t('war_80_a', 80, 'Masacre', '30% Chance Doble Ataque', {}, 'double_strike', 30),
+        t('war_80_b', 80, 'Sed Eterna', '+15% Robo Vida', { lifesteal: 15 }),
+        t('war_90_a', 90, 'Berserker', '+50% Daño', { damageMult: 0.5 }),
+        t('war_90_b', 90, 'Coloso', '+50% Vida', { maxHpMult: 0.5 }),
+        t('war_100_a', 100, 'SEÑOR DE LA GUERRA', '+300 Daño', { damage: 300 }),
+        t('war_100_b', 100, 'TITÁN', '+8000 HP', { maxHp: 8000 })
     ],
-    // (Puedes replicar la estructura para Arquero, Mago y Asesino siguiendo el patrón)
     arquero: [
         t('arc_10_a', 10, 'Ojo de Halcón', '+20% Rango', { rangeMult: 0.2 }),
         t('arc_10_b', 10, 'Flechas Ligeras', '+150 Vel. Ataque', { attackSpeed: 150 }),
         t('arc_20_a', 20, 'Punta Perforante', 'Ignora Defensas (Pierce)', {}, 'pierce', 1),
         t('arc_20_b', 20, 'Cazador', '+10% Crítico', { critChance: 10 }),
-        // ... (Rellena hasta 100 si quieres, o el código lo manejará si faltan, pero mejor tenerlos)
-        // Por brevedad del ejemplo, asumimos que existen o que el bucle no crashea si faltan
-        t('arc_30_a', 30, 'Tiro Certero', '+20 Daño', { damage: 20 }),
-        t('arc_30_b', 30, 'Agilidad', '+10% Evasión (Def)', { defense: 5 }),
-        // ... (Repetir patrón de aumento de stats)
+        t('arc_30_a', 30, 'Tiro Certero', '+25 Daño', { damage: 25 }),
+        t('arc_30_b', 30, 'Evasión', '+10 Defensa', { defense: 10 }),
+        t('arc_40_a', 40, 'Francotirador I', '+40% Rango', { rangeMult: 0.4 }),
+        t('arc_40_b', 40, 'Velocidad I', '+250 Vel. Ataque', { attackSpeed: 250 }),
+        t('arc_50_a', 50, 'Disparo Mortal', '+50% Daño Crítico', { critDamage: 50 }),
+        t('arc_50_b', 50, 'Botas Ligeras', '+20% Movimiento', { moveSpeedMult: 0.2 }),
+        t('arc_60_a', 60, 'Flechas de Acero', '+50 Daño', { damage: 50 }),
+        t('arc_60_b', 60, 'Instinto', '+20% Crítico', { critChance: 20 }),
+        t('arc_70_a', 70, 'Francotirador II', '+60% Rango', { rangeMult: 0.6 }),
+        t('arc_70_b', 70, 'Velocidad II', '+400 Vel. Ataque', { attackSpeed: 400 }),
+        t('arc_80_a', 80, 'Asesino de Gigantes', '+100% Daño Crítico', { critDamage: 100 }),
+        t('arc_80_b', 80, 'Intocable', '+30 Defensa', { defense: 30 }),
+        t('arc_90_a', 90, 'Maestro del Arco', '+150 Daño', { damage: 150 }),
+        t('arc_90_b', 90, 'Lluvia de Flechas', '+30% Daño Total', { damageMult: 0.3 }),
         t('arc_100_a', 100, 'LEGOLAS', '+500% Rango', { rangeMult: 5.0 }),
-        t('arc_100_b', 100, 'AMETRALLADORA', '+1000 Vel. Ataque', { attackSpeed: 1000 })
+        t('arc_100_b', 100, 'AMETRALLADORA', '+1500 Vel. Ataque', { attackSpeed: 1500 })
     ],
     mago: [
         t('mag_10_a', 10, 'Sabiduría', '+20% Daño Hechizo', { skillDamage: 20 }),
         t('mag_10_b', 10, 'Concentración', '-10% Cooldown', { cdr: 10 }),
         t('mag_20_a', 20, 'Escarcha', 'Ataques ralentizan', {}, 'frost_hit', 30),
         t('mag_20_b', 20, 'Bola de Fuego', '+20 Daño Base', { damage: 20 }),
-        // ...
-        t('mag_100_a', 100, 'ARCHIMAGO', '+500% Daño Skill', { skillDamage: 500 }),
-        t('mag_100_b', 100, 'TIEMPO CERO', '-50% Cooldown', { cdr: 50 })
+        t('mag_30_a', 30, 'Mente Maestra', '+30% Daño Hechizo', { skillDamage: 30 }),
+        t('mag_30_b', 30, 'Flujo de Maná', '-15% Cooldown', { cdr: 15 }),
+        t('mag_40_a', 40, 'Poder Arcano I', '+40 Daño', { damage: 40 }),
+        t('mag_40_b', 40, 'Barrera de Maná', '+500 HP', { maxHp: 500 }),
+        t('mag_50_a', 50, 'Congelación Profunda', 'Ralentizar +50%', {}, 'frost_hit', 50),
+        t('mag_50_b', 50, 'Ignición', '+100% Daño Hechizo', { skillDamage: 100 }),
+        t('mag_60_a', 60, 'Mente Maestra II', '-20% Cooldown', { cdr: 20 }),
+        t('mag_60_b', 60, 'Destrucción', '+20% Chance Crítico', { critChance: 20 }),
+        t('mag_70_a', 70, 'Poder Arcano II', '+80 Daño', { damage: 80 }),
+        t('mag_70_b', 70, 'Escudo Arcano', '+1000 HP', { maxHp: 1000 }),
+        t('mag_80_a', 80, 'Archimago', '+200% Daño Hechizo', { skillDamage: 200 }),
+        t('mag_80_b', 80, 'Crono', '-25% Cooldown', { cdr: 25 }),
+        t('mag_90_a', 90, 'Apocalipsis', '+300 Daño', { damage: 300 }),
+        t('mag_90_b', 90, 'Omnipotencia', '+50% Vida', { maxHpMult: 0.5 }),
+        t('mag_100_a', 100, 'DIOS DE LA MAGIA', '+1000% Daño Hechizo', { skillDamage: 1000 }),
+        t('mag_100_b', 100, 'TIEMPO CERO', '-80% Cooldown (Casi instantáneo)', { cdr: 80 })
     ],
     asesino: [
         t('asn_10_a', 10, 'Sombra', '+20% Movimiento', { moveSpeedMult: 0.2 }),
         t('asn_10_b', 10, 'Daga Venenosa', '+15% Daño', { damageMult: 0.15 }),
         t('asn_20_a', 20, 'Punto Débil', '+50% Daño Crítico', { critDamage: 50 }),
         t('asn_20_b', 20, 'Reflejos', '10% Chance Doble Ataque', {}, 'double_strike', 10),
-        // ...
+        t('asn_30_a', 30, 'Capa y Espada', '+200 Vel. Ataque', { attackSpeed: 200 }),
+        t('asn_30_b', 30, 'Golpe Bajo', '+15% Crítico', { critChance: 15 }),
+        t('asn_40_a', 40, 'Maestría Dagas I', '+40 Daño', { damage: 40 }),
+        t('asn_40_b', 40, 'Agilidad I', '+30% Movimiento', { moveSpeedMult: 0.3 }),
+        t('asn_50_a', 50, 'Asesinato', '+100% Daño Crítico', { critDamage: 100 }),
+        t('asn_50_b', 50, 'Sombra Doble', '20% Chance Doble Ataque', {}, 'double_strike', 20),
+        t('asn_60_a', 60, 'Velocidad Mortal', '+300 Vel. Ataque', { attackSpeed: 300 }),
+        t('asn_60_b', 60, 'Ojo Letal', '+20% Crítico', { critChance: 20 }),
+        t('asn_70_a', 70, 'Maestría Dagas II', '+80 Daño', { damage: 80 }),
+        t('asn_70_b', 70, 'Evasión', '+20 Defensa', { defense: 20 }),
+        t('asn_80_a', 80, 'Ejecución', '+200% Daño Crítico', { critDamage: 200 }),
+        t('asn_80_b', 80, 'Maestro Sombra', '30% Chance Doble Ataque', {}, 'double_strike', 30),
+        t('asn_90_a', 90, 'Fantasma', '+50% Daño', { damageMult: 0.5 }),
+        t('asn_90_b', 90, 'Intocable', '+2000 HP', { maxHp: 2000 }),
         t('asn_100_a', 100, 'MUERTE SILENCIOSA', '+1000% Daño Crítico', { critDamage: 1000 }),
-        t('asn_100_b', 100, 'NINJA', '100% Doble Ataque', {}, 'double_strike', 100 )
+        t('asn_100_b', 100, 'NINJA', '100% Doble Ataque (Golpes x2 siempre)', {}, 'double_strike', 100 )
     ]
 };
