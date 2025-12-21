@@ -4,8 +4,8 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // --- HELPER: ID ÚNICO REAL ---
-    // Combina tiempo + aleatoriedad alfanumérica para evitar colisiones en bucles rápidos
+    // --- HELPER: ID ÚNICO DE TEXTO ---
+    // Evita duplicados y errores de precisión numérica
     getUniqueId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     }
@@ -119,7 +119,7 @@ class RPGSystem {
         if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
         
         return { 
-            id: this.getUniqueId(), // ID SEGURO
+            id: this.getUniqueId(), 
             name: `Mejora ${towerType.toUpperCase()}`, 
             type: 'tower_part', towerType: towerType, rarity: rarity.id, enchant: initialEnchant, stats: stats, color: rarity.color 
         };
@@ -134,7 +134,7 @@ class RPGSystem {
         
         const newItem = { 
             ...item1, 
-            id: this.getUniqueId(), // ID SEGURO 
+            id: this.getUniqueId(), 
             name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, 
             enchant: item1.enchant + 1, 
             stats: baseStats 
@@ -155,7 +155,7 @@ class RPGSystem {
         if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
         
         return { 
-            id: this.getUniqueId(), // ID SEGURO 
+            id: this.getUniqueId(),
             recipeId: recipe.id, name: `${recipe.name}`, type: recipe.type, subType: recipe.subType, twoHanded: recipe.twoHanded || false, rarity: rarity.id, enchant: initialEnchant, stats: stats, color: rarity.color 
         };
     }

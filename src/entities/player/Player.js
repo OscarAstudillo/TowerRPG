@@ -29,7 +29,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     loadPassives() {
         this.passives = { blockChance: 0, doubleStrike: 0, pierce: 0, frostHit: 0 };
-        // Detectar si tenemos efectos especiales en talentos
         if (gameState.talents) {
             const clsTalents = TALENTS[gameState.selectedClass] || [];
             clsTalents.forEach(t => {
@@ -97,28 +96,17 @@ export default class Player extends Phaser.GameObjects.Rectangle {
                     const projectile = this.projectilesGroup.get(this.x, this.y);
                     if (projectile) {
                         let dmg = this.stats.damage;
-                        if (this.passives.pierce > 0) dmg += 5; // Pierce logic simplificada como daño extra
+                        if (this.passives.pierce > 0) dmg += 5; 
 
-                        // --- DEFINICIÓN DE EFECTOS ---
                         let effect = null;
-                        
-                        // Mago: Ralentizar o Quemar?
-                        if (gameState.selectedClass === 'mago') {
-                            if (this.passives.frostHit > 0) effect = { type: 'freeze', val: 0.3, duration: 2000 };
-                            // Podríamos agregar quemadura aquí si tuviera un talento de fuego
-                        }
-                        
-                        // Asesino: Veneno (Si tuviera talento, por ahora hardcodeamos para probar)
-                        // Para hacerlo real, deberíamos agregar 'poison_hit' en Talents.js
-                        if (gameState.selectedClass === 'asesino') {
-                             effect = { type: 'poison', val: Math.ceil(dmg * 0.2), duration: 3000 };
-                        }
+                        if (gameState.selectedClass === 'mago' && this.passives.frostHit > 0) effect = { type: 'freeze', val: 0.3, duration: 2000 };
+                        if (gameState.selectedClass === 'asesino') effect = { type: 'poison', val: Math.ceil(dmg * 0.2), duration: 3000 };
 
                         projectile.fire(target, {
                             damage: dmg,
                             type: 'hero',
                             aoeRadius: 0,
-                            effect: effect // ENVIAR EFECTO
+                            effect: effect 
                         });
                         
                         if (this.stats.lifesteal > 0) {
@@ -132,11 +120,23 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         }
     }
 
-    // ... (Mantener castSkill, findClosestEnemy, createAOE, die, respawn)
-    // COPIAR CÓDIGO RESTANTE DE Player.js ANTERIOR
     castSkill() { if (this.isDead) return { success: false, msg: '¡Estás muerto!' }; if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' }; const cls = gameState.selectedClass; let skillName = ""; if (cls === 'paladin') { const healAmount = Math.floor(this.stats.maxHp * 0.3); gameState.playerStats.hp = Math.min(this.stats.hp + healAmount, this.stats.maxHp); this.createEffect('heal'); skillName = "¡Sanación!"; if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00'); } else if (cls === 'guerrero') { const damage = this.stats.damage * 2.5; this.createAOE(150, damage, 0xff0000); skillName = "¡Torbellino!"; } else if (cls === 'mago') { const damage = this.stats.damage * 2; this.createAOE(200, damage, 0x00ffff); skillName = "¡Nova de Hielo!"; } else if (cls === 'arquero') { this.isBuffed = true; this.scene.time.delayedCall(3000, () => { this.isBuffed = false; }); this.createEffect('buff'); skillName = "¡Instinto!"; } else if (cls === 'asesino') { const target = this.findClosestEnemy(300); if (target) { target.takeDamage(this.stats.damage * 5); this.scene.add.text(target.x, target.y - 20, "¡CRÍTICO!", { fontSize: '20px', color: '#ff0000' }).destroy(); this.x = target.x; this.y = target.y; } else { return { success: false, msg: '¡Sin objetivo!' }; } skillName = "¡Ejecución!"; } const cdrMult = 1 - ((this.stats.cdr || 0) / 100); this.skillCooldown = this.skillMaxCooldown * cdrMult; return { success: true, msg: skillName }; }
     findClosestEnemy(range) { let closest = null; let minDist = Infinity; this.enemiesGroup.children.iterate(enemy => { if (enemy.active) { const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y); if (dist < range && dist < minDist) { minDist = dist; closest = enemy; } } }); return closest; }
-    createAOE(radius, damage, color) { const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); this.enemiesGroup.children.iterate(enemy => { if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { enemy.takeDamage(damage); } }); }
+    
+    // --- CORRECCIÓN AQUÍ ---
+    createAOE(radius, damage, color) { 
+        const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); 
+        this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); 
+        
+        // Usar getChildren() para evitar errores si los enemigos mueren durante el loop
+        const enemies = this.enemiesGroup.getChildren();
+        enemies.forEach(enemy => { 
+            if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { 
+                enemy.takeDamage(damage); 
+            } 
+        }); 
+    }
+    
     createEffect(type) { if (type === 'buff') { this.setStrokeStyle(4, 0xffffff); this.scene.time.delayedCall(3000, () => this.setStrokeStyle(0)); } }
     die() { if (this.isDead) return; this.isDead = true; gameState.playerStats.hp = 0; this.setFillStyle(0x555555); this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000}); this.body.enable = false; this.respawnText = this.scene.add.text(this.x, this.y - 30, "Reviviendo...", { fontSize: '14px', color: '#fff', backgroundColor: '#000' }).setOrigin(0.5); this.scene.time.delayedCall(10000, () => { this.respawn(); }); }
     respawn() { this.isDead = false; gameState.playerStats.hp = this.stats.maxHp; this.body.enable = true; this.lastAttackTime = 0; this.setFillStyle(this.stats.color); if (this.respawnText) this.respawnText.destroy(); this.scene.tweens.add({ targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out' }); this.scene.showFloatingText(this.x, this.y - 50, "¡RESUCITADO!", "#00ff00"); }
