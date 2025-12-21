@@ -1,100 +1,71 @@
 // src/entities/projectiles/Projectile.js
 import Phaser from 'phaser';
 
-export default class Projectile extends Phaser.GameObjects.Rectangle {
+export default class Projectile extends Phaser.GameObjects.Arc {
     constructor(scene, x, y) {
-        super(scene, x, y, 10, 10, 0xffff00);
+        super(scene, x, y, 5, 0, 360, false, 0xffff00, 1);
         scene.add.existing(this);
         scene.physics.add.existing(this);
         this.speed = 400;
+        this.damage = 10;
         this.target = null;
-        
-        // Datos del disparo
-        this.damage = 0;
-        this.towerType = '';
-        this.aoeRadius = 0;
-        this.slowFactor = 1;
+        this.effectPayload = null; // NUEVO: Datos del efecto
     }
 
-    fire(target, stats) {
+    fire(target, options) {
         this.target = target;
-        this.damage = stats.damage;
-        this.towerType = stats.type;
-        this.aoeRadius = stats.aoeRadius;
-        this.slowFactor = stats.slowFactor;
+        this.damage = options.damage || 10;
+        this.type = options.type || 'arrow';
+        this.aoeRadius = options.aoeRadius || 0;
+        this.effectPayload = options.effect || null; // Recibir efecto (ej: {type: 'burn', val: 5...})
 
-        this.setActive(true);
-        this.setVisible(true);
-        this.setPosition(this.x, this.y);
+        // Configuración visual según tipo
+        if (this.type === 'cannon') {
+            this.setFillStyle(0x000000); this.setRadius(8); this.speed = 300;
+        } else if (this.type === 'mage') {
+            this.setFillStyle(0x00ffff); this.setRadius(6); this.speed = 500;
+        } else {
+            this.setFillStyle(0xffff00); this.setRadius(4); this.speed = 600;
+        }
 
-        // Color según tipo
-        if (this.towerType === 'archer') this.setFillStyle(0x00ff00); // Verde
-        else if (this.towerType === 'cannon') this.setFillStyle(0x000000); // Negro
-        else if (this.towerType === 'mage') this.setFillStyle(0x00ffff); // Celeste
-        else if (this.towerType === 'hero') this.setFillStyle(0xffff00); // Amarillo (Héroe)
+        // Slow obsoleto (ahora usaremos effectPayload 'freeze')
+        // Mantenemos compatibilidad por si acaso
+        if (options.slowFactor && options.slowFactor < 1) {
+            if (!this.effectPayload) {
+                this.effectPayload = { type: 'freeze', val: 1 - options.slowFactor, duration: 2000 };
+            }
+        }
     }
 
     update(time, delta) {
-        // Si el objetivo muere o desaparece, destruir proyectil
-        if (!this.target || !this.target.active || this.target.isDead) {
+        if (!this.target || !this.target.active) {
             this.destroy();
             return;
         }
 
         const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
-        this.rotation = angle;
-        
         this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
 
-        // --- CORRECCIÓN DE LÍMITES DINÁMICOS ---
-        // Usamos el tamaño real de la pantalla + un margen de 100px
-        const w = this.scene.scale.width;
-        const h = this.scene.scale.height;
-        
-        if (this.x < -100 || this.x > w + 100 || this.y < -100 || this.y > h + 100) {
-            this.destroy();
+        if (Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y) < 10) {
+            this.hit(this.target);
         }
     }
 
-    // Se llama cuando colisiona con el enemigo
     hit(enemy) {
-        if (this.towerType === 'cannon') {
-            this.explode();
+        if (this.aoeRadius > 0) {
+            this.scene.enemies.children.iterate(e => {
+                if (e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= this.aoeRadius) {
+                    e.takeDamage(this.damage);
+                    if (this.effectPayload) e.applyStatusEffect(this.effectPayload); // Aplicar efecto AOE
+                }
+            });
+            // Efecto visual explosión
+            const boom = this.scene.add.circle(this.x, this.y, this.aoeRadius, 0xffa500, 0.5);
+            this.scene.tweens.add({ targets: boom, alpha: 0, scale: 0.5, duration: 200, onComplete: () => boom.destroy() });
         } else {
-            // Daño directo
             enemy.takeDamage(this.damage);
-            
-            // Efecto Slow
-            if (this.towerType === 'mage') {
-                enemy.applySlow(this.slowFactor, 2000); 
-            }
+            if (this.effectPayload) enemy.applyStatusEffect(this.effectPayload); // Aplicar efecto Single
         }
         this.destroy();
-    }
-
-    explode() {
-        // Efecto visual simple (compatible con todo)
-        const explosion = this.scene.add.circle(this.x, this.y, this.aoeRadius, 0xff4500, 0.6);
-        this.scene.tweens.add({
-            targets: explosion,
-            alpha: 0,
-            scale: 1.2,
-            duration: 300,
-            onComplete: () => explosion.destroy()
-        });
-
-        // Cámara sacudida leve
-        this.scene.cameras.main.shake(100, 0.005);
-
-        // Daño en área
-        const enemies = this.scene.enemies.getChildren();
-        enemies.forEach(e => {
-            if (e.active && !e.isDead) {
-                const dist = Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y);
-                if (dist <= this.aoeRadius) {
-                    e.takeDamage(this.damage);
-                }
-            }
-        });
     }
 }
