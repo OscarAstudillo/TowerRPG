@@ -23,36 +23,58 @@ export default class MainMenuScene extends Phaser.Scene {
 
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
-        if (!this.hasLoaded) { SaveSystem.load(); this.hasLoaded = true; }
-        if (!gameState.selectedClass) { this.scene.start('HeroSelectScene'); return; }
+
+        if (!this.hasLoaded) {
+            SaveSystem.load();
+            if (!gameState.talents) gameState.talents = []; // Safety
+            this.hasLoaded = true;
+        }
+
+        if (!gameState.selectedClass) {
+            this.scene.start('HeroSelectScene');
+            return;
+        }
+
         updatePlayerStats();
 
-        const w = this.scale.width; const h = this.scale.height; const cx = w / 2; const cy = h / 2;
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const cx = w / 2;
+        const cy = h / 2;
+
+        // Fondo y Título
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', { fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.goldText = this.add.text(w - 50, h * 0.05, `ORO: ${gameState.gold}`, { fontSize: '24px', color: '#ffd700' }).setOrigin(1, 0.5);
 
-        const tabY = h * 0.12; const tabW = 160; const startX = cx - (tabW * 2);
+        // TABS
+        const tabY = h * 0.12; 
+        const tabW = 160; 
+        const startX = cx - (tabW * 2);
+        
         this.createTabButton(startX, tabY, 'HÉROE', 'hero', tabW);
         this.createTabButton(startX + tabW, tabY, 'TALENTOS', 'talents', tabW);
         this.createTabButton(startX + tabW*2, tabY, 'MOCHILA', 'inventory', tabW);
         this.createTabButton(startX + tabW*3, tabY, 'FORJA', 'forge', tabW);
         this.createTabButton(startX + tabW*4, tabY, 'TORRES', 'towers', tabW);
 
+        // Contenedores
         this.heroContainer = this.add.container(0, 0);
         this.talentsContainer = this.add.container(0, 0);
         this.invContainer = this.add.container(0, 0);
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
+        // Inicializar Vistas
         this.createHeroView(w, h, cx, cy);
         this.createTalentsView(w, h, cx, cy);
         this.createInventoryView(w, h, cx, cy);
         this.createForgeView(w, h, cx, cy);
-        this.createTowersView(w, h, cx, cy);
+        this.createTowersView(w, h, cx, cy); // ¡Esta es la función que faltaba!
 
         this.switchTab('hero');
 
+        // Botones Inferiores
         const botY = h - 60;
         const playBtn = this.add.rectangle(cx, botY, 200, 50, 0x006400).setInteractive({ useHandCursor: true });
         this.add.text(cx, botY, 'IR AL MAPA', { fontSize: '24px' }).setOrigin(0.5);
@@ -60,11 +82,20 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const resetBtn = this.add.text(50, h - 30, 'Borrar Datos', { fontSize: '14px', color: '#555' }).setInteractive({ useHandCursor: true });
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo?")) { SaveSystem.reset(); } });
+
         const changeHeroBtn = this.add.text(200, h - 30, 'Cambiar Héroe', { fontSize: '14px', color: '#00ffff' }).setInteractive({ useHandCursor: true });
-        changeHeroBtn.on('pointerdown', () => { gameState.selectedClass = null; this.scene.start('HeroSelectScene'); });
+        changeHeroBtn.on('pointerdown', () => {
+            gameState.selectedClass = null; 
+            this.scene.start('HeroSelectScene');
+        });
     }
 
-    createTabButton(x, y, text, tabKey, width) { const btn = this.add.rectangle(x, y, width - 10, 40, 0x333333).setInteractive({ useHandCursor: true }); const txt = this.add.text(x, y, text, { fontSize: '16px' }).setOrigin(0.5); btn.on('pointerdown', () => this.switchTab(tabKey)); }
+    createTabButton(x, y, text, tabKey, width) {
+        const btn = this.add.rectangle(x, y, width - 10, 40, 0x333333).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(x, y, text, { fontSize: '16px' }).setOrigin(0.5);
+        btn.on('pointerdown', () => this.switchTab(tabKey));
+    }
+
     switchTab(tabKey) {
         this.currentTab = tabKey;
         this.heroContainer.setVisible(tabKey === 'hero');
@@ -72,6 +103,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invContainer.setVisible(tabKey === 'inventory');
         this.forgeContainer.setVisible(tabKey === 'forge');
         this.towersContainer.setVisible(tabKey === 'towers');
+        
         if (tabKey === 'inventory') this.refreshInventory();
         if (tabKey === 'hero') this.refreshHero();
         if (tabKey === 'talents') this.refreshTalents();
@@ -79,7 +111,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'towers') this.refreshTowersView();
     }
 
-    // --- VISTA HÉROE MEJORADA (STATS COMPLETOS E INSPECCIÓN) ---
+    // --- VISTA HÉROE ---
     createHeroView(w, h, cx, cy) {
         this.heroLevelText = this.add.text(cx, h * 0.2, '', { fontSize: '24px', fontStyle: 'bold', color: '#00ffff' }).setOrigin(0.5);
         this.heroContainer.add(this.heroLevelText);
@@ -89,7 +121,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.heroStatsText = this.add.text(leftX - (w * 0.18), contentY - 80, '', { fontSize: '16px', lineHeight: 22, color: '#ffffff' });
         this.heroContainer.add(this.heroStatsText);
         
-        // Contenedor para textos de equipo interactivos
         this.equippedTextContainer = this.add.container(0, 0);
         this.heroContainer.add(this.equippedTextContainer);
 
@@ -115,7 +146,6 @@ export default class MainMenuScene extends Phaser.Scene {
         const hero = getCurrentHero();
         const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase();
         
-        // Mostrar TODOS los stats
         const details = `
         Crítico: ${s.critChance}% (x${s.critDamage}%)
         Robo Vida: ${s.lifesteal}%
@@ -126,15 +156,12 @@ export default class MainMenuScene extends Phaser.Scene {
         `;
 
         this.heroStatsText.setText(`CLASE: [ ${clsName} ]\n\n-- ATRIBUTOS --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  ⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}  ⚡ Delay Atq: ${s.attackSpeed}ms\n${details}`);
-        
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`);
         this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`);
 
-        // Renderizar Links de Equipo
         this.equippedTextContainer.removeAll(true);
         const startX = this.heroStatsText.x;
         let startY = this.heroStatsText.y + 250;
-        
         this.equippedTextContainer.add(this.add.text(startX, startY, "-- EQUIPAMIENTO (Clic para ver) --", {fontSize:'16px', color:'#fff'}));
         startY += 25;
 
@@ -149,10 +176,8 @@ export default class MainMenuScene extends Phaser.Scene {
             const item = eq[slot.key];
             const name = item ? `${item.name} (+${item.enchant})` : '- Vacío -';
             const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888';
-            
             const txt = this.add.text(startX, startY, `${slot.label}: ${name}`, { fontSize: '16px', color: color })
                 .setInteractive({ useHandCursor: !!item });
-            
             if (item) {
                 txt.on('pointerdown', () => {
                     alert(`${item.name}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '')}`);
@@ -163,76 +188,7 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    // --- MOCHILA Y FUSIÓN MEJORADA (COMPARACIÓN VISUAL) ---
-    // (Se mantienen las funciones anteriores, solo modificamos selectItem para mostrar comparación)
-    
-    // ... (createInventoryView, initiateFusion, etc. IGUAL) ...
-    // Copiar código previo para estas funciones. 
-    
-    selectItem(item) {
-        this.selectedItem = item; 
-        this.itemDetailContainer.setVisible(true);
-        
-        const itemColor = item.color || 0xffffff; 
-        const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
-        this.detailTitle.setText(item.name); 
-        this.detailTitle.setColor(colorHex);
-        
-        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
-        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`;
-
-        // --- COMPARACIÓN ---
-        if (item.type !== 'tower_part') {
-            let equipped = null;
-            if (item.type === 'weapon') equipped = gameState.equipment.mainHand;
-            else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand;
-            else if (item.type === 'armor') equipped = gameState.equipment.armor;
-            else if (item.type === 'accessory') equipped = gameState.equipment.accessory;
-
-            if (equipped) {
-                infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`;
-                // Comparar Stats comunes
-                for (let key in item.stats) {
-                    const newVal = item.stats[key];
-                    const oldVal = equipped.stats[key] || 0;
-                    const diff = newVal - oldVal;
-                    let diffStr = diff > 0 ? `(+${diff})` : `(${diff})`;
-                    if (diff === 0) diffStr = "=";
-                    
-                    // Colores: Verde si mejora, Rojo si empeora
-                    // Excepción: Attack Speed (menor es mejor)
-                    let isBetter = diff > 0;
-                    if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; // Wait, cdr is usually %, higher is better. AttackSpeed delay lower is better. 
-                    // AttackSpeed en items suele ser reduction (-delay), asi que diff negativo es "mas reduccion" (bueno)
-                    // Espera, en generateItem attackSpeed es positivo... 
-                    // En updatePlayerStats restamos. Entonces si item tiene 50 AS y equipado 40 AS. Diff = +10.
-                    // NewStats -= 50 vs NewStats -= 40. NewStats es menor (mejor).
-                    // Entonces Mayor valor en item es MEJOR.
-                    
-                    const colorCode = isBetter ? '#00ff00' : (diff < 0 ? '#ff0000' : '#fff');
-                    // No podemos usar colores enriquecidos en un solo text object de phaser simple, 
-                    // así que usamos indicadores de texto.
-                    infoText += `${key}: ${newVal} vs ${oldVal} ${diff > 0 ? '▲' : (diff < 0 ? '▼' : '=')}\n`;
-                }
-            } else {
-                infoText += `\n\n(Nada Equipado)`;
-            }
-        }
-
-        this.detailStats.setText(infoText);
-        
-        if (item.type === 'tower_part') { 
-            this.equipBtn.list[1].setText("EQUIPAR EN..."); 
-        } else { 
-            this.equipBtn.list[1].setText("EQUIPAR"); 
-        }
-    }
-
-    // ... (Mantener resto de funciones: createTowersView, refreshTowersView, actionEquip, etc.) ...
-    
-    // *IMPORTANTE*: Copiar todas las funciones que no cambiaron del mensaje anterior para que el archivo esté completo.
-    // createTalentsView, refreshTalents, learnTalent, createForgeView, refreshForge, handleCraftButton, etc.
-    
+    // --- VISTA TALENTOS ---
     createTalentsView(w, h, cx, cy) {
         this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS DE TALENTO: 0", { fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.talentsContainer.add(this.talentPointsText);
@@ -297,6 +253,38 @@ export default class MainMenuScene extends Phaser.Scene {
         }
     }
 
+    // --- VISTA TORRES ---
+    createTowersView(w, h, cx, cy) {
+        const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3;
+        types.forEach((type, i) => {
+            const x = startX + (i * gap); const y = h * 0.25;
+            const title = this.add.text(x, y, names[i], { fontSize: '24px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5); this.towersContainer.add(title);
+            const statsText = this.add.text(x, y + 100, "Stats...", { fontSize: '14px', align: 'center', color: '#aaa' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText);
+            for (let s = 1; s <= 2; s++) {
+                const slotY = y + 200 + (s * 80);
+                const slotBg = this.add.rectangle(x, slotY, 220, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true });
+                const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { fontSize: '12px', wordWrap: {width: 200}, align: 'center' }).setOrigin(0.5);
+                slotTxt.name = `txt_${type}_slot${s}`; 
+                slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { gameState.towerEquipment[type][`slot${s}`] = null; gameState.inventory.push(item); this.refreshTowersView(); SaveSystem.save(); } });
+                this.towersContainer.add([slotBg, slotTxt]);
+            }
+        });
+    }
+    refreshTowersView() {
+        const types = ['archer', 'cannon', 'mage'];
+        types.forEach(type => {
+            const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 };
+            [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } });
+            const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`);
+            if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); }
+            for (let s = 1; s <= 2; s++) {
+                const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`);
+                if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío"); txtObj.setColor('#ffffff'); } }
+            }
+        });
+    }
+
+    // --- MOCHILA Y FUSIÓN ---
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
         this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
@@ -349,6 +337,51 @@ export default class MainMenuScene extends Phaser.Scene {
     createInvCategoryBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { fontSize: '16px', color: '#888', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); }); this.invContainer.add(btn); }
     refreshInventory() { let matContent = ""; if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); } this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; return true; }); let col = 0; let row = 0; filteredItems.forEach(item => { let itemColor = item.color || 0xffffff; const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); const nameTxt = this.add.text(10, 12, item.name || "Ítem", { fontSize: '12px', color: colorHex, wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
     
+    // --- COMPARACIÓN DE ITEMS ---
+    selectItem(item) {
+        this.selectedItem = item; 
+        this.itemDetailContainer.setVisible(true);
+        
+        const itemColor = item.color || 0xffffff; 
+        const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
+        this.detailTitle.setText(item.name); 
+        this.detailTitle.setColor(colorHex);
+        
+        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
+        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`;
+
+        if (item.type !== 'tower_part') {
+            let equipped = null;
+            if (item.type === 'weapon') equipped = gameState.equipment.mainHand;
+            else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand;
+            else if (item.type === 'armor') equipped = gameState.equipment.armor;
+            else if (item.type === 'accessory') equipped = gameState.equipment.accessory;
+
+            if (equipped) {
+                infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`;
+                for (let key in item.stats) {
+                    const newVal = item.stats[key];
+                    const oldVal = equipped.stats[key] || 0;
+                    const diff = newVal - oldVal;
+                    let isBetter = diff > 0;
+                    if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; 
+                    
+                    infoText += `${key}: ${newVal} vs ${oldVal} ${diff > 0 ? '▲' : (diff < 0 ? '▼' : '=')}\n`;
+                }
+            } else {
+                infoText += `\n\n(Nada Equipado)`;
+            }
+        }
+
+        this.detailStats.setText(infoText);
+        
+        if (item.type === 'tower_part') { 
+            this.equipBtn.list[1].setText("EQUIPAR EN..."); 
+        } else { 
+            this.equipBtn.list[1].setText("EQUIPAR"); 
+        }
+    }
+
     createActionButton(x, y, text, callback, color = 0x006400) { const container = this.add.container(x, y); const bg = this.add.rectangle(0, 0, 200, 35, color).setInteractive({ useHandCursor: true }); const txt = this.add.text(0, 0, text, { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); bg.on('pointerdown', callback); container.add([bg, txt]); return container; }
     actionEquip() { if (!this.selectedItem) return; const item = this.selectedItem; if (item.type === 'tower_part') { const type = item.towerType; if (!gameState.towerEquipment[type].slot1) { gameState.towerEquipment[type].slot1 = item; } else if (!gameState.towerEquipment[type].slot2) { gameState.towerEquipment[type].slot2 = item; } else { gameState.inventory.push(gameState.towerEquipment[type].slot1); gameState.towerEquipment[type].slot1 = item; } this.removeItemFromInventory(item); this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); return; } const cls = gameState.selectedClass; let error = ""; if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (error) { alert(error); return; } if (item.type === 'armor') this.swapping('armor', item); else if (item.type === 'accessory') this.swapping('accessory', item); else if (item.type === 'offhand') this.swapping('offHand', item); else if (item.type === 'weapon') { if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else { if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; this.removeItemFromInventory(item); } else { this.swapping('mainHand', item); } } } updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
     actionSell() { if (!this.selectedItem) return; const item = this.selectedItem; let sellPrice = 50; const rData = RARITY[item.rarity]; if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10)); gameState.gold += sellPrice; this.removeItemFromInventory(item); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
