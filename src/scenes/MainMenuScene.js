@@ -13,10 +13,13 @@ export default class MainMenuScene extends Phaser.Scene {
         this.inventoryCategory = 'all'; 
         this.forgeCategory = 'weapon';  
         this.selectedItem = null;
+        
         this.itemToFuse1 = null; 
         this.itemToFuse2 = null; 
+        
         this.expandedRecipeId = null; 
         this.expandedTowerType = null; 
+        
         this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null };
         this.hasLoaded = false;
 
@@ -48,6 +51,7 @@ export default class MainMenuScene extends Phaser.Scene {
         const cx = w / 2;
         const cy = h / 2;
 
+        // Fondo
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { ...this.fontHeader, color: '#ffd700' }).setOrigin(1, 0.5);
@@ -70,10 +74,10 @@ export default class MainMenuScene extends Phaser.Scene {
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
-        // Vistas
+        // Inicializar Vistas (¡El orden importa!)
         this.createHeroView(w, h, cx, cy);
         this.createTalentsView(w, h, cx, cy);
-        this.createInventoryView(w, h, cx, cy);
+        this.createInventoryView(w, h, cx, cy); // Aquí estaba fallando
         this.createForgeView(w, h, cx, cy);
         this.createTowersView(w, h, cx, cy);
 
@@ -95,7 +99,10 @@ export default class MainMenuScene extends Phaser.Scene {
     createTabButton(x, y, text, tabKey, width) {
         const btn = this.add.rectangle(x, y, width - 8, 45, 0x222222).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x555555);
         const txt = this.add.text(x, y, text, this.fontBtn).setOrigin(0.5);
-        btn.on('pointerdown', () => { this.switchTab(tabKey); this.tweens.add({ targets: btn, scale: 0.95, yoyo: true, duration: 50 }); });
+        btn.on('pointerdown', () => { 
+            this.switchTab(tabKey); 
+            this.tweens.add({ targets: btn, scale: 0.95, yoyo: true, duration: 50 }); 
+        });
     }
 
     switchTab(tabKey) {
@@ -108,23 +115,44 @@ export default class MainMenuScene extends Phaser.Scene {
         if (tabKey === 'towers') { this.towersContainer.setVisible(true); this.refreshTowersView(); }
     }
 
-    // --- VISTA HÉROE (REDISEÑADA) ---
+    // --- HELPER: BOTÓN GENÉRICO (Definido aquí para que no falte) ---
+    createActionButton(x, y, text, callback, color = 0x006400) {
+        const container = this.add.container(x, y);
+        const bg = this.add.rectangle(0, 0, 200, 35, color).setInteractive({ useHandCursor: true });
+        const txt = this.add.text(0, 0, text, this.fontBtn).setOrigin(0.5);
+        bg.on('pointerdown', callback);
+        container.add([bg, txt]);
+        return container;
+    }
+
+    // --- HELPER: ALERTA ---
+    showCentralAlert(text, colorHex = '#ffffff') {
+        const cx = this.scale.width / 2; 
+        const cy = this.scale.height / 2;
+        const container = this.add.container(cx, cy).setDepth(3000);
+        const bg = this.add.rectangle(0, 0, 600, 100, 0x000000, 0.9).setStrokeStyle(4, colorHex.replace('#', '0x'));
+        const msg = this.add.text(0, 0, text, { ...this.fontTitle, fontSize: '28px', color: colorHex }).setOrigin(0.5);
+        container.add([bg, msg]);
+        container.setScale(0);
+        this.tweens.add({ targets: container, scale: 1, ease: 'Back.out', duration: 300, onComplete: () => {
+            this.time.delayedCall(2000, () => {
+                this.tweens.add({ targets: container, scale: 0, alpha: 0, duration: 300, onComplete: () => container.destroy() });
+            });
+        }});
+    }
+
+    // --- VISTA HÉROE ---
     createHeroView(w, h, cx, cy) {
         this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5);
         this.heroContainer.add(this.heroLevelText);
 
-        const leftX = w * 0.3; // Centro del panel izquierdo
+        const leftX = w * 0.3; 
         const contentY = h * 0.3;
-        
-        // Panel de Stats (Más ancho y alto para que quepa todo)
-        // x, y, width, height
         const panelWidth = 450;
         const panelHeight = 550;
         const statsBg = this.add.rectangle(leftX, cy + 20, panelWidth, panelHeight, 0x000000, 0.8).setStrokeStyle(2, 0x555555);
         this.heroContainer.add(statsBg);
 
-        // Texto de Stats (Alineado relativo al panel)
-        // leftX - (width/2) + padding
         const textStartX = leftX - (panelWidth / 2) + 20;
         const textStartY = (cy + 20) - (panelHeight / 2) + 20;
 
@@ -134,7 +162,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.equippedTextContainer = this.add.container(0, 0);
         this.heroContainer.add(this.equippedTextContainer);
 
-        // Panel Upgrade (Derecha)
         const rightX = w * 0.75;
         let upgradeY = h * 0.3;
         this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5);
@@ -168,9 +195,9 @@ export default class MainMenuScene extends Phaser.Scene {
         const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase();
         
         const details = `Crítico: ${s.critChance}% (x${s.critDamage}%)
-        Robo Vida: ${s.lifesteal}%  |  Regen HP: ${s.regenHp}/5s
-        Doble Ataque: ${s.doubleAttack}%  |  Espinas: ${s.thorns}
-        Cooldown: -${s.cdr}%`;
+Robo Vida: ${s.lifesteal}%  |  Regen HP: ${s.regenHp}/5s
+Doble Ataque: ${s.doubleAttack}%  |  Espinas: ${s.thorns}
+Cooldown: -${s.cdr}%`;
 
         this.heroStatsText.setText(
 `CLASE: [ ${clsName} ]
@@ -187,11 +214,8 @@ ${details}`);
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`);
         this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`);
 
-        // --- EQUIPAMIENTO (DENTRO DEL PANEL) ---
         this.equippedTextContainer.removeAll(true);
-        // Usamos la misma X que el texto, pero bajamos Y para que quede debajo de "EXTRAS"
         const startX = this.heroStatsText.x;
-        // Calculamos Y basándonos en la posición inicial + offset
         let startY = this.heroStatsText.y + 260; 
         
         this.equippedTextContainer.add(this.add.text(startX, startY, "-- EQUIPAMIENTO (Clic gestiona) --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'}));
@@ -206,7 +230,6 @@ ${details}`);
 
         slots.forEach(slot => {
             const item = eq[slot.key];
-            // Ancho del botón relativo al panel
             const slotBg = this.add.rectangle(startX + 180, startY + 10, 360, 30, 0x222222).setOrigin(0.5).setInteractive({useHandCursor: true});
             slotBg.setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555);
 
@@ -253,28 +276,205 @@ ${details}`);
         this.heroContainer.add(modal);
     }
 
-    showCentralAlert(text, colorHex = '#ffffff') {
-        const cx = this.scale.width / 2; const cy = this.scale.height / 2;
-        const container = this.add.container(cx, cy).setDepth(3000);
-        const bg = this.add.rectangle(0, 0, 600, 100, 0x000000, 0.9).setStrokeStyle(4, colorHex.replace('#', '0x'));
-        const msg = this.add.text(0, 0, text, { ...this.fontTitle, fontSize: '28px', color: colorHex }).setOrigin(0.5);
-        container.add([bg, msg]);
-        container.setScale(0);
-        this.tweens.add({ targets: container, scale: 1, ease: 'Back.out', duration: 300, onComplete: () => {
-            this.time.delayedCall(2000, () => {
-                this.tweens.add({ targets: container, scale: 0, alpha: 0, duration: 300, onComplete: () => container.destroy() });
-            });
-        }});
+    // --- VISTA TALENTOS ---
+    createTalentsView(w, h, cx, cy) {
+        this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS DE TALENTO: 0", { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5);
+        this.talentsContainer.add(this.talentPointsText);
+        const note = this.add.text(cx, h * 0.22, "(Elige 1 por Nivel 10 - Exclusivos)", { ...this.fontBody, color: '#aaa' }).setOrigin(0.5);
+        this.talentsContainer.add(note);
+        this.talentTreeContainer = this.add.container(0, 0);
+        this.talentsContainer.add(this.talentTreeContainer);
     }
 
-    // --- RESTO DE FUNCIONES (Inventario, Forja, etc.) IGUALES AL PASO ANTERIOR ---
-    // (Asegúrate de tener todo el código de createInventoryView, createForgeView, etc. aquí abajo)
+    refreshTalents() {
+        const hero = getCurrentHero();
+        this.talentPointsText.setText(`PUNTOS DE TALENTO: ${hero.talentPoints}`);
+        this.talentTreeContainer.removeAll(true);
+        const cls = gameState.selectedClass;
+        const allTalents = TALENTS[cls] || [];
+        const w = this.scale.width;
+        let startY = this.scale.height * 0.3;
+        const tiers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+
+        tiers.forEach(tierLevel => {
+            const tierTalents = allTalents.filter(t => t.tier === tierLevel);
+            if (tierTalents.length === 0) return;
+            const isUnlocked = hero.level >= tierLevel;
+            const pickedTalent = tierTalents.find(t => hero.talents.includes(t.id));
+            const rowBg = this.add.rectangle(w/2, startY, 800, 70, 0x222222).setStrokeStyle(1, isUnlocked ? 0x555555 : 0x220000);
+            const rowLabel = this.add.text(w/2 - 380, startY, `NIVEL ${tierLevel}`, { ...this.fontHeader, fontSize:'16px', color: isUnlocked ? '#fff' : '#555' }).setOrigin(0, 0.5);
+            this.talentTreeContainer.add([rowBg, rowLabel]);
+
+            tierTalents.forEach((talent, idx) => {
+                const isSelected = (pickedTalent && pickedTalent.id === talent.id);
+                const isBlocked = (pickedTalent && pickedTalent.id !== talent.id);
+                const btnX = w/2 + (idx === 0 ? -150 : 150);
+                let color = 0x333333; 
+                if (isSelected) color = 0x006400; 
+                else if (isBlocked || !isUnlocked) color = 0x111111;
+
+                const btn = this.add.rectangle(btnX, startY, 280, 50, color).setStrokeStyle(1, isSelected ? 0x00ff00 : 0xaaaaaa);
+                const nameTxt = this.add.text(btnX, startY - 10, talent.name, { ...this.fontBtn, fontSize:'14px', color: isBlocked || !isUnlocked ? '#555' : '#fff' }).setOrigin(0.5);
+                const descTxt = this.add.text(btnX, startY + 10, talent.desc, { ...this.fontBody, fontSize:'10px', color: '#aaa' }).setOrigin(0.5);
+
+                if (isUnlocked && !pickedTalent && hero.talentPoints > 0) {
+                    btn.setInteractive({ useHandCursor: true });
+                    btn.on('pointerdown', () => this.learnTalent(talent));
+                    btn.setStrokeStyle(2, 0xffd700); 
+                }
+                this.talentTreeContainer.add([btn, nameTxt, descTxt]);
+            });
+            startY += 80;
+        });
+    }
+
+    learnTalent(talent) {
+        if (RPGSystem.spendTalentPoint(talent.id, 1)) { 
+            updatePlayerStats(); 
+            SaveSystem.save();
+            this.refreshTalents();
+            this.showCentralAlert(`¡TALENTO APRENDIDO: ${talent.name}!`, '#00ff00');
+        }
+    }
+
+    // --- VISTA INVENTARIO ---
+    createInventoryView(w, h, cx, cy) {
+        const catY = h * 0.18;
+        this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
+        this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); 
+        this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats');
+        this.invMatsText = this.add.text(50, catY + 40, '', { ...this.fontBody, lineHeight: 20 }); 
+        this.invContainer.add(this.invMatsText);
+        
+        const gridX = w * 0.28; const gridY = h * 0.3;
+        this.invItemsContainer = this.add.container(gridX, gridY); 
+        this.invContainer.add(this.invItemsContainer);
+        
+        const detailX = w * 0.78;
+        this.itemDetailContainer = this.add.container(detailX, gridY); 
+        this.itemDetailContainer.setVisible(false); 
+        this.invContainer.add(this.itemDetailContainer);
+        
+        const bg = this.add.rectangle(0, 150, 300, 450, 0x000000, 0.9).setStrokeStyle(2, 0xffffff);
+        this.detailTitle = this.add.text(0, -50, "", { ...this.fontHeader, fontSize:'18px', align: 'center', wordWrap: {width: 280} }).setOrigin(0.5);
+        this.detailStats = this.add.text(0, 50, "", { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5);
+        
+        // AQUÍ ES DONDE ANTES FALLABA SI createActionButton NO ESTABA DEFINIDO ANTES
+        this.equipBtn = this.createActionButton(0, 200, "EQUIPAR", () => this.actionEquip(), 0x006400);
+        this.fuseBtn = this.createActionButton(0, 250, "FUSIONAR...", () => this.initiateFusion(), 0x00008b);
+        this.sellBtn = this.createActionButton(0, 300, "VENDER", () => this.actionSell(), 0x8b0000);
+        
+        this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn, this.sellBtn]);
+        
+        this.createFusionModals(cx, cy);
+    }
+
+    createFusionModals(cx, cy) {
+        this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
+        const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
+        const fTitle = this.add.text(0, -200, "SELECCIONA ITEM", this.fontHeader).setOrigin(0.5);
+        this.fusionList = this.add.container(0, -150);
+        const fCancel = this.add.text(0, 220, "CANCELAR", { ...this.fontBtn, color: '#ff0000' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        fCancel.on('pointerdown', () => this.fusionListModal.setVisible(false));
+        this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel]);
+
+        this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
+        const fcBg = this.add.rectangle(0, 0, 800, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
+        const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { ...this.fontTitle, fontSize:'28px' }).setOrigin(0.5);
+        const fcInfo = this.add.text(0, -220, "El item resultante heredará los stats de UNO de estos dos items (50% Chance).\nAmbos se consumen.", { ...this.fontBody, align: 'center' }).setOrigin(0.5);
+        
+        const leftPanel = this.add.container(-200, 0);
+        const lBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0x00ffff); 
+        const lLabel = this.add.text(0, -180, "CANDIDATO A", { ...this.fontHeader, color: '#00ffff' }).setOrigin(0.5);
+        this.fusionItem1Info = this.add.text(0, 0, "", { ...this.fontBody, align: 'center' }).setOrigin(0.5);
+        leftPanel.add([lBg, lLabel, this.fusionItem1Info]);
+
+        const rightPanel = this.add.container(200, 0);
+        const rBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xff00ff); 
+        const rLabel = this.add.text(0, -180, "CANDIDATO B", { ...this.fontHeader, color: '#ff00ff' }).setOrigin(0.5);
+        this.fusionItem2Info = this.add.text(0, 0, "", { ...this.fontBody, align: 'center' }).setOrigin(0.5);
+        rightPanel.add([rBg, rLabel, this.fusionItem2Info]);
+
+        const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true});
+        const confirmTxt = this.add.text(0, 250, "¡PROBAR SUERTE!", this.fontBtn).setOrigin(0.5);
+        confirmBtn.on('pointerdown', () => this.executeFusion());
+        const cancelConfirm = this.add.text(0, 320, "Volver", { ...this.fontBtn, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        cancelConfirm.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
+        this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftPanel, rightPanel, confirmBtn, confirmTxt, cancelConfirm]);
+    }
+
+    createInvCategoryBtn(x, y, label, cat) {
+        const color = this.inventoryCategory === cat ? '#ffffff' : '#888888';
+        const btn = this.add.text(x, y, label, { ...this.fontHeader, color: color }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
+        btn.on('pointerdown', () => { 
+            this.inventoryCategory = cat; 
+            this.selectedItem = null; 
+            this.itemDetailContainer.setVisible(false); 
+            this.refreshInventory(); 
+            this.createInventoryView(this.scale.width, this.scale.height, this.scale.width/2, this.scale.height/2);
+        });
+        this.invContainer.add(btn);
+    }
+
+    refreshInventory() {
+        let matContent = "";
+        if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); }
+        this.invMatsText.setText(matContent);
+        this.invItemsContainer.removeAll(true);
+        const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; if (this.inventoryCategory === 'weapon') return i.type === 'weapon'; if (this.inventoryCategory === 'armor') return i.type === 'armor' || i.type === 'offhand'; if (this.inventoryCategory === 'accessory') return i.type === 'accessory'; return true; });
+        let col = 0; let row = 0;
+        filteredItems.forEach(item => { 
+            const itemContainer = this.add.container(col * 180, row * 50);
+            const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true });
+            bg.setStrokeStyle(1, item.color);
+            const nameTxt = this.add.text(10, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 150} });
+            bg.on('pointerdown', () => this.selectItem(item));
+            itemContainer.add([bg, nameTxt]);
+            this.invItemsContainer.add(itemContainer);
+            col++; if (col >= 3) { col = 0; row++; } 
+        });
+        this.goldText.setText(`ORO: ${gameState.gold}`);
+    }
+
+    selectItem(item) {
+        this.selectedItem = item; 
+        this.itemDetailContainer.setVisible(true);
+        const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0');
+        this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex);
+        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
+        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`;
+        if (item.type !== 'tower_part') {
+            let equipped = null;
+            if (item.type === 'weapon') equipped = gameState.equipment.mainHand;
+            else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand;
+            else if (item.type === 'armor') equipped = gameState.equipment.armor;
+            else if (item.type === 'accessory') equipped = gameState.equipment.accessory;
+            if (equipped) {
+                infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`;
+                for (let key in item.stats) {
+                    const newVal = item.stats[key]; const oldVal = equipped.stats[key] || 0; const diff = newVal - oldVal;
+                    let isBetter = diff > 0; if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; 
+                    infoText += `${key}: ${newVal} vs ${oldVal} ${isBetter ? '▲' : (diff===0 ? '=' : '▼')}\n`;
+                }
+            } else { infoText += `\n\n(Nada Equipado)`; }
+        }
+        this.detailStats.setText(infoText);
+        if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); }
+    }
+
+    initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
+    populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => i !== this.itemToFuse1 && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { ...this.fontBody, align: 'center' }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "..."; const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { ...this.fontBody, fontSize:'14px', color: '#fff' }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
+    selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`); const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`); }
+    executeFusion() { const result = RPGSystem.fuseSpecificItems(this.itemToFuse1, this.itemToFuse2); if (result.success) { this.removeItemFromInventory(this.itemToFuse1); this.removeItemFromInventory(this.itemToFuse2); gameState.inventory.push(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); } else { alert(result.error); } }
     
-    // ... INCLUIR AQUÍ TODO EL CÓDIGO RESTANTE DE MainMenuScene.js DEL ÚLTIMO PASO ...
-    // Para simplificar la respuesta, asumo que copias el resto del archivo anterior. 
-    // Si necesitas el archivo completo de nuevo, avísame.
-    
-    // Solo pondré createTowersView por si acaso
+    actionEquip() { if (!this.selectedItem) return; const item = this.selectedItem; if (item.type === 'tower_part') { const type = item.towerType; if (!gameState.towerEquipment[type].slot1) { gameState.towerEquipment[type].slot1 = item; } else if (!gameState.towerEquipment[type].slot2) { gameState.towerEquipment[type].slot2 = item; } else { gameState.inventory.push(gameState.towerEquipment[type].slot1); gameState.towerEquipment[type].slot1 = item; } this.removeItemFromInventory(item); this.refreshInventory(); this.switchTab('towers'); SaveSystem.save(); return; } const cls = gameState.selectedClass; let error = ""; if (cls === 'arquero' && item.subType !== 'bow' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'guerrero' && item.subType !== 'sword' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'paladin' && item.subType !== 'sword' && item.subType !== 'shield' && item.subType !== 'plate' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'mago' && item.subType !== 'staff' && item.subType !== 'cloth' && item.subType !== 'ring') error = "Clase inválida"; if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; if (error) { alert(error); return; } if (item.type === 'armor') this.swapping('armor', item); else if (item.type === 'accessory') this.swapping('accessory', item); else if (item.type === 'offhand') this.swapping('offHand', item); else if (item.type === 'weapon') { if (item.twoHanded) { this.forceUnequip('mainHand'); this.forceUnequip('offHand'); gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else { if (!gameState.equipment.mainHand) { gameState.equipment.mainHand = item; this.removeItemFromInventory(item); } else if (this.canDualWield(cls) && !gameState.equipment.offHand) { gameState.equipment.offHand = item; this.removeItemFromInventory(item); } else { this.swapping('mainHand', item); } } } updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
+    actionSell() { if (!this.selectedItem) return; const item = this.selectedItem; let sellPrice = 50; const rData = RARITY[item.rarity]; if (rData) sellPrice = Math.floor(50 * rData.mult + (item.enchant * 10)); gameState.gold += sellPrice; this.removeItemFromInventory(item); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
+    canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
+    swapping(slot, newItem) { if (gameState.equipment[slot]) gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = newItem; this.removeItemFromInventory(newItem); }
+    forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
+    removeItemFromInventory(item) { const idx = gameState.inventory.indexOf(item); if (idx > -1) gameState.inventory.splice(idx, 1); }
+
+    // --- VISTA TORRES ---
     createTowersView(w, h, cx, cy) {
         const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3;
         types.forEach((type, i) => {
@@ -286,6 +486,7 @@ ${details}`);
                 const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true });
                 const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5);
                 slotTxt.name = `txt_${type}_slot${s}`; 
+                
                 slotBg.on('pointerdown', () => { 
                     const item = gameState.towerEquipment[type][`slot${s}`]; 
                     if (item) { gameState.towerEquipment[type][`slot${s}`] = null; gameState.inventory.push(item); this.refreshTowersView(); SaveSystem.save(); } 
@@ -308,20 +509,28 @@ ${details}`);
             }
         });
     }
-    // (Asegúrate de que el resto del archivo esté presente: createTalentsView, Inventory, Forge...)
-    // ...
-    // COPIAR RESTO DE MÉTODOS DEL PASO ANTERIOR (createTalentsView, createInventoryView, etc.)
-    // ...
-    createTalentsView(w, h, cx, cy) { this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS DE TALENTO: 0", { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5); this.talentsContainer.add(this.talentPointsText); const note = this.add.text(cx, h * 0.22, "(Elige 1 por Nivel 10 - Exclusivos)", { ...this.fontBody, color: '#aaa' }).setOrigin(0.5); this.talentsContainer.add(note); this.talentTreeContainer = this.add.container(0, 0); this.talentsContainer.add(this.talentTreeContainer); }
-    refreshTalents() { const hero = getCurrentHero(); this.talentPointsText.setText(`PUNTOS DE TALENTO: ${hero.talentPoints}`); this.talentTreeContainer.removeAll(true); const cls = gameState.selectedClass; const allTalents = TALENTS[cls] || []; const w = this.scale.width; let startY = this.scale.height * 0.3; const tiers = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]; tiers.forEach(tierLevel => { const tierTalents = allTalents.filter(t => t.tier === tierLevel); if (tierTalents.length === 0) return; const isUnlocked = hero.level >= tierLevel; const pickedTalent = tierTalents.find(t => hero.talents.includes(t.id)); const rowBg = this.add.rectangle(w/2, startY, 800, 70, 0x222222).setStrokeStyle(1, isUnlocked ? 0x555555 : 0x220000); const rowLabel = this.add.text(w/2 - 380, startY, `NIVEL ${tierLevel}`, { ...this.fontHeader, fontSize:'16px', color: isUnlocked ? '#fff' : '#555' }).setOrigin(0, 0.5); this.talentTreeContainer.add([rowBg, rowLabel]); tierTalents.forEach((talent, idx) => { const isSelected = (pickedTalent && pickedTalent.id === talent.id); const isBlocked = (pickedTalent && pickedTalent.id !== talent.id); const btnX = w/2 + (idx === 0 ? -150 : 150); let color = 0x333333; if (isSelected) color = 0x006400; else if (isBlocked || !isUnlocked) color = 0x111111; const btn = this.add.rectangle(btnX, startY, 280, 50, color).setStrokeStyle(1, isSelected ? 0x00ff00 : 0xaaaaaa); const nameTxt = this.add.text(btnX, startY - 10, talent.name, { ...this.fontBtn, fontSize:'14px', color: isBlocked || !isUnlocked ? '#555' : '#fff' }).setOrigin(0.5); const descTxt = this.add.text(btnX, startY + 10, talent.desc, { ...this.fontBody, fontSize:'10px', color: '#aaa' }).setOrigin(0.5); if (isUnlocked && !pickedTalent && hero.talentPoints > 0) { btn.setInteractive({ useHandCursor: true }); btn.on('pointerdown', () => this.learnTalent(talent)); btn.setStrokeStyle(2, 0xffd700); } this.talentTreeContainer.add([btn, nameTxt, descTxt]); }); startY += 80; }); }
-    learnTalent(talent) { if (RPGSystem.spendTalentPoint(talent.id, 1)) { updatePlayerStats(); SaveSystem.save(); this.refreshTalents(); this.showCentralAlert(`¡TALENTO APRENDIDO: ${talent.name}!`, '#00ff00'); } }
-    createInventoryView(w, h, cx, cy) { const catY = h * 0.18; this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); this.createInvCategoryBtn(cx, catY, "TORRES", 'tower_part'); this.createInvCategoryBtn(cx + 300, catY, "MATERIALES", 'mats'); this.invMatsText = this.add.text(50, catY + 40, '', { ...this.fontBody, lineHeight: 20 }); this.invContainer.add(this.invMatsText); const gridX = w * 0.28; const gridY = h * 0.3; this.invItemsContainer = this.add.container(gridX, gridY); this.invContainer.add(this.invItemsContainer); const detailX = w * 0.78; this.itemDetailContainer = this.add.container(detailX, gridY); this.itemDetailContainer.setVisible(false); this.invContainer.add(this.itemDetailContainer); const bg = this.add.rectangle(0, 150, 300, 450, 0x000000, 0.9).setStrokeStyle(2, 0xffffff); this.detailTitle = this.add.text(0, -50, "", { ...this.fontHeader, fontSize:'18px', align: 'center', wordWrap: {width: 280} }).setOrigin(0.5); this.detailStats = this.add.text(0, 50, "", { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5); this.equipBtn = this.createActionButton(0, 200, "EQUIPAR", () => this.actionEquip(), 0x006400); this.fuseBtn = this.createActionButton(0, 250, "FUSIONAR...", () => this.initiateFusion(), 0x00008b); this.sellBtn = this.createActionButton(0, 300, "VENDER", () => this.actionSell(), 0x8b0000); this.itemDetailContainer.add([bg, this.detailTitle, this.detailStats, this.equipBtn, this.fuseBtn, this.sellBtn]); this.createFusionModals(cx, cy); }
-    createFusionModals(cx, cy) { this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000); const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive(); const fTitle = this.add.text(0, -200, "SELECCIONA ITEM", this.fontHeader).setOrigin(0.5); this.fusionList = this.add.container(0, -150); const fCancel = this.add.text(0, 220, "CANCELAR", { ...this.fontBtn, color: '#ff0000' }).setInteractive({useHandCursor:true}).setOrigin(0.5); fCancel.on('pointerdown', () => this.fusionListModal.setVisible(false)); this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel]); this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100); const fcBg = this.add.rectangle(0, 0, 800, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive(); const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { ...this.fontTitle, fontSize:'28px' }).setOrigin(0.5); const fcInfo = this.add.text(0, -220, "El item resultante heredará los stats de UNO de estos dos items (50% Chance).\nAmbos se consumen.", { ...this.fontBody, align: 'center' }).setOrigin(0.5); const leftPanel = this.add.container(-200, 0); const lBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0x00ffff); const lLabel = this.add.text(0, -180, "CANDIDATO A", { ...this.fontHeader, color: '#00ffff' }).setOrigin(0.5); this.fusionItem1Info = this.add.text(0, 0, "", { ...this.fontBody, align: 'center' }).setOrigin(0.5); leftPanel.add([lBg, lLabel, this.fusionItem1Info]); const rightPanel = this.add.container(200, 0); const rBg = this.add.rectangle(0, 0, 350, 400, 0x000000).setStrokeStyle(1, 0xff00ff); const rLabel = this.add.text(0, -180, "CANDIDATO B", { ...this.fontHeader, color: '#ff00ff' }).setOrigin(0.5); this.fusionItem2Info = this.add.text(0, 0, "", { ...this.fontBody, align: 'center' }).setOrigin(0.5); rightPanel.add([rBg, rLabel, this.fusionItem2Info]); const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true}); const confirmTxt = this.add.text(0, 250, "¡PROBAR SUERTE!", this.fontBtn).setOrigin(0.5); confirmBtn.on('pointerdown', () => this.executeFusion()); const cancelConfirm = this.add.text(0, 320, "Volver", { ...this.fontBtn, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); cancelConfirm.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); }); this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftPanel, rightPanel, confirmBtn, confirmTxt, cancelConfirm]); }
-    executeFusion() { const result = RPGSystem.fuseSpecificItems(this.itemToFuse1, this.itemToFuse2); if (result.success) { this.removeItemFromInventory(this.itemToFuse1); this.removeItemFromInventory(this.itemToFuse2); gameState.inventory.push(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); } else { alert(result.error); } }
-    createInvCategoryBtn(x, y, label, cat) { const color = this.inventoryCategory === cat ? '#ffffff' : '#888888'; const btn = this.add.text(x, y, label, { ...this.fontHeader, color: color }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); this.createInventoryView(this.scale.width, this.scale.height, this.scale.width/2, this.scale.height/2); }); this.invContainer.add(btn); }
-    refreshInventory() { let matContent = ""; if (this.inventoryCategory === 'mats') { ['wood', 'cloth', 'copper', 'leather'].forEach(mat => { matContent += `\n${mat.toUpperCase()}:\n`; Object.keys(RARITY).forEach(rarity => { const count = gameState.materials[mat][rarity]; if (count > 0) matContent += `• ${RARITY[rarity].name}: ${count}\n`; }); }); } this.invMatsText.setText(matContent); this.invItemsContainer.removeAll(true); const filteredItems = gameState.inventory.filter(i => { if (!i) return false; if (this.inventoryCategory === 'mats') return false; if (this.inventoryCategory === 'all') return i.type !== 'tower_part'; if (this.inventoryCategory === 'tower_part') return i.type === 'tower_part'; if (this.inventoryCategory === 'weapon') return i.type === 'weapon'; if (this.inventoryCategory === 'armor') return i.type === 'armor' || i.type === 'offhand'; if (this.inventoryCategory === 'accessory') return i.type === 'accessory'; return true; }); let col = 0; let row = 0; filteredItems.forEach(item => { const itemContainer = this.add.container(col * 180, row * 50); const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); bg.setStrokeStyle(1, item.color); const nameTxt = this.add.text(10, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 150} }); bg.on('pointerdown', () => this.selectItem(item)); itemContainer.add([bg, nameTxt]); this.invItemsContainer.add(itemContainer); col++; if (col >= 3) { col = 0; row++; } }); this.goldText.setText(`ORO: ${gameState.gold}`); }
-    selectItem(item) { this.selectedItem = item; this.itemDetailContainer.setVisible(true); const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex); const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats"; let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`; if (item.type !== 'tower_part') { let equipped = null; if (item.type === 'weapon') equipped = gameState.equipment.mainHand; else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand; else if (item.type === 'armor') equipped = gameState.equipment.armor; else if (item.type === 'accessory') equipped = gameState.equipment.accessory; if (equipped) { infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`; for (let key in item.stats) { const newVal = item.stats[key]; const oldVal = equipped.stats[key] || 0; const diff = newVal - oldVal; let isBetter = diff > 0; if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; infoText += `${key}: ${newVal} vs ${oldVal} ${isBetter ? '▲' : (diff===0 ? '=' : '▼')}\n`; } } else { infoText += `\n\n(Nada Equipado)`; } } this.detailStats.setText(infoText); if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); } }
-    createForgeView(w, h, cx, cy) { this.profText = this.add.text(cx, h * 0.18, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5); this.forgeContainer.add(this.profText); this.forgeMsg = this.add.text(cx, h - 100, '', { ...this.fontHeader }).setOrigin(0.5); this.forgeContainer.add(this.forgeMsg); const catY = h * 0.25; this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon'); this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor'); this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory'); this.createForgeCatBtn(cx, catY + 50, "INGENIERÍA (Torres)", 'tower_part'); this.recipesContainer = this.add.container(0, 0); this.forgeContainer.add(this.recipesContainer); const detailX = w * 0.78; const detailY = h * 0.45; this.recipeDetailContainer = this.add.container(detailX, detailY); this.forgeContainer.add(this.recipeDetailContainer); const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700); this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { ...this.fontHeader, align: 'center', wordWrap: {width: 260} }).setOrigin(0.5); this.recipeInfo = this.add.text(0, 50, "", { ...this.fontBody, align: 'center', wordWrap: {width: 260} }).setOrigin(0.5); this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.handleCraftButton()); this.craftBtn.setVisible(false); this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]); }
+
+    // --- FORJA ---
+    createForgeView(w, h, cx, cy) {
+        this.profText = this.add.text(cx, h * 0.18, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
+        this.forgeContainer.add(this.profText);
+        this.forgeMsg = this.add.text(cx, h - 100, '', { ...this.fontHeader }).setOrigin(0.5);
+        this.forgeContainer.add(this.forgeMsg);
+        const catY = h * 0.25;
+        this.createForgeCatBtn(w * 0.25, catY, "HERRERÍA (Armas)", 'weapon');
+        this.createForgeCatBtn(cx, catY, "SASTRERÍA (Armaduras)", 'armor');
+        this.createForgeCatBtn(w * 0.75, catY, "JOYERÍA (Accesorios)", 'accessory');
+        this.createForgeCatBtn(cx, catY + 50, "INGENIERÍA (Torres)", 'tower_part');
+        this.recipesContainer = this.add.container(0, 0); this.forgeContainer.add(this.recipesContainer);
+        const detailX = w * 0.78; const detailY = h * 0.45;
+        this.recipeDetailContainer = this.add.container(detailX, detailY); this.forgeContainer.add(this.recipeDetailContainer);
+        const detailBg = this.add.rectangle(0, 100, 280, 350, 0x000000, 0.9).setStrokeStyle(2, 0xffd700);
+        this.recipeTitle = this.add.text(0, -60, "Selecciona Receta", { ...this.fontHeader, align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.recipeInfo = this.add.text(0, 50, "", { ...this.fontBody, align: 'center', wordWrap: {width: 260} }).setOrigin(0.5);
+        this.craftBtn = this.createActionButton(0, 200, "FORJAR", () => this.handleCraftButton());
+        this.craftBtn.setVisible(false);
+        this.recipeDetailContainer.add([detailBg, this.recipeTitle, this.recipeInfo, this.craftBtn]);
+    }
     createForgeCatBtn(x, y, label, cat) { const btn = this.add.text(x, y, label, { ...this.fontHeader, color: '#ffd700' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btn.on('pointerdown', () => { this.forgeCategory = cat; this.expandedRecipeId = null; this.expandedTowerType = null; this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null }; this.recipeDetailContainer.setVisible(false); this.refreshForge(); }); this.forgeContainer.add(btn); }
     refreshForge() {
         this.goldText.setText(`ORO: ${gameState.gold}`); const p = gameState.professions; this.profText.setText(`HERRERÍA: Lvl ${p.weaponsmith.level} [${p.weaponsmith.xp}/${p.weaponsmith.maxXp} XP]\nSASTRERÍA: Lvl ${p.armorsmith.level} [${p.armorsmith.xp}/${p.armorsmith.maxXp} XP]\nJOYERÍA: Lvl ${p.jewelry.level} [${p.jewelry.xp}/${p.jewelry.maxXp} XP]`);
