@@ -26,11 +26,7 @@ export default class GameScene extends Phaser.Scene {
 
     init(data) {
         this.currentLevelData = data.levelData || { id: 1, name: "Nivel Debug", startCoins: 500, difficulty: 1, path: [], towerSlots: [] };
-        
-        this.theme = this.currentLevelData.theme || {
-            background: 0x333333, path: 0x555555, accent: 0x00ffff 
-        };
-
+        this.theme = this.currentLevelData.theme || { background: 0x333333, path: 0x555555, accent: 0x00ffff };
         if (!gameState.playerStats) updatePlayerStats();
         const hero = getCurrentHero();
         this.lastHeroLevel = hero ? hero.level : 1;
@@ -52,7 +48,7 @@ export default class GameScene extends Phaser.Scene {
         this.buildSites = this.add.group();
         this.loots = this.physics.add.group({ classType: Loot });
 
-        this.TOP_MARGIN = 120; // Altura de barra superior
+        this.TOP_MARGIN = 120;
         this.cameras.main.scrollY = -this.TOP_MARGIN;
         this.cameras.main.setBackgroundColor(0x111111);
 
@@ -61,18 +57,13 @@ export default class GameScene extends Phaser.Scene {
         this.sx = w / 1280; 
         this.sy = h / 960;  
 
-        // CORRECCIÓN LÍMITES: Restar la altura de las barras UI superior e inferior
-        // (y=0 a 120 es barra superior, y=h-120 a h es barra inferior)
-        // El mundo físico empieza en 0,0 visualmente, pero la cámara está desplazada.
-        // La cámara muestra desde y = -120.
-        // Entonces la barra superior (visual) está en y=0 real del mundo.
-        this.physics.world.setBounds(0, 0, w, h); 
+        // CORRECCIÓN DE LÍMITES: 
+        // Arriba: 0 (empieza debajo de la barra top porque la cámara está desplazada)
+        // Abajo: h - 240 (altura total - barra top - barra bottom)
+        this.physics.world.setBounds(0, 0, w, h - 240); 
 
         const rawPath = this.currentLevelData.path;
-        if (!rawPath || rawPath.length === 0) {
-            this.scene.start('WorldMapScene'); return; 
-        }
-
+        if (!rawPath || rawPath.length === 0) { this.scene.start('WorldMapScene'); return; }
         this.pathPoints = rawPath.map(p => ({ x: p.x * this.sx, y: p.y * this.sy }));
         
         this.coins = this.currentLevelData.startCoins || 500;
@@ -99,12 +90,9 @@ export default class GameScene extends Phaser.Scene {
         this.createSpawnIndicator();
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // Ajuste de colisión del jugador con los bordes visuales "reales" (evitar ir debajo de la UI)
-        // La barra superior mide 120px. La inferior 120px.
-        // El bounds del jugador debería ser: x=0, y=0, w=w, h=h-120 (aprox)
-        this.physics.world.setBounds(0, 0, w, h - 120);
-
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
+        
+        // PAUSA CON ESC (Ahora llama a togglePause que maneja la física, no el tiempo global)
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 
         this.input.on('gameobjectdown', (pointer, gameObject) => {
@@ -136,7 +124,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.createUI();
         this.createUpgradeUI();
-        this.createPauseMenu(); // Crear menú oculto
+        this.createPauseMenu();
 
         this.startWaveTimer(15); 
         this.updateUI();
@@ -145,7 +133,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     update(time, delta) {
-        if (this.isPaused) return; // Si está pausado, no actualizar lógica de juego
+        if (this.isPaused) return;
         if (!this.isSceneReady) return;
 
         if (this.player) this.player.update(time, delta);
@@ -170,34 +158,31 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    // --- PAUSA CORREGIDA ---
+    // --- MENÚ DE PAUSA CORREGIDO ---
     createPauseMenu() {
         this.pauseContainer = this.add.container(640, 480).setDepth(20000).setVisible(false).setScrollFactor(0);
         const w = this.scale.width; 
         const h = this.scale.height; 
-        this.pauseContainer.setPosition(w/2, h/2); // Centrar en pantalla
+        this.pauseContainer.setPosition(w/2, h/2);
 
-        // Fondo oscuro que cubre todo
-        const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.8).setInteractive(); // Captura clics para que no pasen al juego
+        // Fondo interactivo para bloquear clics al juego
+        const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.8).setInteractive();
         
         const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700);
-        const title = this.add.text(0, -100, "PAUSA", { fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
+        const title = this.add.text(0, -100, "PAUSA", { fontFamily: 'Cinzel', fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
         
-        // Botón Continuar
         const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true });
-        const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
+        const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
         
         resumeBtn.on('pointerdown', () => {
             this.togglePause();
         });
         
-        // Botón Salir
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true });
-        const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
+        const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
         
         exitBtn.on('pointerdown', () => {
-            this.isPaused = false; // Resetear flag
-            this.time.paused = false; // Asegurar tiempo corre
+            this.isPaused = false;
             this.physics.resume();
             this.scene.start('MainMenuScene');
         });
@@ -209,21 +194,18 @@ export default class GameScene extends Phaser.Scene {
         this.isPaused = !this.isPaused;
         
         if (this.isPaused) {
-            this.physics.pause();
-            this.tweens.pauseAll();
-            this.time.paused = true; // Pausa el reloj global de la escena
+            this.physics.pause(); // Pausar físicas
+            this.tweens.pauseAll(); // Pausar animaciones
             this.pauseContainer.setVisible(true);
-            // Asegurar que el contenedor de pausa esté encima de todo
-            this.children.bringToTop(this.pauseContainer);
+            this.children.bringToTop(this.pauseContainer); // Traer al frente
         } else {
             this.physics.resume();
             this.tweens.resumeAll();
-            this.time.paused = false;
             this.pauseContainer.setVisible(false);
         }
     }
 
-    // --- UI VISUAL MEJORADA ---
+    // --- UI MEJORADA ---
     createUI() { 
         const w = this.scale.width; const h = this.scale.height; const uiDepth = 1000; const accent = this.theme.accent; 
         
@@ -231,19 +213,19 @@ export default class GameScene extends Phaser.Scene {
         this.add.rectangle(w/2, 60, w, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
         this.add.rectangle(w/2, 120, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
         
-        this.livesText = this.add.text(30, 15, '', { fontSize: '18px', fontStyle: 'bold', color: '#fff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.add.text(30, 45, 'XP:', { fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.livesText = this.add.text(30, 15, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#fff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.add.text(30, 45, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
         this.xpBarBg = this.add.rectangle(60, 52, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.xpBarFill = this.add.rectangle(60, 52, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
-        this.lvlText = this.add.text(270, 45, 'Lvl 1', { fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.lvlText = this.add.text(270, 45, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        this.waveInfoText = this.add.text(w - 30, 40, 'OLEADA: 1', { fontSize: '28px', fontStyle: 'bold', color: accent }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.waveInfoText = this.add.text(w - 30, 40, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: accent }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
         
         this.waveTimerContainer = this.add.container(w/2, 60).setScrollFactor(0).setDepth(uiDepth + 2); 
         this.waveTimerContainer.setSize(320, 60); this.waveTimerContainer.setInteractive({ useHandCursor: true }); 
         const timerBg = this.add.rectangle(0, 0, 320, 60, 0x006400).setStrokeStyle(2, 0xffffff); 
-        this.waveTimerBtnText = this.add.text(0, 0, "INICIAR", { fontSize: '18px', fontStyle: 'bold', align: 'center' }).setOrigin(0.5); 
+        this.waveTimerBtnText = this.add.text(0, 0, "INICIAR", { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', align: 'center' }).setOrigin(0.5); 
         this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]); 
         this.waveTimerContainer.setVisible(false); 
         this.waveTimerContainer.on('pointerdown', () => this.startNextWaveAction()); 
@@ -254,31 +236,33 @@ export default class GameScene extends Phaser.Scene {
         this.add.rectangle(w/2, botY - (barHeight/2), w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
         const contentY = botY; 
         
-        this.add.text(40, contentY - 30, 'TESORO:', { fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.economyText = this.add.text(40, contentY, '$0', { fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.add.text(40, contentY - 30, 'TESORO:', { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.economyText = this.add.text(40, contentY, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#fff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        // Selector de Torres (Mejorado visualmente)
-        this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-3)', { fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        // Selector de Torres
+        this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-3)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        // Fondo oscuro para que resalte
         const buildBg = this.add.rectangle(400, contentY + 10, 250, 60, 0x222222).setStrokeStyle(2, accent).setScrollFactor(0).setDepth(uiDepth);
-        this.buildText = this.add.text(400, contentY + 10, '', { fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.buildText = this.add.text(400, contentY + 10, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        // Botón Habilidad (Centrado abajo)
-        this.skillBtnContainer = this.add.container(w/2 + 200, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); 
-        const skillBg = this.add.rectangle(0, 0, 180, 50, 0x222222).setStrokeStyle(2, 0x555555); 
-        this.skillBar = this.add.rectangle(-90, 0, 0, 50, accent).setOrigin(0, 0.5); 
-        this.skillBtn = this.add.rectangle(0, 0, 180, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); 
-        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontSize: '14px', align: 'center', fontStyle: 'bold' }).setOrigin(0.5); 
+        // Botón Habilidad (CENTRADO y MEJORADO)
+        this.skillBtnContainer = this.add.container(w/2, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); 
+        // Fondo Negro con Borde Dorado
+        const skillBg = this.add.rectangle(0, 0, 200, 50, 0x000000).setStrokeStyle(2, 0xffd700); 
+        // Barra de carga
+        this.skillBar = this.add.rectangle(-100, 0, 0, 50, accent).setOrigin(0, 0.5).setAlpha(0.5); 
+        this.skillBtn = this.add.rectangle(0, 0, 200, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); 
+        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontFamily: 'Cinzel', fontSize: '16px', align: 'center', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5); 
         this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]); 
         this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill()); 
         
         // Botón Salir
         const exitBtn = this.add.rectangle(w - 80, contentY, 120, 50, 0x8b0000).setInteractive({ useHandCursor: true }).setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff); 
-        this.add.text(w - 80, contentY, 'SALIR', { fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
+        this.add.text(w - 80, contentY, 'SALIR', { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
         exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene')); 
     }
 
-    // ... (El resto de métodos se mantienen iguales: startNextWave, spawnEnemy, spawnMinion, onEnemyKilled, generateBossLoot, victory, createExplosion, spawnLoot, collectLoot, showFloatingText, showLevelUpEffect, startWaveTimer, startNextWaveAction, checkWaveStatus, onEnemyLeaks, gameOver, createBuildSlots, tryBuildTower, createUpgradeUI, openUpgradeMenu, closeUpgradeMenu, updateUpgradeMenuText, tryUpgradeTower, sellTower, updateUI, updateSkillUI, triggerPlayerSkill, createSpawnIndicator) ...
-    // Asegúrate de copiarlos del archivo anterior si estás reemplazando todo.
+    // ... (Mantén aquí el resto de métodos auxiliares: startNextWave, spawnEnemy, etc. que ya funcionaban)
     startNextWave() {
         this.isTimerRunning = false; this.waveTimerContainer.setVisible(false);
         if (this.spawnTimer) this.spawnTimer.remove();
@@ -308,7 +292,7 @@ export default class GameScene extends Phaser.Scene {
     createExplosion(x, y, color) { const circle = this.add.circle(x, y, 5, color); this.tweens.add({ targets: circle, scale: 4, alpha: 0, duration: 300, onComplete: () => circle.destroy() }); for(let i=0; i<4; i++) { const spark = this.add.rectangle(x, y, 4, 4, color); const angle = Phaser.Math.DegToRad(Math.random() * 360); const dist = 30; this.tweens.add({ targets: spark, x: x + Math.cos(angle) * dist, y: y + Math.sin(angle) * dist, alpha: 0, duration: 400, onComplete: () => spark.destroy() }); } }
     spawnLoot(x, y) { if (Math.random() > 0.30) return; let type = 'wood'; let rarity = 'common'; const rollType = Math.random(); if (rollType < 0.15) { type = 'potion_hp'; } else if (rollType < 0.25) { type = 'coin_bag'; } else if (rollType < 0.30) { type = 'xp_tome'; } else { const matRoll = Math.random(); if (matRoll < 0.25) type = 'wood'; else if (matRoll < 0.50) type = 'copper'; else if (matRoll < 0.75) type = 'cloth'; else type = 'leather'; const levelId = this.currentLevelData.id || 1; const luck = (levelId - 1) * 0.05; const rRoll = Math.random() * 100; const tGold = 0.5 + (luck * 1); const tPurple = 2 + (luck * 2); const tBlue = 10 + (luck * 5); if (rRoll < tGold) rarity = 'legendary'; else if (rRoll < tPurple) rarity = 'epic'; else if (rRoll < tBlue) rarity = 'rare'; else if (rRoll < 40) rarity = 'uncommon'; else rarity = 'common'; } const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
     collectLoot(lootItem) { if (lootItem.isConsumable) { if (lootItem.typeKey === 'potion_hp') { const heal = Math.floor(gameState.playerStats.maxHp * 0.25); gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); if(this.player) this.player.createEffect('heal'); } else if (lootItem.typeKey === 'coin_bag') { const gold = Phaser.Math.Between(30, 60); this.coins += gold; this.updateUI(); this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); } else if (lootItem.typeKey === 'xp_tome') { const xp = 50; RPGSystem.gainHeroXP(xp); this.showFloatingText(lootItem.x, lootItem.y, `+${xp} XP`, '#0000ff'); } } else { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); } lootItem.destroy(); }
-    showFloatingText(x, y, message, color = '#fff') { const isCrit = color === '#ffaa00'; const fontSize = isCrit ? '32px' : '20px'; const text = this.add.text(x, y, message, { fontSize: fontSize, fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: isCrit ? 6 : 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, scale: isCrit ? 1.5 : 1.2, duration: 800, ease: 'Power2', onComplete: () => text.destroy() }); }
+    showFloatingText(x, y, message, color = '#fff') { const isCrit = color === '#ffaa00'; const fontSize = isCrit ? '32px' : '20px'; const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: fontSize, fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: isCrit ? 6 : 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, scale: isCrit ? 1.5 : 1.2, duration: 800, ease: 'Power2', onComplete: () => text.destroy() }); }
     showLevelUpEffect() { const w = this.scale.width; const h = this.scale.height; const txt = this.add.text(w/2, h/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, ease: 'Back.out', yoyo: true, hold: 1000, onComplete: () => txt.destroy() }); this.cameras.main.flash(500, 255, 215, 0); gameState.playerStats.hp = gameState.playerStats.maxHp; if(this.player && this.player.createEffect) this.player.createEffect('heal'); }
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
     startNextWaveAction() { if (this.isTimerRunning) this.startNextWave(); }
@@ -323,24 +307,8 @@ export default class GameScene extends Phaser.Scene {
     updateUpgradeMenuText() { if (!this.selectedTowerToUpgrade) return; const t = this.selectedTowerToUpgrade; if (t.level >= t.maxLevel) { this.upgradeText.setText(`${t.typeName} (MAX)\nDaño: ${t.damage}`); this.upgradeBtn.setVisible(false); this.upgradeBtnText.setVisible(false); } else { this.upgradeBtn.setVisible(true); this.upgradeBtnText.setVisible(true); this.upgradeText.setText(`${t.typeName} Lv ${t.level}\nDaño: ${t.damage} -> ${Math.floor(t.damage * 1.2)}`); this.upgradeBtnText.setText(`MEJORAR ($${t.upgradeCost})`); } this.sellBtnText.setText(`VENDER (+$${t.totalInvestment})`); }
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${t.totalInvestment}`, '#ffff00'); } }
-    
-    updateUI() { 
-        const w = this.scale.width; const h = this.scale.height; const currentTower = TOWER_TYPES[this.selectedTowerType]; 
-        this.economyText.setText(`$${this.coins}`); 
-        this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); 
-        
-        const pStats = gameState.playerStats; 
-        const heroHp = Math.max(0, Math.floor(pStats.hp)); 
-        this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); 
-        
-        const hero = getCurrentHero();
-        if (hero) {
-            const xpPercent = Math.min(1, hero.xp / hero.maxXp);
-            if(this.xpBarFill) this.xpBarFill.width = 200 * xpPercent;
-            if(this.lvlText) this.lvlText.setText(`Lvl ${hero.level}`);
-        }
-    }
-
+    updateUI() { const w = this.scale.width; const h = this.scale.height; const currentTower = TOWER_TYPES[this.selectedTowerType]; this.economyText.setText(`$${this.coins}`); this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); const pStats = gameState.playerStats; const heroHp = Math.max(0, Math.floor(pStats.hp)); this.livesText.setText(`❤️ HÉROE: ${heroHp}/${pStats.maxHp}\n🏰 CASTILLO: ${gameState.baseHp}`); 
+    const hero = getCurrentHero(); if (hero) { const xpPercent = Math.min(1, hero.xp / hero.maxXp); if(this.xpBarFill) this.xpBarFill.width = 200 * xpPercent; if(this.lvlText) this.lvlText.setText(`Lvl ${hero.level}`); } }
     updateSkillUI() { if (!this.player) return; const cd = this.player.skillCooldown; const maxCd = this.player.skillMaxCooldown; if (cd > 0) { const progress = 1 - (cd / maxCd); this.skillBar.width = 200 * progress; this.skillBar.setFillStyle(0x555555); this.skillText.setText(`${(cd / 1000).toFixed(1)}s`); } else { this.skillBar.width = 200; this.skillBar.setFillStyle(this.theme.accent); if (this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)"); } }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
     createSpawnIndicator() { if (!this.pathPoints || this.pathPoints.length === 0) return; const startX = this.pathPoints[0].x; const startY = this.pathPoints[0].y; const marker = this.add.circle(startX, startY, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(startX, startY - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
