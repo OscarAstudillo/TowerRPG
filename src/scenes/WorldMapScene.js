@@ -1,79 +1,83 @@
 // src/scenes/WorldMapScene.js
 import Phaser from 'phaser';
-import { LEVELS } from '../config/Levels.js';
+import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js'; // Importación Correcta
 import { gameState } from '../config/GameState.js';
-import SaveSystem from '../systems/SaveSystem.js';
 
 export default class WorldMapScene extends Phaser.Scene {
-    constructor() {
-        super('WorldMapScene');
-    }
+    constructor() { super('WorldMapScene'); }
 
     create() {
-        const w = this.scale.width;
-        const h = this.scale.height;
-        const cx = w / 2;
-        const cy = h / 2;
+        this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000).setOrigin(0);
+        this.add.text(this.scale.width / 2, 50, "MAPA DEL MUNDO", { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700' }).setOrigin(0.5);
 
-        this.add.rectangle(cx, cy, w, h, 0x111111);
-        this.add.text(cx, 50, "MAPA DEL MUNDO", { fontSize: '40px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
-
-        // Botón Volver al Menú
-        const backBtn = this.add.text(50, 50, "< MENÚ", { fontSize: '24px', color: '#fff' }).setInteractive({ useHandCursor: true });
-        backBtn.on('pointerdown', () => this.scene.start('MainMenuScene'));
-
-        // Dibujar Conexiones (Líneas entre niveles)
-        const graphics = this.add.graphics();
-        graphics.lineStyle(4, 0x555555);
+        this.container = this.add.container(0, 0);
         
-        // Posiciones visuales en el mapa (ajustadas para 1280x960)
-        const mapPositions = [
-            { x: 200, y: cy },
-            { x: cx, y: cy },
-            { x: w - 200, y: cy }
-        ];
+        // Estado inicial: Mostrando Biomas
+        this.showBiomes();
 
-        // Dibujar líneas primero
-        for (let i = 0; i < LEVELS.length - 1; i++) {
-            graphics.beginPath();
-            graphics.moveTo(mapPositions[i].x, mapPositions[i].y);
-            graphics.lineTo(mapPositions[i+1].x, mapPositions[i+1].y);
-            graphics.strokePath();
-        }
-
-        // Dibujar Nodos de Nivel
-        LEVELS.forEach((level, index) => {
-            const pos = mapPositions[index];
-            const isUnlocked = level.id <= gameState.levelsUnlocked;
-            const stars = gameState.levelStars[level.id] || 0;
-
-            // Círculo del Nivel
-            const circleColor = isUnlocked ? (stars === 3 ? 0xffd700 : 0x00aa00) : 0x333333;
-            const circle = this.add.circle(pos.x, pos.y, 50, circleColor).setInteractive({ useHandCursor: isUnlocked });
-            
-            if (isUnlocked) {
-                circle.setStrokeStyle(4, 0xffffff);
-                
-                // Efecto Hover
-                circle.on('pointerover', () => this.tweens.add({ targets: circle, scale: 1.1, duration: 100 }));
-                circle.on('pointerout', () => this.tweens.add({ targets: circle, scale: 1.0, duration: 100 }));
-                
-                circle.on('pointerdown', () => {
-                    this.scene.start('GameScene', { levelData: level });
-                });
+        // Botón volver
+        const backBtn = this.add.text(50, this.scale.height - 50, "VOLVER", { fontSize: '20px', color: '#fff' }).setInteractive({ useHandCursor: true });
+        backBtn.on('pointerdown', () => {
+            if (this.currentView === 'levels') {
+                this.showBiomes();
             } else {
-                this.add.text(pos.x, pos.y, "🔒", { fontSize: '32px' }).setOrigin(0.5);
+                this.scene.start('MainMenuScene');
+            }
+        });
+    }
+
+    showBiomes() {
+        this.currentView = 'biomes';
+        this.container.removeAll(true);
+        
+        let y = 150;
+        Object.keys(BIOMES).forEach(key => {
+            const biome = BIOMES[key];
+            const btn = this.add.rectangle(this.scale.width / 2, y, 400, 80, biome.bg).setInteractive({ useHandCursor: true });
+            btn.setStrokeStyle(2, 0xffffff);
+            
+            const title = this.add.text(this.scale.width / 2, y - 20, biome.name, { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
+            const desc = this.add.text(this.scale.width / 2, y + 20, biome.desc, { fontSize: '14px' }).setOrigin(0.5);
+            
+            btn.on('pointerdown', () => this.showLevels(key));
+            
+            this.container.add([btn, title, desc]);
+            y += 100;
+        });
+    }
+
+    showLevels(biomeKey) {
+        this.currentView = 'levels';
+        this.container.removeAll(true);
+        const biome = BIOMES[biomeKey];
+
+        this.add.text(this.scale.width/2, 100, `ZONA: ${biome.name}`, { fontSize: '24px', color: '#00ff00' }).setOrigin(0.5);
+
+        let x = 100, y = 200;
+        const cols = 5;
+
+        // Mostrar 10 niveles
+        for (let i = 1; i <= 10; i++) {
+            const config = LEVEL_CONFIG[i];
+            const color = (i <= (gameState.maxLevel || 1)) ? 0x006400 : 0x333333; // Desbloqueado vs Bloqueado
+            
+            const btn = this.add.rectangle(x, y, 80, 80, color).setInteractive({ useHandCursor: true });
+            btn.setStrokeStyle(2, 0xffffff);
+            
+            const txt = this.add.text(x, y, `${i}`, { fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5);
+            const info = this.add.text(x, y + 50, `Tier ${config.tier}`, { fontSize: '12px', color: '#aaa' }).setOrigin(0.5);
+
+            if (i <= (gameState.maxLevel || 1)) {
+                btn.on('pointerdown', () => {
+                    // Iniciar juego con datos del bioma y nivel
+                    this.scene.start('GameScene', { level: i, biome: biomeKey, config: config });
+                });
             }
 
-            // Info del Nivel
-            this.add.text(pos.x, pos.y + 70, level.name, { fontSize: '18px', fontStyle: 'bold', color: isUnlocked ? '#fff' : '#555' }).setOrigin(0.5);
+            this.container.add([btn, txt, info]);
             
-            // Estrellas
-            let starsStr = "";
-            if (isUnlocked) {
-                for(let i=0; i<3; i++) starsStr += (i < stars ? "⭐" : "☆");
-            }
-            this.add.text(pos.x, pos.y + 100, starsStr, { fontSize: '24px' }).setOrigin(0.5);
-        });
+            x += 120;
+            if (i % cols === 0) { x = 100; y += 140; }
+        }
     }
 }

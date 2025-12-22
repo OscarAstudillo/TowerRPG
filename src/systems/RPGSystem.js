@@ -52,20 +52,27 @@ class RPGSystem {
     }
 
     // --- DROP INTELIGENTE POR BIOMA Y NIVEL ---
+    // --- NUEVO SISTEMA DE DROP POR TIER ---
     getDropForLevel(biomeKey, levelId) {
         const biome = BIOMES[biomeKey];
         const config = LEVEL_CONFIG[levelId];
         
-        // 1. Decidir si cae algo
+        // 1. Roll de Drop General
         if (Math.random() > config.dropRate) return null;
 
-        // 2. Elegir material del bioma
-        const matKey = biome.materials[Math.floor(Math.random() * biome.materials.length)];
+        // 2. Elegir Material según TIER del nivel
+        const tier = config.tier || 1;
+        const possibleMaterials = biome.materials[tier] || biome.materials[1]; // Fallback a tier 1
         
-        // 3. Decidir rareza según nivel
+        // Si la lista de materiales tiene cosas como 'wood', 'copper', etc.
+        const matKey = possibleMaterials[Math.floor(Math.random() * possibleMaterials.length)];
+        
+        // 3. Decidir Rareza (Blanco, Verde, Azul...)
         const rand = Math.random() * 100;
         let rarity = 'common';
         let cumulative = 0;
+        
+        // Iterar las chances (common: 90, uncommon: 10...)
         for (let r in config.dropChances) {
             cumulative += config.dropChances[r];
             if (rand <= cumulative) {
