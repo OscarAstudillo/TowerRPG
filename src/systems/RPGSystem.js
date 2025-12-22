@@ -4,9 +4,9 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // ID ÚNICO REAL
+    // GENERADOR DE ID ÚNICO Y SEGURO (Siempre String)
     getUniqueId() {
-        return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        return "ID_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
     }
 
     gainHeroXP(amount) {
@@ -61,14 +61,19 @@ class RPGSystem {
         for (let i = 0; i < levels; i++) { 
             for (let key in statsObj) { 
                 const current = statsObj[key]; 
-                const boost = Math.ceil(current * 0.20) + 1; 
-                statsObj[key] = current + boost; 
+                if (key === 'attackSpeed' || key === 'cdr') { // Stats donde menos es mejor
+                    const boost = Math.floor(current * 0.10);
+                    statsObj[key] = current - boost; 
+                } else {
+                    const boost = Math.ceil(current * 0.20) + 1; 
+                    statsObj[key] = current + boost; 
+                }
             } 
         } 
         return statsObj; 
     }
     
-    // FUNCIÓN ÚNICA DE CRAFTEO (SIRVE PARA TODO)
+    // CRAFTEO UNIFICADO
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
@@ -87,19 +92,19 @@ class RPGSystem {
         return { success: true, item: item };
     }
 
-    // FUNCIÓN ÚNICA DE FUSIÓN
+    // FUSIÓN UNIFICADA
     fuseSpecificItems(item1, item2) {
         if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Deben ser misma rareza y nivel (+)" };
         if (item1.type !== item2.type) return { success: false, error: "Deben ser del mismo tipo" };
-        // Si son partes de torre, deben ser para la misma torre (ej: archer con archer)
+        // Validación extra para torres: mismo subtipo (archer con archer)
         if (item1.type === 'tower_part' && item1.towerType !== item2.towerType) return { success: false, error: "Deben ser para la misma torre" };
-        
+
         const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
         this.applyEnchantStats(baseStats, 1);
         
         const newItem = { 
             ...item1, 
-            id: this.getUniqueId(), // Nuevo ID fresco
+            id: this.getUniqueId(), // ID NUEVO Y FRESCO
             name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, 
             enchant: item1.enchant + 1, 
             stats: baseStats 
@@ -108,7 +113,7 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
-    // FUNCIÓN ÚNICA DE GENERACIÓN
+    // GENERACIÓN UNIFICADA (Torres y Héroes)
     generateItem(recipe, rarity, initialEnchant = 0) {
         const stats = { ...recipe.baseStats };
         for(let k in stats) stats[k] = Math.floor(stats[k] * rarity.mult);
@@ -117,18 +122,18 @@ class RPGSystem {
         for (let i = 0; i < rarity.statCount; i++) {
             const stat = pool[Math.floor(Math.random() * pool.length)];
             const val = Math.floor((Math.random() * (stat.max - stat.min) + stat.min) * rarity.mult);
+            
             if(stats[stat.key]) stats[stat.key] += val; else stats[stat.key] = val;
         }
         if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
         
-        // ESTRUCTURA ESTANDARIZADA
         return { 
             id: this.getUniqueId(),
             recipeId: recipe.id, 
             name: `${recipe.name}`, 
-            type: recipe.type, // 'weapon', 'armor', 'tower_part'
-            subType: recipe.subType, // 'sword', 'archer' (para torres)
-            towerType: (recipe.type === 'tower_part' ? recipe.subType : null), // Compatibilidad
+            type: recipe.type, 
+            subType: recipe.subType, 
+            towerType: (recipe.type === 'tower_part' ? recipe.subType : null), // Clave para que funcione la torre
             twoHanded: recipe.twoHanded || false, 
             rarity: rarity.id, 
             enchant: initialEnchant, 
@@ -141,6 +146,7 @@ class RPGSystem {
         if (recipe.type === 'weapon') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'critChance', min: 1, max: 3, label: '% Crítico' }, { key: 'critDamage', min: 5, max: 15, label: 'Daño Crítico' }, { key: 'lifesteal', min: 1, max: 2, label: 'Robo Vida' } ];
         if (recipe.type === 'armor') return [ { key: 'hp', min: 10, max: 30, label: 'Vida' }, { key: 'defense', min: 1, max: 3, label: 'Defensa' }, { key: 'thorns', min: 1, max: 3, label: 'Espinas' }, { key: 'regenHp', min: 1, max: 2, label: 'Regen HP' } ];
         if (recipe.type === 'tower_part') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'range', min: 10, max: 20, label: 'Rango' }, { key: 'attackSpeed', min: 20, max: 50, label: 'Velocidad' }, { key: 'doubleAttack', min: 2, max: 5, label: 'Doble Ataque' } ];
+        // Accesorios
         return [ { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque' }, { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' }, { key: 'damage', min: 1, max: 3, label: 'Daño' } ];
     }
 
