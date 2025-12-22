@@ -1,49 +1,46 @@
 // src/config/GameState.js
 
-// Definimos stats base por clase aquí para no depender de archivos externos si no cargan
+// Definimos stats base por clase (AHORA CON RANGO)
 const CLASS_BASE_STATS = {
-    guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000 },
-    arquero: { hp: 100, damage: 12, defense: 2, attackSpeed: 800 },
-    mago: { hp: 90, damage: 20, defense: 1, attackSpeed: 1200 },
-    asesino: { hp: 110, damage: 18, defense: 3, attackSpeed: 600 },
-    paladin: { hp: 180, damage: 10, defense: 8, attackSpeed: 1100 }
+    guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000, range: 100 }, // Melee
+    arquero: { hp: 100, damage: 12, defense: 2, attackSpeed: 800, range: 350 },   // Rango largo
+    mago: { hp: 90, damage: 20, defense: 1, attackSpeed: 1200, range: 280 },      // Rango medio
+    asesino: { hp: 110, damage: 18, defense: 3, attackSpeed: 600, range: 80 },    // Melee corto
+    paladin: { hp: 180, damage: 10, defense: 8, attackSpeed: 1100, range: 100 }   // Melee
 };
 
 export const initialState = {
-    gold: 5000,
+    gold: 500,
     selectedClass: null,
     
-    // Stats calculados del jugador (se sobrescriben dinámicamente)
+    // Stats del jugador (Incluye 'range' para que ataque)
     playerStats: {
         hp: 100, maxHp: 100, damage: 10, defense: 0,
-        attackSpeed: 1500, moveSpeed: 160,
+        attackSpeed: 1000, moveSpeed: 160, range: 120, // Default range
         critChance: 5, critDamage: 150,
         lifesteal: 0, regenHp: 0,
         cdr: 0, doubleAttack: 0, thorns: 0
     },
 
-    // Inventarios
     inventory: [],
     equipment: { mainHand: null, offHand: null, armor: null, accessory: null },
     
-    // Equipamiento de Torres
     towerEquipment: {
         archer: { slot1: null, slot2: null },
         cannon: { slot1: null, slot2: null },
         mage:   { slot1: null, slot2: null }
     },
 
-    // Materiales
     materials: {
         wood: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        copper: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        hide: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        hide: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         coal: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        scraps: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        scraps: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cotton: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         silk: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -73,9 +70,7 @@ export const initialState = {
         refining: { level: 1, xp: 0, maxXp: 100 }
     },
 
-    // Aquí se guardan los datos persistentes de CADA héroe
     heroes: {}, 
-
     talents: [],
     completedLevels: {}, 
     maxLevel: 1,
@@ -92,13 +87,11 @@ export const RARITY = {
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
 };
 
-// --- FUNCIONES CLAVE CORREGIDAS ---
+// --- FUNCIONES ---
 
-// Inicializa (o recupera) un héroe en la estructura persistente
 export function initHero(classId) {
     if (!classId) return null;
 
-    // Si no existe, lo creamos
     if (!gameState.heroes[classId]) {
         gameState.heroes[classId] = {
             level: 1,
@@ -106,53 +99,41 @@ export function initHero(classId) {
             maxXp: 100,
             statPoints: 0,
             talentPoints: 0,
-            talents: [], // IDs de talentos aprendidos
-            // Atributos base comprados con puntos (NO incluye equipo)
-            baseAttributes: { 
-                damage: 0, 
-                maxHp: 0, 
-                attackSpeed: 0, 
-                defense: 0 
-            }
+            talents: [],
+            baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 }
         };
     }
     
-    // Establecer como activo
     gameState.selectedClass = classId;
-    
-    // Recalcular stats totales
     updatePlayerStats();
     
     return gameState.heroes[classId];
 }
 
-// Devuelve el objeto del héroe actual (o null)
 export function getCurrentHero() {
     if (!gameState.selectedClass) return null;
-    
-    // Autorecuperación si algo falló antes
     if (!gameState.heroes[gameState.selectedClass]) {
         return initHero(gameState.selectedClass);
     }
-    
     return gameState.heroes[gameState.selectedClass];
 }
 
-// Recalcula los stats finales (Base Clase + Puntos + Equipo)
 export function updatePlayerStats() {
     if (!gameState.selectedClass) return;
 
     const hero = getCurrentHero();
-    // Fallback seguro si CLASS_BASE_STATS falla
-    const classBase = CLASS_BASE_STATS[gameState.selectedClass] || { hp: 100, damage: 10, defense: 0, attackSpeed: 1000 };
+    const classBase = CLASS_BASE_STATS[gameState.selectedClass] || { hp: 100, damage: 10, defense: 0, attackSpeed: 1000, range: 100 };
     
     const stats = { ...gameState.playerStats };
+    
+    // Resetear a base de clase
     stats.maxHp = classBase.hp;
     stats.damage = classBase.damage;
     stats.defense = classBase.defense;
     stats.attackSpeed = classBase.attackSpeed;
+    stats.range = classBase.range || 100; // IMPORTANTE: Recuperar rango base
 
-    // Atributos
+    // Atributos comprados
     if (hero && hero.baseAttributes) {
         stats.damage += (hero.baseAttributes.damage || 0);
         stats.maxHp += (hero.baseAttributes.maxHp || 0);
@@ -182,15 +163,11 @@ export function updatePlayerStats() {
         }
     });
 
-    // Validaciones de seguridad (Evita que el héroe deje de atacar)
-    if (isNaN(stats.attackSpeed) || stats.attackSpeed < 200) stats.attackSpeed = 200; 
-    if (isNaN(stats.damage)) stats.damage = 1;
+    // Validaciones
+    if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
+    if (stats.range < 50) stats.range = 50; // Rango mínimo seguro
 
-    // 5. Ajustar HP actual si cambió el máximo
-    const oldMax = gameState.playerStats.maxHp;
-    const oldHp = gameState.playerStats.hp;
-    
-    // Asignar al estado global
+    // Aplicar
     Object.assign(gameState.playerStats, stats);
     
     if (gameState.playerStats.hp > gameState.playerStats.maxHp) {
@@ -201,7 +178,6 @@ export function updatePlayerStats() {
 export function getTowerBonuses(type) {
     const bonuses = { damage: 0, range: 0, attackSpeed: 0, doubleAttack: 0 };
     const eq = gameState.towerEquipment[type];
-    
     if (eq) {
         [eq.slot1, eq.slot2].forEach(item => {
             if (item && item.stats) {

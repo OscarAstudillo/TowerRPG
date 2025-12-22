@@ -53,9 +53,9 @@ export default class GameScene extends Phaser.Scene {
     }
 
     create() {
-        // --- FIX CRÍTICO: Asegurar stats frescos al iniciar nivel ---
-        updatePlayerStats(); 
-        
+        // 1. Recalcular stats (Incluyendo Rango) ANTES de crear nada
+        updatePlayerStats();
+
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -102,6 +102,8 @@ export default class GameScene extends Phaser.Scene {
 
         this.createBuildSlots();
         this.createSpawnIndicator();
+
+        // 2. Crear Jugador (Ahora sí tendrá rango definido)
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());

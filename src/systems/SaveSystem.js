@@ -6,7 +6,6 @@ export default class SaveSystem {
         try {
             const data = {
                 gold: gameState.gold,
-                // Guardamos todo el objeto gameState relevante
                 materials: gameState.materials,
                 inventory: gameState.inventory,
                 equipment: gameState.equipment,
@@ -19,7 +18,7 @@ export default class SaveSystem {
                 talents: gameState.talents
             };
             localStorage.setItem('towerRPG_save', JSON.stringify(data));
-            console.log("Juego Guardado OK");
+            console.log("Juego Guardado");
         } catch (e) {
             console.error("Error al guardar:", e);
         }
@@ -31,7 +30,6 @@ export default class SaveSystem {
             try {
                 const data = JSON.parse(json);
                 
-                // Carga básica segura
                 gameState.gold = data.gold || 500;
                 if (data.materials) gameState.materials = data.materials;
                 if (data.inventory) gameState.inventory = data.inventory;
@@ -42,40 +40,29 @@ export default class SaveSystem {
                 if (data.maxLevel) gameState.maxLevel = data.maxLevel;
                 if (data.talents) gameState.talents = data.talents;
 
-                // --- MIGRACIÓN DE HÉROES ROBUSTA ---
                 if (data.heroes && Object.keys(data.heroes).length > 0) {
                     gameState.heroes = data.heroes;
                 } else {
                     gameState.heroes = {}; 
                 }
 
-                // Restaurar clase seleccionada y migrar datos legacy si es necesario
                 if (data.selectedClass) {
                     gameState.selectedClass = data.selectedClass;
                     
-                    // Si el héroe no existe en la estructura nueva, lo creamos
+                    // Verificación de seguridad: Crear héroe si no existe en el save
                     if (!gameState.heroes[data.selectedClass]) {
-                        console.log("Creando héroe nuevo/migrado:", data.selectedClass);
-                        // Crear estructura vacía primero
-                        gameState.heroes[data.selectedClass] = {
-                            level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, 
-                            talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 }
-                        };
-
-                        // Intentar recuperar nivel legacy si existe
-                        if (data.heroLevel) {
+                        initHero(data.selectedClass);
+                        // Solo intentar restaurar nivel legacy si el héroe fue recién creado
+                        if (data.heroLevel && gameState.heroes[data.selectedClass]) {
                             gameState.heroes[data.selectedClass].level = data.heroLevel;
                         }
                     }
                 }
 
-                // Recalcular todo
                 updatePlayerStats();
-                console.log("Datos Cargados Correctamente");
+                console.log("Datos Cargados");
             } catch (e) {
-                console.error("Error crítico al cargar save:", e);
-                // Si falla la carga, intentamos limpiar para no romper el juego
-                // localStorage.removeItem('towerRPG_save'); 
+                console.error("Error al cargar save:", e);
             }
         }
     }
