@@ -1,7 +1,10 @@
 // src/scenes/ResultScene.js
 import Phaser from 'phaser';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
-import { RARITY } from '../config/GameState.js';
+// CORRECCIÓN: Se agregó 'gameState' a la importación
+import { RARITY, gameState } from '../config/GameState.js'; 
+// CORRECCIÓN: Se agregó la importación de SaveSystem
+import SaveSystem from '../systems/SaveSystem.js'; 
 
 export default class ResultScene extends Phaser.Scene {
     constructor() { super('ResultScene'); }
@@ -11,8 +14,10 @@ export default class ResultScene extends Phaser.Scene {
         this.levelId = data.levelId;
         this.gold = data.gold || 0;
         this.xp = data.xp || 0;
-        this.baseHp = data.baseHp || 0; // Vida restante del castillo
+        this.baseHp = data.baseHp || 0; 
         this.loot = data.loot || {};
+        // Recibimos el bioma para guardar el progreso correctamente
+        this.biome = data.biome || 'forest'; 
     }
 
     create() {
@@ -28,28 +33,9 @@ export default class ResultScene extends Phaser.Scene {
 
         if (this.success) {
             // Cálculo de Estrellas
-            // 20 HP = 3 estrellas, > 10 HP = 2 estrellas, > 0 = 1 estrella
             let stars = 1;
             if (this.baseHp >= 20) stars = 3;
             else if (this.baseHp > 10) stars = 2;
-
-            // --- NUEVO: GUARDAR PROGRESO ---
-            // this.levelId viene de GameScene (ej: 1, 2, 10...)
-            // Necesitamos saber el bioma actual. Si no lo pasamos a ResultScene, 
-            // podemos asumirlo o pasarlo en winData.
-            // Para simplificar, asumo que 'GameScene' pasa el 'biome' a 'ChestScene' y este a 'ResultScene'.
-            // SI NO: El mapa desbloqueará basandose en el ID numérico global.
-            
-            // Asumiendo que pasamos 'biome' en el objeto data.
-            const biome = this.data.biome || 'forest'; // Default si falla
-            const progressKey = `${biome}_${this.levelId}`;
-            
-            // Guardar solo si mejoramos el record
-            const currentStars = gameState.completedLevels[progressKey] || 0;
-            if (stars > currentStars) {
-                gameState.completedLevels[progressKey] = stars;
-                SaveSystem.save();
-            }
             
             let starString = "";
             for(let i=0; i<3; i++) starString += (i < stars ? "⭐" : "☆");
@@ -59,13 +45,21 @@ export default class ResultScene extends Phaser.Scene {
             this.add.text(w/2, 240, `Oro Ganado: ${this.gold}`, { fontFamily: 'Roboto', fontSize: '18px', color: '#ffd700' }).setOrigin(0.5);
             this.add.text(w/2, 270, `XP Ganada: ${this.xp}`, { fontFamily: 'Roboto', fontSize: '18px', color: '#00ffff' }).setOrigin(0.5);
 
+            // --- GUARDAR PROGRESO (Ahora funcionará porque importamos gameState y SaveSystem) ---
+            const progressKey = `${this.biome}_${this.levelId}`;
+            const currentStars = gameState.completedLevels[progressKey] || 0;
+            
+            if (stars > currentStars) {
+                gameState.completedLevels[progressKey] = stars;
+                SaveSystem.save();
+            }
+
             // Lista de Materiales
             this.add.text(w/2, 320, "-- MATERIALES OBTENIDOS --", { fontSize: '20px', color: '#aaa' }).setOrigin(0.5);
             
             let lootY = 360;
             let hasLoot = false;
             
-            // Iterar loot acumulado { tipo: { rareza: cantidad } }
             for (let matKey in this.loot) {
                 const rarities = this.loot[matKey];
                 for (let rarityKey in rarities) {
