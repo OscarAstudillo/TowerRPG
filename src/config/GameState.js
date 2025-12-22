@@ -4,7 +4,7 @@ export const initialState = {
     gold: 500,
     selectedClass: null,
     
-    // Stats base del jugador (se sobrescriben al elegir clase)
+    // Stats base del jugador
     playerStats: {
         hp: 100, maxHp: 100, damage: 10, defense: 0,
         attackSpeed: 1000, moveSpeed: 160,
@@ -41,10 +41,20 @@ export const initialState = {
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         scale: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         
-        // Refinados (agregados dinámicamente o definidos aquí)
+        // Refinados (Inicializados para evitar errores de undefined)
         ingot_copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        // ... el sistema lo maneja dinámico si no están aquí, pero es buena práctica inicializar
+        ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        ingot_mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        plank_wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        plank_cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        plank_ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        cloth_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        cloth_fine: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        cloth_royal: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        leather_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        leather_rigid: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        leather_dragon: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 }
     },
 
     professions: {
@@ -57,16 +67,17 @@ export const initialState = {
 
     talents: [],
     
-    // NUEVO: Registro de progreso
-    // Formato clave: "biome_level" -> numero de estrellas (1-3)
-    // Ejemplo: "forest_1": 3, "forest_2": 1
+    // Registro de progreso (Bioma_Nivel -> Estrellas)
     completedLevels: {}, 
+    maxLevel: 1, // Control global del nivel máximo alcanzado (1-10)
     
     baseHp: 20
 };
 
+// Estado mutable del juego
 export const gameState = JSON.parse(JSON.stringify(initialState));
 
+// Definición de Rarezas
 export const RARITY = {
     common: { id: 'common', name: 'Común', color: 0xffffff, mult: 1.0, statCount: 0 },
     uncommon: { id: 'uncommon', name: 'Poco Común', color: 0x00ff00, mult: 1.2, statCount: 1 },
@@ -75,10 +86,26 @@ export const RARITY = {
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
 };
 
+// --- FUNCIONES EXPORTADAS NECESARIAS ---
+
+// Esta es la función que faltaba y causaba el error en SaveSystem.js
+export function initHero(className) {
+    if (className) gameState.selectedClass = className;
+    
+    // Restablecer stats base al iniciar/cargar héroe
+    // Aquí puedes definir stats específicos por clase si quieres
+    gameState.playerStats.hp = gameState.playerStats.maxHp;
+    
+    updatePlayerStats();
+    return getCurrentHero();
+}
+
 export function getCurrentHero() {
-    // Retornamos un objeto dummy para evitar crash si no hay héroe, pero idealmente selectedClass gestiona esto
+    // Retorna un objeto con la info del héroe actual
+    // Si no hay clase seleccionada, retorna valores seguros
     return {
-        level: 1,
+        class: gameState.selectedClass || 'none',
+        level: 1, // Por ahora el nivel del héroe es estático o depende de lógica externa
         xp: 0,
         maxXp: 100,
         statPoints: 0,
@@ -89,9 +116,70 @@ export function getCurrentHero() {
 }
 
 export function updatePlayerStats() {
-    // Lógica básica de recalculo (puedes expandirla con la lógica real de stats que ya tienes)
-    // Este es un placeholder para mantener compatibilidad si no tienes el archivo completo a mano
+    // Recalcular stats basados en equipo
+    // 1. Reset a base (valores hardcodeados o del state inicial)
+    const base = {
+        hp: 100, maxHp: 100, damage: 10, defense: 0,
+        attackSpeed: 1000, moveSpeed: 160,
+        critChance: 5, critDamage: 150,
+        lifesteal: 0, regenHp: 0,
+        cdr: 0, doubleAttack: 0, thorns: 0
+    };
+
+    // Ajustes por clase (opcional)
+    if (gameState.selectedClass === 'guerrero') { base.hp = 150; base.defense = 5; }
+    if (gameState.selectedClass === 'arquero') { base.attackSpeed = 800; base.damage = 12; }
+    // ... otros ajustes
+
+    // 2. Sumar equipo
+    const equipment = [
+        gameState.equipment.mainHand,
+        gameState.equipment.offHand,
+        gameState.equipment.armor,
+        gameState.equipment.accessory
+    ];
+
+    equipment.forEach(item => {
+        if (item && item.stats) {
+            for (let key in item.stats) {
+                if (base[key] !== undefined) {
+                    if (key === 'attackSpeed' || key === 'cdr') {
+                        // Restar delay es bueno
+                        base[key] -= item.stats[key];
+                    } else {
+                        base[key] += item.stats[key];
+                    }
+                }
+            }
+        }
+    });
+
+    // Límites seguros
+    if (base.attackSpeed < 200) base.attackSpeed = 200; // Cap de velocidad
+    
+    // Guardar en gameState
+    Object.assign(gameState.playerStats, base);
+    
+    // Asegurar HP actual no supere máximo
+    if (gameState.playerStats.hp > gameState.playerStats.maxHp) {
+        gameState.playerStats.hp = gameState.playerStats.maxHp;
+    }
 }
+
 export function getTowerBonuses(type) {
-    return { damage: 0, range: 0, attackSpeed: 0, doubleAttack: 0 };
+    // Calcular bonos para torres basados en equipo de torre
+    const bonuses = { damage: 0, range: 0, attackSpeed: 0, doubleAttack: 0 };
+    const eq = gameState.towerEquipment[type];
+    
+    if (eq) {
+        [eq.slot1, eq.slot2].forEach(item => {
+            if (item && item.stats) {
+                if (item.stats.damage) bonuses.damage += item.stats.damage;
+                if (item.stats.range) bonuses.range += item.stats.range;
+                if (item.stats.attackSpeed) bonuses.attackSpeed += item.stats.attackSpeed;
+                if (item.stats.doubleAttack) bonuses.doubleAttack += item.stats.doubleAttack;
+            }
+        });
+    }
+    return bonuses;
 }
