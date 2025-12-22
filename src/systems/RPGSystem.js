@@ -4,9 +4,9 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // --- ID SIEMPRE COMO STRING ---
     getUniqueId() {
-        return "ID_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
+        // ID string seguro para evitar problemas numéricos
+        return "ITEM_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
     }
 
     gainHeroXP(amount) {
@@ -48,15 +48,6 @@ class RPGSystem {
         return false;
     }
 
-    getProfessionLevelForType(type) {
-        let profKey = 'weaponsmith'; 
-        if (type === 'armor' || type === 'offhand') profKey = 'armorsmith';
-        if (type === 'accessory') profKey = 'jewelry';
-        if (type === 'tower_part') profKey = 'engineering';
-        if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
-        return gameState.professions[profKey].level;
-    }
-
     getProfessionLevel(profKey) {
         if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
         return gameState.professions[profKey].level;
@@ -66,8 +57,10 @@ class RPGSystem {
         for (let i = 0; i < levels; i++) { 
             for (let key in statsObj) { 
                 const current = statsObj[key]; 
+                // Lógica inteligente: Si es cooldown o velocidad de ataque (ms), reducir es mejor
                 if (key === 'attackSpeed' || key === 'cdr') {
-                     const boost = Math.floor(current * 0.10);
+                     // Reducir un 10% el delay es una mejora
+                     const boost = Math.floor(current * 0.10); 
                      statsObj[key] = current - boost; 
                 } else {
                      const boost = Math.ceil(current * 0.20) + 1; 
@@ -78,6 +71,7 @@ class RPGSystem {
         return statsObj; 
     }
     
+    // --- CRAFTEO UNIVERSAL (Héroes y Torres) ---
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
@@ -87,7 +81,12 @@ class RPGSystem {
         
         this.consumeMaterials(recipe.mat, 3, rarityKey);
         
-        const profKey = recipe.prof || 'weaponsmith';
+        // Determinar profesión automáticamente desde la receta o el tipo
+        let profKey = recipe.prof || 'weaponsmith';
+        if (!recipe.prof) {
+             if (recipe.type === 'tower_part') profKey = 'engineering';
+        }
+
         const profLevel = this.getProfessionLevel(profKey);
         const bonusEnchant = Math.floor(profLevel / 10);
         
@@ -100,14 +99,14 @@ class RPGSystem {
     fuseSpecificItems(item1, item2) {
         if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Deben ser misma rareza y nivel (+)" };
         if (item1.type !== item2.type) return { success: false, error: "Deben ser del mismo tipo" };
-        if (item1.type === 'tower_part' && item1.towerType !== item2.towerType) return { success: false, error: "Deben ser para la misma torre" };
+        if (item1.subType !== item2.subType) return { success: false, error: "Deben ser del mismo subtipo" };
         
         const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
         this.applyEnchantStats(baseStats, 1);
         
         const newItem = { 
             ...item1, 
-            id: this.getUniqueId(), 
+            id: this.getUniqueId(), // ID Nuevo
             name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, 
             enchant: item1.enchant + 1, 
             stats: baseStats 
@@ -116,8 +115,10 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
+    // --- GENERACIÓN UNIVERSAL ---
     generateItem(recipe, rarity, initialEnchant = 0) {
         const stats = { ...recipe.baseStats };
+        // Aplicar rareza a stats base
         for(let k in stats) stats[k] = Math.floor(stats[k] * rarity.mult);
         
         const pool = this.getStatPool(recipe);
@@ -139,6 +140,7 @@ class RPGSystem {
             name: `${recipe.name}`, 
             type: recipe.type, 
             subType: recipe.subType, 
+            // PROPIEDAD CLAVE PARA COMPATIBILIDAD CON CODIGO ANTIGUO:
             towerType: (recipe.type === 'tower_part' ? recipe.subType : null),
             twoHanded: recipe.twoHanded || false, 
             rarity: rarity.id, 
@@ -151,7 +153,10 @@ class RPGSystem {
     getStatPool(recipe) {
         if (recipe.type === 'weapon') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'critChance', min: 1, max: 3, label: '% Crítico' }, { key: 'critDamage', min: 5, max: 15, label: 'Daño Crítico' }, { key: 'lifesteal', min: 1, max: 2, label: 'Robo Vida' } ];
         if (recipe.type === 'armor') return [ { key: 'hp', min: 10, max: 30, label: 'Vida' }, { key: 'defense', min: 1, max: 3, label: 'Defensa' }, { key: 'thorns', min: 1, max: 3, label: 'Espinas' }, { key: 'regenHp', min: 1, max: 2, label: 'Regen HP' } ];
+        
+        // Pool para torres
         if (recipe.type === 'tower_part') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'range', min: 10, max: 20, label: 'Rango' }, { key: 'attackSpeed', min: 20, max: 50, label: 'Velocidad' }, { key: 'doubleAttack', min: 2, max: 5, label: 'Doble Ataque' } ];
+        
         return [ { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque' }, { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' }, { key: 'damage', min: 1, max: 3, label: 'Daño' } ];
     }
 

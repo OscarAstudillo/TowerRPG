@@ -16,11 +16,10 @@ export default class MainMenuScene extends Phaser.Scene {
         this.itemToFuse1 = null; 
         this.itemToFuse2 = null; 
         this.expandedRecipeId = null; 
-        this.expandedTowerType = null; 
-        this.craftSelection = { type: null, recipe: null, rarity: null, towerType: null };
+        this.craftSelection = { type: null, recipe: null, rarity: null };
         this.hasLoaded = false;
 
-        // Estilos Globales
+        // Estilos
         this.fontTitle = { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000000', strokeThickness: 4 };
         this.fontHeader = { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
         this.fontBody = { fontFamily: 'Roboto', fontSize: '14px', color: '#eeeeee', stroke: '#000000', strokeThickness: 2 };
@@ -33,7 +32,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (!this.hasLoaded) {
             SaveSystem.load();
             if (!gameState.talents) gameState.talents = [];
-            this.sanitizeData(); // Limpieza inicial
+            this.sanitizeData(); // LIMPIEZA INICIAL
             this.hasLoaded = true;
         }
 
@@ -49,7 +48,6 @@ export default class MainMenuScene extends Phaser.Scene {
         const cx = w / 2;
         const cy = h / 2;
 
-        // Fondo y Título
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { ...this.fontHeader, color: '#ffd700' }).setOrigin(1, 0.5);
@@ -72,16 +70,16 @@ export default class MainMenuScene extends Phaser.Scene {
         this.forgeContainer = this.add.container(0, 0);
         this.towersContainer = this.add.container(0, 0);
 
-        // Inicializar Vistas
+        // Inicializar Vistas (¡TODAS EXISTEN!)
         this.createHeroView(w, h, cx, cy);
         this.createTalentsView(w, h, cx, cy);
-        this.createInventoryView(w, h, cx, cy); // ¡FUNCIÓN PRESENTE!
+        this.createInventoryView(w, h, cx, cy); // ¡IMPORTANTE!
         this.createForgeView(w, h, cx, cy);
         this.createTowersView(w, h, cx, cy);
 
         this.switchTab('hero');
 
-        // Botones Inferiores
+        // Footer
         const botY = h - 50;
         const playBtn = this.add.rectangle(cx, botY, 220, 50, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00);
         this.add.text(cx, botY, 'IR AL MAPA', { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5);
@@ -94,71 +92,40 @@ export default class MainMenuScene extends Phaser.Scene {
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
     }
 
-    // --- SANITIZACIÓN ROBUSTA ---
-    // Elimina items que estén equipados Y en la mochila a la vez (priorizando el equipo)
+    // --- SANITIZACIÓN (ELIMINAR DUPLICADOS DE RAÍZ) ---
     sanitizeData() {
-        console.log("Ejecutando limpieza de inventario...");
+        console.log("Limpiando inventario...");
         const equippedIds = new Set();
         
-        // Helper para asegurar IDs como string
-        const getId = (item) => item && item.id ? String(item.id) : null;
-
-        // 1. Recopilar IDs equipados
-        Object.values(gameState.equipment).forEach(i => { 
-            const id = getId(i); if(id) equippedIds.add(id); 
-        });
+        // 1. Recopilar IDs equipados (Heroe y Torres)
+        Object.values(gameState.equipment).forEach(i => { if(i && i.id) equippedIds.add(String(i.id)); });
         Object.values(gameState.towerEquipment).forEach(t => {
-            const id1 = getId(t.slot1); if(id1) equippedIds.add(id1);
-            const id2 = getId(t.slot2); if(id2) equippedIds.add(id2);
+            if(t.slot1 && t.slot1.id) equippedIds.add(String(t.slot1.id));
+            if(t.slot2 && t.slot2.id) equippedIds.add(String(t.slot2.id));
         });
 
-        // 2. Limpiar inventario
-        const cleanInv = [];
+        // 2. Reconstruir inventario SOLO con items válidos y no equipados
+        let cleanInv = [];
         const seenIdsInInv = new Set();
         
-        // Filtramos items corruptos (null/undefined)
-        gameState.inventory = gameState.inventory.filter(i => i);
-
         gameState.inventory.forEach(item => {
-            const id = getId(item);
-            if (!id) {
-                // Si no tiene ID, le damos uno nuevo (recuperación)
-                item.id = "REC_" + Date.now() + "_" + Math.random();
-                cleanInv.push(item);
-                return;
-            }
+            if (!item || !item.id) return; // Ignorar corruptos
 
-            // Si está equipado, NO lo añadimos a la mochila (es un fantasma)
-            if (equippedIds.has(id)) {
-                console.warn(`Fantasma eliminado: ${item.name} (${id})`);
-                return;
-            }
+            const sId = String(item.id);
+            // Si está equipado, es un fantasma en la mochila -> Ignorar
+            if (equippedIds.has(sId)) return; 
 
-            // Si ya existe en la mochila (duplicado), regeneramos ID
-            if (seenIdsInInv.has(id)) {
-                console.warn(`Duplicado en mochila: ${item.name}. Regenerando ID.`);
-                item.id = "DUP_" + Date.now() + "_" + Math.random();
+            // Si ya existe en mochila, es un clon -> Regenerar ID
+            if (seenIdsInInv.has(sId)) {
+                item.id = "FIX_DUP_" + Date.now() + Math.random();
             }
-
+            
             seenIdsInInv.add(String(item.id));
             cleanInv.push(item);
         });
-        
+
         gameState.inventory = cleanInv;
         SaveSystem.save();
-    }
-
-    // Helper para añadir sin duplicar
-    safeAddItemToInventory(item) {
-        if (!item) return;
-        const exists = gameState.inventory.some(i => String(i.id) === String(item.id));
-        if (!exists) {
-            gameState.inventory.push(item);
-        } else {
-            console.warn("safeAddItemToInventory: Item ya existe, regenerando ID para forzar inserción.");
-            item.id = "FORCE_" + Date.now() + "_" + Math.random();
-            gameState.inventory.push(item);
-        }
     }
 
     createTabButton(x, y, text, tabKey, width) {
@@ -194,8 +161,7 @@ export default class MainMenuScene extends Phaser.Scene {
         const container = this.add.container(cx, cy).setDepth(3000);
         const bg = this.add.rectangle(0, 0, 600, 100, 0x000000, 0.9).setStrokeStyle(4, colorHex.replace('#', '0x'));
         const msg = this.add.text(0, 0, text, { ...this.fontTitle, fontSize: '28px', color: colorHex }).setOrigin(0.5);
-        container.add([bg, msg]);
-        container.setScale(0);
+        container.add([bg, msg]); container.setScale(0);
         this.tweens.add({ targets: container, scale: 1, ease: 'Back.out', duration: 300, onComplete: () => {
             this.time.delayedCall(2000, () => {
                 this.tweens.add({ targets: container, scale: 0, alpha: 0, duration: 300, onComplete: () => container.destroy() });
@@ -203,43 +169,35 @@ export default class MainMenuScene extends Phaser.Scene {
         }});
     }
 
-    removeItemFromInventory(item) {
-        if (!item || !item.id) return false;
-        const initialLen = gameState.inventory.length;
-        // Filtro estricto por ID
-        gameState.inventory = gameState.inventory.filter(i => String(i.id) !== String(item.id));
-        return gameState.inventory.length < initialLen;
-    }
-
-    // --- ACCIÓN DE EQUIPAR (CON LIMPIEZA AUTOMÁTICA) ---
+    // --- ACCIÓN DE EQUIPAR ---
     actionEquip() { 
         if (!this.selectedItem) return; 
         
         // 1. Buscar en inventario real
         const idx = gameState.inventory.findIndex(i => String(i.id) === String(this.selectedItem.id));
         if (idx === -1) {
-            this.showCentralAlert("¡Item no encontrado! Se refrescará el inventario.", "#ff0000");
-            this.selectedItem = null; 
-            this.sanitizeData(); // Auto-reparar si falla
-            this.itemDetailContainer.setVisible(false); 
-            this.refreshInventory();
+            this.showCentralAlert("¡ERROR: Item no encontrado!", "#ff0000");
+            this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory();
             return;
         }
-        
-        // Clonar item para manipularlo y borrar el original de la lista
-        const item = gameState.inventory[idx];
-        gameState.inventory.splice(idx, 1); // Borrado físico del array
 
-        // --- TORRES ---
+        const item = gameState.inventory[idx];
+        
+        // 2. ELIMINAR DE INVENTARIO (CRÍTICO)
+        gameState.inventory.splice(idx, 1);
+
+        // --- TORRES (Ahora usan 'towerType' o 'subType') ---
         if (item.type === 'tower_part') { 
-            const type = item.towerType; 
+            const type = item.towerType || item.subType; // Compatibilidad
+            
             if (!gameState.towerEquipment[type].slot1) {
                 gameState.towerEquipment[type].slot1 = item;
             } else if (!gameState.towerEquipment[type].slot2) {
                 gameState.towerEquipment[type].slot2 = item;
             } else {
+                // Swap Slot 1
                 const oldItem = gameState.towerEquipment[type].slot1;
-                this.safeAddItemToInventory(oldItem); // Swap
+                gameState.inventory.push(oldItem); // Devolver viejo
                 gameState.towerEquipment[type].slot1 = item;
             }
             this.finalizeEquip('towers');
@@ -256,7 +214,7 @@ export default class MainMenuScene extends Phaser.Scene {
         if (cls === 'asesino' && item.subType !== 'dagger' && item.subType !== 'leather' && item.subType !== 'ring') error = "Clase inválida"; 
         
         if (error) { 
-            this.safeAddItemToInventory(item); // Devolver si error
+            gameState.inventory.push(item); // Devolver item
             this.showCentralAlert(error, "#ff0000"); 
             return; 
         } 
@@ -282,9 +240,6 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     finalizeEquip(targetTab) {
-        // Ejecutar limpieza CADA VEZ que se equipa algo
-        this.sanitizeData(); 
-        
         updatePlayerStats(); 
         this.selectedItem = null; 
         this.itemDetailContainer.setVisible(false); 
@@ -306,42 +261,43 @@ export default class MainMenuScene extends Phaser.Scene {
         gameState.inventory.splice(idx, 1);
         
         this.selectedItem = null; this.itemDetailContainer.setVisible(false); 
-        this.sanitizeData(); // Limpieza post-venta
-        this.refreshInventory(); 
+        this.refreshInventory(); SaveSystem.save(); 
         this.showCentralAlert(`Vendido por $${sellPrice}`, '#ffd700');
     }
 
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
-    swapping(slot, newItem) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; }
-    forceUnequip(slot) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
+    swapping(slot, newItem) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; }
+    forceUnequip(slot) { if (gameState.equipment[slot]) { gameState.inventory.push(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
 
-    // --- FUSIÓN (CON LIMPIEZA) ---
+    // --- FUSIÓN (CON LIMPIEZA SEGURA) ---
     initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
     populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => String(i.id) !== String(this.itemToFuse1.id) && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles\n(Mismo Tipo, Rareza y Nivel)", { ...this.fontBody, align: 'center' }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const statsStr = JSON.stringify(item.stats).replace(/{|}|"/g, '').substring(0, 30) + "..."; const txt = this.add.text(0, y, `${item.name} | ${statsStr}`, { ...this.fontBody, fontSize:'14px', color: '#fff' }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
     selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); const stats1 = JSON.stringify(this.itemToFuse1.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem1Info.setText(`${this.itemToFuse1.name}\n\nSTATS ACTUALES:\n${stats1}`); const stats2 = JSON.stringify(this.itemToFuse2.stats, null, 2).replace(/{|}|"/g, ''); this.fusionItem2Info.setText(`${this.itemToFuse2.name}\n\nSTATS ACTUALES:\n${stats2}`); }
     
     executeFusion() { 
-        // Búsqueda por ID String
-        const idx1 = gameState.inventory.findIndex(i => String(i.id) === String(this.itemToFuse1.id));
-        const idx2 = gameState.inventory.findIndex(i => String(i.id) === String(this.itemToFuse2.id));
+        const id1 = String(this.itemToFuse1.id); 
+        const id2 = String(this.itemToFuse2.id);
         
-        if(idx1 === -1 || idx2 === -1) { this.showCentralAlert("Error: Items no encontrados", "#ff0000"); this.fusionConfirmModal.setVisible(false); return; }
+        // Buscar objetos reales
+        const item1 = gameState.inventory.find(i => String(i.id) === id1);
+        const item2 = gameState.inventory.find(i => String(i.id) === id2);
 
-        const item1 = gameState.inventory[idx1];
-        const item2 = gameState.inventory[idx2];
+        if (!item1 || !item2) {
+            this.showCentralAlert("Error: Items no encontrados", "#ff0000");
+            this.fusionConfirmModal.setVisible(false); return;
+        }
+
         const result = RPGSystem.fuseSpecificItems(item1, item2); 
         
         if (result.success) { 
-            // Borrado seguro por índices
-            if (idx1 > idx2) { gameState.inventory.splice(idx1, 1); gameState.inventory.splice(idx2, 1); } 
-            else { gameState.inventory.splice(idx2, 1); gameState.inventory.splice(idx1, 1); }
+            // BORRADO POR FILTRO (Elimina toda copia de esos IDs)
+            gameState.inventory = gameState.inventory.filter(i => String(i.id) !== id1 && String(i.id) !== id2);
             
-            this.safeAddItemToInventory(result.item); 
+            gameState.inventory.push(result.item); 
             
             this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); 
-            
-            this.sanitizeData(); // LIMPIEZA POST-FUSIÓN
             this.refreshInventory(); 
+            SaveSystem.save(); 
             
             const color = '#' + RARITY[result.item.rarity].color.toString(16).padStart(6,'0'); 
             this.showCentralAlert(`¡FUSIÓN EXITOSA!\n${result.item.name}`, color); 
@@ -350,7 +306,7 @@ export default class MainMenuScene extends Phaser.Scene {
 
     createInvCategoryBtn(x, y, label, cat) { const color = this.inventoryCategory === cat ? '#ffffff' : '#888888'; const btn = this.add.text(x, y, label, { ...this.fontHeader, color: color }).setInteractive({ useHandCursor: true }).setOrigin(0.5); btn.on('pointerdown', () => { this.inventoryCategory = cat; this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); this.createInventoryView(this.scale.width, this.scale.height, this.scale.width/2, this.scale.height/2); }); this.invContainer.add(btn); }
     
-    // --- VISTA INVENTARIO (PRESENTE) ---
+    // --- VISTA INVENTARIO (LA FUNCIÓN QUE ANTES FALLABA) ---
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
         this.createInvCategoryBtn(cx - 300, catY, "HERO", 'all'); 
@@ -406,12 +362,12 @@ export default class MainMenuScene extends Phaser.Scene {
     createHeroView(w, h, cx, cy) { this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); this.heroContainer.add(this.heroLevelText); const leftX = w * 0.3; const contentY = h * 0.3; const panelWidth = 450; const panelHeight = 550; const statsBg = this.add.rectangle(leftX, cy + 20, panelWidth, panelHeight, 0x000000, 0.8).setStrokeStyle(2, 0x555555); this.heroContainer.add(statsBg); const textStartX = leftX - (panelWidth / 2) + 20; const textStartY = (cy + 20) - (panelHeight / 2) + 20; this.heroStatsText = this.add.text(textStartX, textStartY, '', { ...this.fontBody, fontSize: '15px', lineHeight: 22 }); this.heroContainer.add(this.heroStatsText); this.equippedTextContainer = this.add.container(0, 0); this.heroContainer.add(this.equippedTextContainer); const rightX = w * 0.75; let upgradeY = h * 0.3; this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5); this.heroContainer.add(this.pointsText); upgradeY += 60; const statsToUpgrade = [ { label: "Daño (+1)", key: 'damage' }, { label: "Vida (+10)", key: 'hp' }, { label: "Vel. Atq (+10ms)", key: 'speed' }, { label: "Defensa (+1)", key: 'defense' } ]; statsToUpgrade.forEach((s, i) => { this.createStatButton(rightX, upgradeY + (i * 60), s.label, s.key); }); }
     createStatButton(x, y, label, statKey) { const btn = this.add.rectangle(x, y, 220, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00); const txt = this.add.text(x, y, label, this.fontBtn).setOrigin(0.5); btn.on('pointerdown', () => { if (RPGSystem.spendStatPoint(statKey)) { this.refreshHero(); SaveSystem.save(); } }); this.heroContainer.add([btn, txt]); }
     refreshHero() { updatePlayerStats(); const s = gameState.playerStats; const eq = gameState.equipment; const hero = getCurrentHero(); const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); const details = `Crítico: ${s.critChance}% (x${s.critDamage}%) \nRobo Vida: ${s.lifesteal}%  |  Regen HP: ${s.regenHp}/5s \nDoble Ataque: ${s.doubleAttack}%  |  Espinas: ${s.thorns} \nCooldown: -${s.cdr}%`; this.heroStatsText.setText(`CLASE: [ ${clsName} ]\n\n-- ATRIBUTOS BASE --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}\n⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}\n⚡ Delay Atq: ${s.attackSpeed}ms\n\n-- EXTRAS --\n${details}`); this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); this.equippedTextContainer.removeAll(true); const startX = this.heroStatsText.x; let startY = this.heroStatsText.y + 260; this.equippedTextContainer.add(this.add.text(startX, startY, "-- EQUIPAMIENTO (Clic gestiona) --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); startY += 30; const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; slots.forEach(slot => { const item = eq[slot.key]; const slotBg = this.add.rectangle(startX + 180, startY + 10, 360, 30, 0x222222).setOrigin(0.5).setInteractive({useHandCursor: true}); slotBg.setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); const name = item ? `${item.name} (+${item.enchant})` : '- VACÍO (Ir a Mochila) -'; const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888'; const txt = this.add.text(startX, startY, `${slot.label}:`, this.fontBody); const valTxt = this.add.text(startX + 80, startY, name, { ...this.fontBody, color: color, fontStyle: 'bold' }); slotBg.on('pointerdown', () => { if (!item) { this.inventoryCategory = slot.cat; this.switchTab('inventory'); } else { this.showUnequipModal(item, slot.key); } }); this.equippedTextContainer.add([slotBg, txt, valTxt]); startY += 35; }); }
-    showUnequipModal(item, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { gameState.equipment[slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.heroContainer.add(modal); }
+    showUnequipModal(item, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { gameState.equipment[slotKey] = null; gameState.inventory.push(item); SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.heroContainer.add(modal); }
 
     // --- VISTA TORRES ---
     createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
     refreshTowersView() { const types = ['archer', 'cannon', 'mage']; types.forEach(type => { const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } }); const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`); if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); } for (let s = 1; s <= 2; s++) { const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`); if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } } } }); }
-    showTowerUnequipModal(item, towerType, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) { gameState.towerEquipment[towerType][slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); this.refreshTowersView(); modal.destroy(); this.showCentralAlert("Mejora desequipada", "#ffff00"); } else { this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.towersContainer.add(modal); }
+    showTowerUnequipModal(item, towerType, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) { gameState.towerEquipment[towerType][slotKey] = null; gameState.inventory.push(item); SaveSystem.save(); this.refreshTowersView(); modal.destroy(); this.showCentralAlert("Mejora desequipada", "#ffff00"); } else { this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.towersContainer.add(modal); }
 
     // --- VISTA TALENTOS ---
     createTalentsView(w, h, cx, cy) { this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS DE TALENTO: 0", { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5); this.talentsContainer.add(this.talentPointsText); const note = this.add.text(cx, h * 0.22, "(Elige 1 por Nivel 10 - Exclusivos)", { ...this.fontBody, color: '#aaa' }).setOrigin(0.5); this.talentsContainer.add(note); this.talentTreeContainer = this.add.container(0, 0); this.talentsContainer.add(this.talentTreeContainer); }
