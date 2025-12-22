@@ -25,17 +25,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     init(data) {
-        // Datos del nivel pasados desde WorldMapScene
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
-        this.config = data.config || {}; // Configuración de LEVEL_CONFIG
+        this.config = data.config || {}; 
         
-        // Configuración por defecto si falla la carga
         this.currentLevelData = data.levelData || { id: 1, name: "Nivel Debug", startCoins: 500, difficulty: 1, path: [], towerSlots: [] };
         
-        // Si venimos del mapa nuevo, generamos path y slots simples si no existen
         if (!this.currentLevelData.path || this.currentLevelData.path.length === 0) {
-            this.currentLevelData.path = [{x: 0, y: 300}, {x: 1280, y: 300}]; // Path recto simple
+            this.currentLevelData.path = [{x: 0, y: 300}, {x: 1280, y: 300}]; 
             this.currentLevelData.towerSlots = [{x: 300, y: 200}, {x: 600, y: 400}, {x: 900, y: 200}];
         }
 
@@ -47,9 +44,12 @@ export default class GameScene extends Phaser.Scene {
         this.isSceneReady = false; 
         this.isPaused = false;
         
-        // Configurar oleadas según el nivel
         this.totalWaves = this.config.waves || 3;
         this.hpMultiplier = this.config.hpMult || 1;
+        
+        // Variables de control de Boss
+        this.isBossWave = false;
+        this.bossSpawned = false;
     }
 
     create() {
@@ -81,7 +81,7 @@ export default class GameScene extends Phaser.Scene {
         this.pathPoints = rawPath.map(p => ({ x: p.x * this.sx, y: p.y * this.sy }));
         
         this.coins = this.currentLevelData.startCoins || 500;
-        this.currentWave = 0; // Empieza en 0 para que la primera sea 1
+        this.currentWave = 0; 
         this.waveInProgress = false;
         
         this.sessionLoot = {}; 
@@ -135,7 +135,7 @@ export default class GameScene extends Phaser.Scene {
         this.createUpgradeUI();
         this.createPauseMenu();
 
-        this.startWaveTimer(5); // Iniciar contador para primera oleada
+        this.startWaveTimer(5); 
         this.updateUI();
 
         this.isSceneReady = true;
@@ -166,11 +166,9 @@ export default class GameScene extends Phaser.Scene {
             }
         }
         
-        // Chequear victoria/derrota
         this.checkWaveStatus();
     }
 
-    // ... (createPauseMenu, togglePause igual que antes) ...
     createPauseMenu() {
         this.pauseContainer = this.add.container(640, 480).setDepth(20000).setVisible(false).setScrollFactor(0);
         const w = this.scale.width; const h = this.scale.height; this.pauseContainer.setPosition(w/2, h/2);
@@ -188,7 +186,6 @@ export default class GameScene extends Phaser.Scene {
 
     togglePause() { this.isPaused = !this.isPaused; if (this.isPaused) { this.physics.pause(); this.tweens.pauseAll(); this.pauseContainer.setVisible(true); this.children.bringToTop(this.pauseContainer); } else { this.physics.resume(); this.tweens.resumeAll(); this.pauseContainer.setVisible(false); } }
 
-    // ... (createUI, updateUI igual que antes) ...
     createUI() { 
         const w = this.scale.width; const h = this.scale.height; const uiDepth = 1000; const accent = this.theme.accent; 
         this.add.rectangle(w/2, 60, w, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
@@ -248,26 +245,28 @@ export default class GameScene extends Phaser.Scene {
     startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; this.waveTimerContainer.setVisible(true); }
     startNextWaveAction() { if (this.isTimerRunning) this.startWave(); }
 
-    // --- SISTEMA DE OLEADAS Y JEFE ---
+    // --- SISTEMA DE OLEADAS Y JEFE CORREGIDO ---
     startWave() {
         this.isTimerRunning = false; 
         this.waveTimerContainer.setVisible(false);
         this.waveActive = true;
         this.currentWave++;
         
-        const isBossWave = (this.currentWave === this.totalWaves);
-        this.waveInfoText.setText(isBossWave ? "¡JEFE FINAL!" : `OLEADA: ${this.currentWave}/${this.totalWaves}`);
-        if(isBossWave) this.waveInfoText.setColor('#ff0000');
+        // Resetear banderas de boss al iniciar nueva oleada
+        this.isBossWave = (this.currentWave === this.totalWaves);
+        this.bossSpawned = false;
+
+        this.waveInfoText.setText(this.isBossWave ? "¡JEFE FINAL!" : `OLEADA: ${this.currentWave}/${this.totalWaves}`);
+        if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
         
         let enemyCount = 6 + (this.currentWave * 2);
         let spawnDelay = 2000 - (this.currentWave * 100);
         
-        if (isBossWave) {
+        if (this.isBossWave) {
             this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
-            enemyCount = 4; // Menos minions
+            enemyCount = 4; 
         }
 
-        // Timer de Spawn
         let spawned = 0;
         this.spawnTimer = this.time.addEvent({
             delay: spawnDelay,
@@ -275,7 +274,8 @@ export default class GameScene extends Phaser.Scene {
             callback: () => {
                 this.spawnEnemy();
                 spawned++;
-                if (isBossWave && spawned === enemyCount) {
+                // Solo si es oleada de jefe y se acabaron los minions, lanzamos al jefe
+                if (this.isBossWave && spawned === enemyCount) {
                     this.time.delayedCall(3000, () => this.spawnBoss());
                 }
             }
@@ -283,7 +283,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     spawnBoss() {
-        // Elegir jefe según bioma
+        this.bossSpawned = true; // MARCAR QUE YA SALIÓ
         let bossType = 'boss_goblin';
         if (this.biome === 'mountain') bossType = 'boss_golem';
         if (this.biome === 'volcano') bossType = 'boss_wizard';
@@ -294,30 +294,29 @@ export default class GameScene extends Phaser.Scene {
     }
 
     spawnEnemy(hpMult = 1, type = 'normal') { 
-        // Determinar tipo según oleada para variedad
         if(this.currentWave > 1 && Math.random() > 0.7) type = 'speed';
         if(this.currentWave > 3 && Math.random() > 0.8) type = 'tank';
-        
         const enemy = new Enemy(this, this.pathPoints, this.hpMultiplier * hpMult, type); 
         this.enemies.add(enemy); 
     }
 
-    // --- CHECK VICTORIA/DERROTA ---
     checkWaveStatus() {
-        // Si no hay enemigos vivos Y ya terminó el spawn de esta oleada
+        // CORRECCIÓN CRÍTICA: No ganar si es oleada de boss y el boss no ha salido
+        if (this.isBossWave && !this.bossSpawned) return;
+
+        // Victoria normal: no hay enemigos y el timer de spawn terminó
         if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) {
             this.waveActive = false;
             
             if (this.currentWave >= this.totalWaves) {
                 this.victory();
             } else {
-                this.startWaveTimer(10); // Tiempo entre oleadas
+                this.startWaveTimer(10); 
             }
         }
     }
 
     victory() {
-        // Desbloquear siguiente nivel si aplica
         if (this.level >= (gameState.maxLevel || 1)) {
             gameState.maxLevel = this.level + 1;
             SaveSystem.save();
@@ -325,8 +324,8 @@ export default class GameScene extends Phaser.Scene {
 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000);
 
-        // IR A COFRE EN VEZ DE RESULTADO DIRECTO
         this.time.delayedCall(2000, () => {
+            // Asegúrate de que ChestScene esté registrada en main.js
             this.scene.start('ChestScene', { 
                 biome: this.biome, 
                 level: this.level,
@@ -348,11 +347,9 @@ export default class GameScene extends Phaser.Scene {
         this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); 
     }
 
-    // ... (spawnMinion, onEnemyKilled, generateBossLoot, etc. igual que antes) ...
     spawnMinion(parentBoss) { if (!parentBoss || !parentBoss.active) return; const minion = new Enemy(this, this.pathPoints, 0.3, 'speed'); minion.follower.t = Math.max(0, parentBoss.follower.t - 0.02); const p1 = this.pathPoints[Math.floor(minion.follower.t * (this.pathPoints.length - 1))]; const p2 = this.pathPoints[Math.ceil(minion.follower.t * (this.pathPoints.length - 1))]; if (p1 && p2) { const segmentT = (minion.follower.t * (this.pathPoints.length - 1)) % 1; minion.x = Phaser.Math.Linear(p1.x, p2.x, segmentT); minion.y = Phaser.Math.Linear(p1.y, p2.y, segmentT); } minion.setScale(0); this.tweens.add({ targets: minion, scale: 1, duration: 300, ease: 'Back.out' }); this.enemies.add(minion); }
     onEnemyKilled(enemy) { try { this.coins += (enemy.coinReward || 10); if (RPGSystem && RPGSystem.gainHeroXP) { RPGSystem.gainHeroXP(enemy.xpReward || 10); } if (enemy.type.startsWith('boss')) { this.generateBossLoot(enemy); } else { this.spawnLoot(enemy.x, enemy.y); } this.createExplosion(enemy.x, enemy.y, enemy.colorVal); this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); this.updateUI(); } catch (err) { console.warn("Error visual al matar enemigo:", err); } }
     generateBossLoot(boss) { 
-        // Loot extra directo al matar boss (aparte del cofre final)
         const mats = ['wood', 'copper', 'cloth', 'leather']; 
         const matType = mats[Math.floor(Math.random() * mats.length)]; 
         const qty = Phaser.Math.Between(2, 5); 
@@ -368,7 +365,6 @@ export default class GameScene extends Phaser.Scene {
     showFloatingText(x, y, message, color = '#fff', duration = 800) { const isCrit = color === '#ffaa00'; const fontSize = isCrit ? '32px' : '20px'; const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: fontSize, fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: isCrit ? 6 : 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, scale: isCrit ? 1.5 : 1.2, duration: duration, ease: 'Power2', onComplete: () => text.destroy() }); }
     showLevelUpEffect() { const w = this.scale.width; const h = this.scale.height; const txt = this.add.text(w/2, h/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, ease: 'Back.out', yoyo: true, hold: 1000, onComplete: () => txt.destroy() }); this.cameras.main.flash(500, 255, 215, 0); gameState.playerStats.hp = gameState.playerStats.maxHp; if(this.player && this.player.createEffect) this.player.createEffect('heal'); }
     
-    // ... (createBuildSlots, tryBuildTower, etc. igual que antes) ...
     createBuildSlots() { const rawSlots = this.currentLevelData.towerSlots || []; rawSlots.forEach(slot => { const site = new BuildSite(this, slot.x * this.sx, slot.y * this.sy); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
     tryBuildTower(site) { if (site.isOccupied) return; const stats = TOWER_TYPES[this.selectedTowerType]; if (this.coins >= stats.baseCost) { this.coins -= stats.baseCost; const tower = new Tower(this, site.x, site.y, this.selectedTowerType, this.enemies, this.projectiles, site, stats.baseCost); this.towers.add(tower); site.occupy(); this.updateUI(); this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); } else { this.cameras.main.shake(100, 0.005); } }
     createUpgradeUI() { this.upgradeContainer = this.add.container(0, 0).setDepth(2000); this.upgradeContainer.setVisible(false); const bg = this.add.rectangle(0, 0, 220, 160, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive(); this.upgradeText = this.add.text(0, -50, '', { fontSize: '14px', align: 'center', color: '#fff' }).setOrigin(0.5); this.upgradeBtn = this.add.rectangle(0, 0, 180, 35, 0x00aa00).setInteractive({ useHandCursor: true }); this.upgradeBtnText = this.add.text(0, 0, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); this.sellBtn = this.add.rectangle(0, 50, 180, 35, 0xaa0000).setInteractive({ useHandCursor: true }); this.sellBtnText = this.add.text(0, 50, 'VENDER', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); this.upgradeBtn.on('pointerdown', () => this.tryUpgradeTower()); this.sellBtn.on('pointerdown', () => this.sellTower()); this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.sellBtn, this.sellBtnText]); }

@@ -5,6 +5,7 @@ import WorldMapScene from './scenes/WorldMapScene';
 import GameScene from './scenes/GameScene';
 import ResultScene from './scenes/ResultScene';
 import HeroSelectScene from './scenes/HeroSelectScene';
+import ChestScene from './scenes/ChestScene.js';
 
 const config = {
     type: Phaser.AUTO,
@@ -22,7 +23,7 @@ const config = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [HeroSelectScene,MainMenuScene, WorldMapScene, GameScene, ResultScene]
+    scene: [HeroSelectScene,MainMenuScene, WorldMapScene, GameScene, ResultScene,ChestScene]
 };
 
 new Phaser.Game(config);
