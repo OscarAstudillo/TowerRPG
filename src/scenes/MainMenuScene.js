@@ -371,16 +371,58 @@ export default class MainMenuScene extends Phaser.Scene {
 
     refreshInventory() { 
         let matContent = ""; 
+        
         if (this.inventoryCategory === 'mats') { 
-            // Mostrar minerales y otros
-            for (let matKey in RAW_MATERIALS) {
-                const matName = RAW_MATERIALS[matKey].name;
-                // ... lógica de conteo
+            matContent += "--- MATERIAS PRIMAS ---\n";
+            // Iterar Materiales Crudos
+            for (let key in RAW_MATERIALS) {
+                const matDef = RAW_MATERIALS[key];
+                // Verificar si tenemos algo de este material en cualquier rareza
+                let hasAny = false;
+                let line = `• ${matDef.name}: `;
+                let details = [];
+                
+                if (gameState.materials[key]) {
+                    Object.keys(RARITY).forEach(rarity => {
+                        const count = gameState.materials[key][rarity];
+                        if (count > 0) {
+                            hasAny = true;
+                            details.push(`${RARITY[rarity].name}: ${count}`);
+                        }
+                    });
+                }
+                
+                if (hasAny) {
+                    matContent += line + details.join(" | ") + "\n";
+                }
             }
-            // (Simplificado para brevedad, mantener tu lógica original de mats si prefieres)
+
+            matContent += "\n--- REFINADOS ---\n";
+            // Iterar Materiales Refinados
+            for (let key in REFINED_MATERIALS) {
+                const matDef = REFINED_MATERIALS[key];
+                let hasAny = false;
+                let line = `• ${matDef.name}: `;
+                let details = [];
+                
+                if (gameState.materials[key]) {
+                    Object.keys(RARITY).forEach(rarity => {
+                        const count = gameState.materials[key][rarity];
+                        if (count > 0) {
+                            hasAny = true;
+                            details.push(`${RARITY[rarity].name}: ${count}`);
+                        }
+                    });
+                }
+                
+                if (hasAny) {
+                    matContent += line + details.join(" | ") + "\n";
+                }
+            }
         } 
         
-        this.invItemsContainer.removeAll(true);
+        this.invMatsText.setText(matContent); 
+        this.invItemsContainer.removeAll(true); 
         
         const filteredItems = gameState.inventory.filter(i => { 
             if (!i) return false; 
@@ -406,7 +448,6 @@ export default class MainMenuScene extends Phaser.Scene {
         }); 
         this.goldText.setText(`ORO: ${gameState.gold}`); 
     }
-
     selectItem(item) { this.selectedItem = item; this.itemDetailContainer.setVisible(true); const itemColor = item.color || 0xffffff; const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); this.detailTitle.setText(item.name); this.detailTitle.setColor(colorHex); const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats"; let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`; if (item.type !== 'tower_part') { let equipped = null; if (item.type === 'weapon') equipped = gameState.equipment.mainHand; else if (item.type === 'offhand' || (item.type === 'armor' && item.subType === 'shield')) equipped = gameState.equipment.offHand; else if (item.type === 'armor') equipped = gameState.equipment.armor; else if (item.type === 'accessory') equipped = gameState.equipment.accessory; if (equipped) { infoText += `\n\n-- VS EQUIPADO --\n${equipped.name} (+${equipped.enchant})\n`; for (let key in item.stats) { const newVal = item.stats[key]; const oldVal = equipped.stats[key] || 0; const diff = newVal - oldVal; let isBetter = diff > 0; if (key === 'attackSpeed' || key === 'cdr') isBetter = diff < 0; infoText += `${key}: ${newVal} vs ${oldVal} ${isBetter ? '▲' : (diff===0 ? '=' : '▼')}\n`; } } else { infoText += `\n\n(Nada Equipado)`; } } this.detailStats.setText(infoText); if (item.type === 'tower_part') { this.equipBtn.list[1].setText("EQUIPAR EN..."); } else { this.equipBtn.list[1].setText("EQUIPAR"); } }
 
     // --- VISTA HÉROE ---

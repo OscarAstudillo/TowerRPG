@@ -316,8 +316,8 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
+    // MODIFICAR SOLAMENTE LA FUNCIÓN VICTORY
     victory() {
-        // PAUSAR FÍSICA PARA EVITAR MUERTES POST-VICTORIA
         this.physics.pause();
         if (this.spawnTimer) this.spawnTimer.remove();
 
@@ -332,8 +332,12 @@ export default class GameScene extends Phaser.Scene {
             this.scene.start('ChestScene', { 
                 biome: this.biome, 
                 level: this.level,
-                // Pasamos datos para que ChestScene construya el winData final
-                winData: { gold: this.coins, xp: 100 * this.level } 
+                winData: { 
+                    gold: this.coins, 
+                    xp: 100 * this.level,
+                    baseHp: gameState.baseHp, // IMPORTANTE: Pasar vida para estrellas
+                    enemyLoot: this.sessionLoot // IMPORTANTE: Pasar loot de enemigos
+                } 
             });
         });
     }

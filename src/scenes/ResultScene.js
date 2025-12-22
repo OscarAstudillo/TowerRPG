@@ -1,103 +1,86 @@
 // src/scenes/ResultScene.js
 import Phaser from 'phaser';
-import { gameState, RARITY } from '../config/GameState.js'; // Importar RARITY para nombres
-import SaveSystem from '../systems/SaveSystem.js';
+import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
+import { RARITY } from '../config/GameState.js';
 
 export default class ResultScene extends Phaser.Scene {
-    constructor() {
-        super('ResultScene');
-    }
+    constructor() { super('ResultScene'); }
 
     init(data) {
         this.success = data.success;
         this.levelId = data.levelId;
-        this.rewards = data.rewards || { gold: 0 };
-        this.castleHp = data.castleHp || 0;
-        this.sessionLoot = data.sessionLoot || {};
-        this.bossLoot = data.bossLoot || [];
+        this.gold = data.gold || 0;
+        this.xp = data.xp || 0;
+        this.baseHp = data.baseHp || 0; // Vida restante del castillo
+        this.loot = data.loot || {};
     }
 
     create() {
         const w = this.scale.width;
         const h = this.scale.height;
-        const cx = w / 2;
-        const cy = h / 2;
+        
+        this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.85);
 
-        this.add.rectangle(cx, cy, w, h, 0x000000, 0.85);
-
-        const panelColor = this.success ? 0x006400 : 0x8b0000;
-        this.add.rectangle(cx, cy, 600, 700, panelColor).setStrokeStyle(4, 0xffffff);
-
-        const titleText = this.success ? "¡VICTORIA!" : "DERROTA";
-        this.add.text(cx, cy - 300, titleText, { fontSize: '48px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
+        const titleText = this.success ? "¡MISIÓN CUMPLIDA!" : "¡DERROTA!";
+        const titleColor = this.success ? '#ffd700' : '#ff0000';
+        
+        this.add.text(w/2, 100, titleText, { fontFamily: 'Cinzel', fontSize: '48px', fontStyle: 'bold', color: titleColor }).setOrigin(0.5);
 
         if (this.success) {
-            // Estrellas
+            // Cálculo de Estrellas
+            // 20 HP = 3 estrellas, > 10 HP = 2 estrellas, > 0 = 1 estrella
             let stars = 1;
-            if (this.castleHp >= 20) stars = 3; 
-            else if (this.castleHp >= 10) stars = 2; 
-
-            if (!gameState.levelStars) gameState.levelStars = {};
-            const oldStars = gameState.levelStars[this.levelId] || 0;
-            if (stars > oldStars) gameState.levelStars[this.levelId] = stars;
-
-            if (this.levelId >= gameState.levelsUnlocked) {
-                gameState.levelsUnlocked = this.levelId + 1;
-            }
+            if (this.baseHp >= 20) stars = 3;
+            else if (this.baseHp > 10) stars = 2;
             
-            SaveSystem.save();
-
-            let starsStr = "";
-            for(let i=0; i<3; i++) starsStr += (i < stars ? "⭐" : "☆");
-            this.add.text(cx, cy - 240, starsStr, { fontSize: '60px' }).setOrigin(0.5);
-
-            // Resumen Básico
-            this.add.text(cx, cy - 180, `Castillo: ${this.castleHp} HP`, { fontSize: '20px' }).setOrigin(0.5);
-            this.add.text(cx, cy - 150, `Oro Extra: +${this.rewards.gold}`, { fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
-
-            // --- LISTA DE MATERIALES ---
-            this.add.text(cx, cy - 100, "- MATERIALES RECOLECTADOS -", { fontSize: '16px', color: '#aaa' }).setOrigin(0.5);
+            let starString = "";
+            for(let i=0; i<3; i++) starString += (i < stars ? "⭐" : "☆");
             
-            let lootY = cy - 70;
+            this.add.text(w/2, 160, starString, { fontSize: '40px' }).setOrigin(0.5);
+            this.add.text(w/2, 210, `Vida Restante: ${this.baseHp}/20`, { fontFamily: 'Roboto', fontSize: '18px', color: '#fff' }).setOrigin(0.5);
+            this.add.text(w/2, 240, `Oro Ganado: ${this.gold}`, { fontFamily: 'Roboto', fontSize: '18px', color: '#ffd700' }).setOrigin(0.5);
+            this.add.text(w/2, 270, `XP Ganada: ${this.xp}`, { fontFamily: 'Roboto', fontSize: '18px', color: '#00ffff' }).setOrigin(0.5);
+
+            // Lista de Materiales
+            this.add.text(w/2, 320, "-- MATERIALES OBTENIDOS --", { fontSize: '20px', color: '#aaa' }).setOrigin(0.5);
+            
+            let lootY = 360;
             let hasLoot = false;
             
-            for (let type in this.sessionLoot) {
-                for (let rarity in this.sessionLoot[type]) {
-                    const count = this.sessionLoot[type][rarity];
+            // Iterar loot acumulado { tipo: { rareza: cantidad } }
+            for (let matKey in this.loot) {
+                const rarities = this.loot[matKey];
+                for (let rarityKey in rarities) {
+                    const count = rarities[rarityKey];
                     if (count > 0) {
-                        const rName = RARITY[rarity].name;
-                        const col = '#' + RARITY[rarity].color.toString(16).padStart(6, '0');
-                        this.add.text(cx, lootY, `${count}x ${type.toUpperCase()} (${rName})`, { fontSize: '14px', color: col }).setOrigin(0.5);
-                        lootY += 25;
                         hasLoot = true;
+                        const matDef = RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey];
+                        const name = matDef ? matDef.name : matKey;
+                        const rData = RARITY[rarityKey];
+                        const color = '#' + rData.color.toString(16).padStart(6,'0');
+                        
+                        this.add.text(w/2, lootY, `${count}x ${name} (${rData.name})`, { 
+                            fontFamily: 'Roboto', fontSize: '16px', color: color 
+                        }).setOrigin(0.5);
+                        lootY += 25;
                     }
                 }
             }
-            if (!hasLoot) this.add.text(cx, lootY, "(Ninguno)", { fontSize: '14px', color: '#888' }).setOrigin(0.5);
-
-            // --- DROP DE JEFE ---
-            lootY += 40;
-            if (this.bossLoot.length > 0) {
-                this.add.text(cx, lootY, "👑 BOTÍN DE JEFE 👑", { fontSize: '18px', color: '#ff00ff', fontStyle: 'bold' }).setOrigin(0.5);
-                lootY += 30;
-                
-                this.bossLoot.forEach(itemLog => {
-                    this.add.text(cx, lootY, itemLog.text, { fontSize: '16px', color: itemLog.color }).setOrigin(0.5);
-                    lootY += 30;
-                });
+            
+            if (!hasLoot) {
+                this.add.text(w/2, lootY, "(Ninguno)", { fontSize: '16px', color: '#555' }).setOrigin(0.5);
             }
 
         } else {
-            this.add.text(cx, cy - 100, "El castillo ha caído...", { fontSize: '24px' }).setOrigin(0.5);
+            this.add.text(w/2, h/2, "El castillo ha caído...", { fontSize: '24px', color: '#aaa' }).setOrigin(0.5);
         }
 
-        const btn = this.add.rectangle(cx, cy + 250, 250, 60, 0x333333).setInteractive({ useHandCursor: true });
+        const btn = this.add.rectangle(w/2, h - 100, 200, 50, 0x444444).setInteractive({ useHandCursor: true });
         btn.setStrokeStyle(2, 0xffffff);
-        this.add.text(cx, cy + 250, "CONTINUAR", { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
-
+        this.add.text(w/2, h - 100, "MENU PRINCIPAL", { fontSize: '20px' }).setOrigin(0.5);
+        
         btn.on('pointerdown', () => {
-            gameState.playerStats.hp = gameState.playerStats.maxHp;
-            this.scene.start('WorldMapScene'); 
+            this.scene.start('MainMenuScene');
         });
     }
 }
