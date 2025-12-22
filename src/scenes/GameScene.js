@@ -317,6 +317,10 @@ export default class GameScene extends Phaser.Scene {
     }
 
     victory() {
+        // PAUSAR FÍSICA PARA EVITAR MUERTES POST-VICTORIA
+        this.physics.pause();
+        if (this.spawnTimer) this.spawnTimer.remove();
+
         if (this.level >= (gameState.maxLevel || 1)) {
             gameState.maxLevel = this.level + 1;
             SaveSystem.save();
@@ -325,11 +329,11 @@ export default class GameScene extends Phaser.Scene {
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000);
 
         this.time.delayedCall(2000, () => {
-            // Asegúrate de que ChestScene esté registrada en main.js
             this.scene.start('ChestScene', { 
                 biome: this.biome, 
                 level: this.level,
-                winData: { win: true, gold: this.coins, xp: 100 * this.level } 
+                // Pasamos datos para que ChestScene construya el winData final
+                winData: { gold: this.coins, xp: 100 * this.level } 
             });
         });
     }

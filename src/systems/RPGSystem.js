@@ -275,6 +275,63 @@ class RPGSystem {
         return gameState.materials[mat] && gameState.materials[mat][rarity] >= amount; 
     }
     consumeMaterials(mat, amount, rarity) { if (gameState.materials[mat]) gameState.materials[mat][rarity] -= amount; }
+
+    // --- NUEVO: SISTEMA DE DROP DE COFRE ESCALABLE ---
+    getChestLoot(biomeKey, levelId) {
+        const biome = BIOMES[biomeKey];
+        if (!biome) return [];
+
+        const lootList = [];
+        
+        // 1. Calcular CANTIDAD BASE según nivel (Nivel 1 = 3 items, Nivel 10 = ~12 items)
+        const baseQty = 2 + levelId; 
+        
+        // 2. Determinar materiales disponibles por Tier del nivel
+        const tier = LEVEL_CONFIG[levelId]?.tier || 1;
+        
+        // Obtenemos materiales del bioma para este Tier (y un poco del tier anterior para relleno)
+        let possibleMats = biome.materials[tier] || biome.materials[1];
+        if (tier > 1) {
+            possibleMats = possibleMats.concat(biome.materials[tier - 1]);
+        }
+
+        // 3. Generar Drops
+        for (let i = 0; i < baseQty; i++) {
+            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
+            
+            // Lógica de Rareza Escalable
+            // Nivel 1: 95% Comun, 5% Verde
+            // Nivel 10: 40% Comun, 30% Verde, 20% Azul...
+            const rand = Math.random() * 100;
+            let rarity = 'common';
+            
+            // Probabilidad base mejorada por nivel
+            const chanceUncommon = 5 + (levelId * 4); // Lvl 1: 9%, Lvl 10: 45%
+            const chanceRare = (levelId > 3) ? (levelId - 3) * 3 : 0; // Lvl 4: 3%, Lvl 10: 21%
+            
+            if (rand < chanceRare) rarity = 'rare';
+            else if (rand < chanceUncommon + chanceRare) rarity = 'uncommon';
+            
+            // Añadir al inventario de materiales
+            if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
+            gameState.materials[matKey][rarity]++;
+            
+            lootList.push({ key: matKey, rarity: rarity, amount: 1 });
+        }
+        
+        // Drop garantizado de rareza verde o superior en niveles altos (5+)
+        if (levelId >= 5) {
+            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
+            const bonusRarity = levelId >= 8 ? 'rare' : 'uncommon';
+            gameState.materials[matKey][bonusRarity]++;
+            lootList.push({ key: matKey, rarity: bonusRarity, amount: 1, bonus: true });
+        }
+
+        return lootList;
+    }
+
+
+
 }
 
 export default new RPGSystem();

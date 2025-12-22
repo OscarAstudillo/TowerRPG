@@ -12,6 +12,9 @@ export const RECIPES = [
     { id: 'dagger_copper', name: 'Daga de Cobre', type: 'weapon', subType: 'dagger', prof: 'weaponsmith', mat: 'ingot_copper', cost: 120, tier: 1, baseStats: { damage: 5, attackSpeed: 600 } },
     { id: 'armor_copper', name: 'Peto de Cobre', type: 'armor', subType: 'plate', prof: 'armorsmith', mat: 'ingot_copper', cost: 200, tier: 1, baseStats: { hp: 40, defense: 4 } },
     { id: 'robe_simple', name: 'Túnica de Lino', type: 'armor', subType: 'cloth', prof: 'armorsmith', mat: 'cloth_simple', cost: 150, tier: 1, baseStats: { hp: 20, cdr: 3 } },
+    // --- ACCESORIOS (NUEVO) ---
+    // Tier 1: Anillo de Cobre (Stats aleatorios bajos)
+    { id: 'ring_copper', name: 'Anillo de Cobre', type: 'accessory', subType: 'ring', prof: 'jewelry', mat: 'ingot_copper', cost: 200, tier: 1, baseStats: { damage: 1 } },
     
     // **NUEVO: Cuero Tier 1**
     { id: 'vest_simple', name: 'Chaleco de Cuero', type: 'armor', subType: 'leather', prof: 'armorsmith', mat: 'leather_simple', cost: 180, tier: 1, baseStats: { hp: 30, moveSpeed: 10 } },
@@ -23,6 +26,8 @@ export const RECIPES = [
     
     // **NUEVO: Cuero Tier 2**
     { id: 'vest_rigid', name: 'Jubón de Cazador', type: 'armor', subType: 'leather', prof: 'armorsmith', mat: 'leather_rigid', cost: 450, tier: 2, baseStats: { hp: 70, moveSpeed: 15, defense: 3 } },
+    // Tier 2: Anillo de Hierro (Stats medios)
+    { id: 'ring_iron', name: 'Anillo de Hierro', type: 'accessory', subType: 'ring', prof: 'jewelry', mat: 'ingot_iron', cost: 500, tier: 2, baseStats: { damage: 2, critChance: 2 } },
 
     // --- TIER 3 (Acero / Ébano / Seda / Cuero Dragón) ---
     { id: 'sword_steel', name: 'Espada de Acero', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_steel', cost: 800, tier: 3, baseStats: { damage: 25, attackSpeed: 900, critChance: 5 } },
@@ -31,6 +36,8 @@ export const RECIPES = [
     
     // **NUEVO: Cuero Tier 3**
     { id: 'armor_dragon', name: 'Armadura de Dragón', type: 'armor', subType: 'leather', prof: 'armorsmith', mat: 'leather_dragon', cost: 1200, tier: 3, baseStats: { hp: 180, moveSpeed: 20, critChance: 8 } },
+    // Tier 3: Anillo de Mithril (Stats altos)
+    { id: 'ring_mithril', name: 'Anillo de Mithril', type: 'accessory', subType: 'ring', prof: 'jewelry', mat: 'ingot_mithril', cost: 1000, tier: 3, baseStats: { damage: 5, critDamage: 10 } },
 
     // --- MEJORAS DE TORRE ---
     { id: 'mod_archer_1', name: 'Cuerda Reforzada', type: 'tower_part', subType: 'archer', prof: 'engineering', mat: 'cloth_simple', cost: 300, tier: 1, baseStats: { range: 15, damage: 3 } },
