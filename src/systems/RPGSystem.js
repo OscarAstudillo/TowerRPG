@@ -4,7 +4,7 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // Generador de ID robusto (Tiempo + Random)
+    // ID ÚNICO REAL
     getUniqueId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     }
@@ -68,68 +68,38 @@ class RPGSystem {
         return statsObj; 
     }
     
+    // FUNCIÓN ÚNICA DE CRAFTEO (SIRVE PARA TODO)
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
+        
         const rarity = RARITY[rarityKey];
         if (!this.checkMaterials(recipe.mat, 3, rarityKey)) return { success: false, error: `Faltan materiales` };
+        
         this.consumeMaterials(recipe.mat, 3, rarityKey);
+        
         const profLevel = this.getProfessionLevelForType(recipe.type);
         const bonusEnchant = Math.floor(profLevel / 10);
+        
         const item = this.generateItem(recipe, rarity, bonusEnchant);
+        
         this.gainProfessionXP(recipe.type, rarityKey);
         return { success: true, item: item };
     }
 
-    craftTowerPart(towerType, rarityKey) {
-        const costAmount = 10; const goldCost = 500;
-        if (gameState.gold < goldCost) return { success: false, error: "Falta Oro ($500)" };
-        if (!this.checkMaterials('wood', costAmount, rarityKey) || !this.checkMaterials('copper', costAmount, rarityKey) || !this.checkMaterials('leather', costAmount, rarityKey)) return { success: false, error: `Necesitas 10 Madera, 10 Cobre y 10 Cuero` };
-        gameState.gold -= goldCost;
-        this.consumeMaterials('wood', costAmount, rarityKey); this.consumeMaterials('copper', costAmount, rarityKey); this.consumeMaterials('leather', costAmount, rarityKey);
-        const profLevel = this.getProfessionLevelForType('tower_part');
-        const bonusEnchant = Math.floor(profLevel / 10);
-        const item = this.generateTowerItem(towerType, RARITY[rarityKey], bonusEnchant);
-        this.gainProfessionXP('tower_part', rarityKey);
-        return { success: true, item: item };
-    }
-
-    // --- AQUI ESTA EL CAMBIO CLAVE: Estructura idéntica a Items de Héroe ---
-    generateTowerItem(towerType, rarity, initialEnchant = 0) {
-        const stats = {};
-        const possibleStats = [ { key: 'damage', min: 2, max: 5 }, { key: 'range', min: 10, max: 20 }, { key: 'attackSpeed', min: 50, max: 100 }, { key: 'doubleAttack', min: 5, max: 10 } ];
-        const numStats = 1 + rarity.statCount; 
-        for (let i = 0; i < numStats; i++) {
-            const statDef = possibleStats[Math.floor(Math.random() * possibleStats.length)];
-            const val = Math.floor(Math.random() * (statDef.max - statDef.min + 1)) + statDef.min;
-            const finalVal = Math.floor(val * rarity.mult);
-            if (stats[statDef.key]) stats[statDef.key] += finalVal; else stats[statDef.key] = finalVal;
-        }
-        if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
-        
-        return { 
-            id: this.getUniqueId(), // ID ÚNICO
-            name: `Mejora ${towerType.toUpperCase()}`, 
-            type: 'tower_part',      // Tipo principal para filtros
-            subType: 'module',       // Subtipo genérico
-            towerType: towerType,    // Específico para lógica de torres
-            rarity: rarity.id, 
-            enchant: initialEnchant, 
-            stats: stats, 
-            color: rarity.color 
-        };
-    }
-
+    // FUNCIÓN ÚNICA DE FUSIÓN
     fuseSpecificItems(item1, item2) {
         if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Deben ser misma rareza y nivel (+)" };
         if (item1.type !== item2.type) return { success: false, error: "Deben ser del mismo tipo" };
+        // Si son partes de torre, deben ser para la misma torre (ej: archer con archer)
+        if (item1.type === 'tower_part' && item1.towerType !== item2.towerType) return { success: false, error: "Deben ser para la misma torre" };
         
         const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
         this.applyEnchantStats(baseStats, 1);
         
         const newItem = { 
             ...item1, 
-            id: this.getUniqueId(), 
+            id: this.getUniqueId(), // Nuevo ID fresco
             name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, 
             enchant: item1.enchant + 1, 
             stats: baseStats 
@@ -138,9 +108,11 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
+    // FUNCIÓN ÚNICA DE GENERACIÓN
     generateItem(recipe, rarity, initialEnchant = 0) {
         const stats = { ...recipe.baseStats };
         for(let k in stats) stats[k] = Math.floor(stats[k] * rarity.mult);
+        
         const pool = this.getStatPool(recipe);
         for (let i = 0; i < rarity.statCount; i++) {
             const stat = pool[Math.floor(Math.random() * pool.length)];
@@ -149,16 +121,27 @@ class RPGSystem {
         }
         if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
         
+        // ESTRUCTURA ESTANDARIZADA
         return { 
             id: this.getUniqueId(),
-            recipeId: recipe.id, name: `${recipe.name}`, type: recipe.type, subType: recipe.subType, twoHanded: recipe.twoHanded || false, rarity: rarity.id, enchant: initialEnchant, stats: stats, color: rarity.color 
+            recipeId: recipe.id, 
+            name: `${recipe.name}`, 
+            type: recipe.type, // 'weapon', 'armor', 'tower_part'
+            subType: recipe.subType, // 'sword', 'archer' (para torres)
+            towerType: (recipe.type === 'tower_part' ? recipe.subType : null), // Compatibilidad
+            twoHanded: recipe.twoHanded || false, 
+            rarity: rarity.id, 
+            enchant: initialEnchant, 
+            stats: stats, 
+            color: rarity.color 
         };
     }
 
     getStatPool(recipe) {
         if (recipe.type === 'weapon') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'critChance', min: 1, max: 3, label: '% Crítico' }, { key: 'critDamage', min: 5, max: 15, label: 'Daño Crítico' }, { key: 'lifesteal', min: 1, max: 2, label: 'Robo Vida' } ];
         if (recipe.type === 'armor') return [ { key: 'hp', min: 10, max: 30, label: 'Vida' }, { key: 'defense', min: 1, max: 3, label: 'Defensa' }, { key: 'thorns', min: 1, max: 3, label: 'Espinas' }, { key: 'regenHp', min: 1, max: 2, label: 'Regen HP' } ];
-        return [ { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque (ms)' }, { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' }, { key: 'cdr', min: 1, max: 5, label: 'CDR %' }, { key: 'damage', min: 1, max: 3, label: 'Daño' } ];
+        if (recipe.type === 'tower_part') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'range', min: 10, max: 20, label: 'Rango' }, { key: 'attackSpeed', min: 20, max: 50, label: 'Velocidad' }, { key: 'doubleAttack', min: 2, max: 5, label: 'Doble Ataque' } ];
+        return [ { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque' }, { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' }, { key: 'damage', min: 1, max: 3, label: 'Daño' } ];
     }
 
     gainProfessionXP(type, rarityKey) {
