@@ -23,7 +23,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         this.isDead = false; 
         
         this.cursors = scene.input.keyboard.addKeys({ up: Phaser.Input.Keyboard.KeyCodes.W, down: Phaser.Input.Keyboard.KeyCodes.S, left: Phaser.Input.Keyboard.KeyCodes.A, right: Phaser.Input.Keyboard.KeyCodes.D });
-
         this.loadPassives();
     }
 
@@ -50,16 +49,10 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         const speed = this.stats.moveSpeed; 
         if (this.cursors.left.isDown) this.body.setVelocityX(-speed); else if (this.cursors.right.isDown) this.body.setVelocityX(speed);
         if (this.cursors.up.isDown) this.body.setVelocityY(-speed); else if (this.cursors.down.isDown) this.body.setVelocityY(speed);
-
         if (this.skillCooldown > 0) this.skillCooldown -= delta;
-
         let currentAttackSpeed = this.stats.attackSpeed;
         if (this.isBuffed && gameState.selectedClass === 'arquero') currentAttackSpeed /= 3; 
-
-        if (time > this.lastAttackTime + currentAttackSpeed) {
-            this.findTargetAndAttack(time);
-        }
-
+        if (time > this.lastAttackTime + currentAttackSpeed) { this.findTargetAndAttack(time); }
         this.regenTimer += delta;
         if (this.regenTimer >= 5000) { 
             this.regenTimer = 0;
@@ -72,9 +65,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     takeDamage(amount) {
         if (this.isDead) return;
-        if (this.passives.blockChance > 0 && Math.random() * 100 < this.passives.blockChance) {
-            this.scene.showFloatingText(this.x, this.y - 40, "¡BLOQUEADO!", "#ffffff"); return;
-        }
+        if (this.passives.blockChance > 0 && Math.random() * 100 < this.passives.blockChance) { this.scene.showFloatingText(this.x, this.y - 40, "¡BLOQUEADO!", "#ffffff"); return; }
         let safeAmount = Number(amount); if (isNaN(safeAmount)) safeAmount = 0;
         const def = this.stats.defense || 0;
         let finalDamage = Math.max(1, safeAmount - def);
@@ -90,24 +81,25 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         if (target) {
             let hits = 1;
             if (this.passives.doubleStrike > 0 && Math.random() * 100 < this.passives.doubleStrike) { hits = 2; this.scene.showFloatingText(this.x, this.y - 40, "¡DOBLE!", "#ff0000"); }
-
             for(let i=0; i<hits; i++) {
                 this.scene.time.delayedCall(i * 100, () => {
                     const projectile = this.projectilesGroup.get(this.x, this.y);
                     if (projectile) {
                         let dmg = this.stats.damage;
                         if (this.passives.pierce > 0) dmg += 5; 
-
+                        
+                        // EFECTOS POR CLASE
                         let effect = null;
-                        if (gameState.selectedClass === 'mago' && this.passives.frostHit > 0) effect = { type: 'freeze', val: 0.3, duration: 2000 };
-                        if (gameState.selectedClass === 'asesino') effect = { type: 'poison', val: Math.ceil(dmg * 0.2), duration: 3000 };
+                        if (gameState.selectedClass === 'mago') {
+                            // Mago base congela un poco, con talento congela más
+                            effect = { type: 'freeze', val: 0.2, duration: 1500 }; 
+                            if(this.passives.frostHit > 0) effect.val = 0.5;
+                        } else if (gameState.selectedClass === 'asesino') {
+                            // Asesino envenena
+                            effect = { type: 'poison', val: Math.max(2, Math.floor(dmg * 0.2)), duration: 3000 };
+                        }
 
-                        projectile.fire(target, {
-                            damage: dmg,
-                            type: 'hero',
-                            aoeRadius: 0,
-                            effect: effect 
-                        });
+                        projectile.fire(target, { damage: dmg, type: 'hero', aoeRadius: 0, effect: effect });
                         
                         if (this.stats.lifesteal > 0) {
                             const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
@@ -120,16 +112,26 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         }
     }
 
-    castSkill() { if (this.isDead) return { success: false, msg: '¡Estás muerto!' }; if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' }; const cls = gameState.selectedClass; let skillName = ""; if (cls === 'paladin') { const healAmount = Math.floor(this.stats.maxHp * 0.3); gameState.playerStats.hp = Math.min(this.stats.hp + healAmount, this.stats.maxHp); this.createEffect('heal'); skillName = "¡Sanación!"; if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00'); } else if (cls === 'guerrero') { const damage = this.stats.damage * 2.5; this.createAOE(150, damage, 0xff0000); skillName = "¡Torbellino!"; } else if (cls === 'mago') { const damage = this.stats.damage * 2; this.createAOE(200, damage, 0x00ffff); skillName = "¡Nova de Hielo!"; } else if (cls === 'arquero') { this.isBuffed = true; this.scene.time.delayedCall(3000, () => { this.isBuffed = false; }); this.createEffect('buff'); skillName = "¡Instinto!"; } else if (cls === 'asesino') { const target = this.findClosestEnemy(300); if (target) { target.takeDamage(this.stats.damage * 5); this.scene.add.text(target.x, target.y - 20, "¡CRÍTICO!", { fontSize: '20px', color: '#ff0000' }).destroy(); this.x = target.x; this.y = target.y; } else { return { success: false, msg: '¡Sin objetivo!' }; } skillName = "¡Ejecución!"; } const cdrMult = 1 - ((this.stats.cdr || 0) / 100); this.skillCooldown = this.skillMaxCooldown * cdrMult; return { success: true, msg: skillName }; }
+    castSkill() { 
+        if (this.isDead) return { success: false, msg: '¡Estás muerto!' }; 
+        if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' }; 
+        const cls = gameState.selectedClass; let skillName = ""; 
+        if (cls === 'paladin') { const healAmount = Math.floor(this.stats.maxHp * 0.3); gameState.playerStats.hp = Math.min(this.stats.hp + healAmount, this.stats.maxHp); this.createEffect('heal'); skillName = "¡Sanación!"; if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00'); } 
+        else if (cls === 'guerrero') { const damage = this.stats.damage * 2.5; this.createAOE(150, damage, 0xff0000); skillName = "¡Torbellino!"; } 
+        else if (cls === 'mago') { const damage = this.stats.damage * 2; this.createAOE(200, damage, 0x00ffff); skillName = "¡Nova de Hielo!"; } 
+        else if (cls === 'arquero') { this.isBuffed = true; this.scene.time.delayedCall(3000, () => { this.isBuffed = false; }); this.createEffect('buff'); skillName = "¡Instinto!"; } 
+        else if (cls === 'asesino') { const target = this.findClosestEnemy(300); if (target) { target.takeDamage(this.stats.damage * 5); this.scene.add.text(target.x, target.y - 20, "¡CRÍTICO!", { fontSize: '20px', color: '#ff0000' }).destroy(); this.x = target.x; this.y = target.y; } else { return { success: false, msg: '¡Sin objetivo!' }; } skillName = "¡Ejecución!"; } 
+        const cdrMult = 1 - ((this.stats.cdr || 0) / 100); this.skillCooldown = this.skillMaxCooldown * cdrMult; return { success: true, msg: skillName }; 
+    }
+
     findClosestEnemy(range) { let closest = null; let minDist = Infinity; this.enemiesGroup.children.iterate(enemy => { if (enemy.active) { const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y); if (dist < range && dist < minDist) { minDist = dist; closest = enemy; } } }); return closest; }
     
-    // --- CORRECCIÓN AQUÍ ---
+    // FIX DE CRASH: Usar getChildren para iterar
     createAOE(radius, damage, color) { 
         const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); 
         this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); 
         
-        // Usar getChildren() para evitar errores si los enemigos mueren durante el loop
-        const enemies = this.enemiesGroup.getChildren();
+        const enemies = this.enemiesGroup.getChildren(); 
         enemies.forEach(enemy => { 
             if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { 
                 enemy.takeDamage(damage); 
