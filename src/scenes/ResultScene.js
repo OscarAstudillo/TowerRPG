@@ -32,6 +32,24 @@ export default class ResultScene extends Phaser.Scene {
             let stars = 1;
             if (this.baseHp >= 20) stars = 3;
             else if (this.baseHp > 10) stars = 2;
+
+            // --- NUEVO: GUARDAR PROGRESO ---
+            // this.levelId viene de GameScene (ej: 1, 2, 10...)
+            // Necesitamos saber el bioma actual. Si no lo pasamos a ResultScene, 
+            // podemos asumirlo o pasarlo en winData.
+            // Para simplificar, asumo que 'GameScene' pasa el 'biome' a 'ChestScene' y este a 'ResultScene'.
+            // SI NO: El mapa desbloqueará basandose en el ID numérico global.
+            
+            // Asumiendo que pasamos 'biome' en el objeto data.
+            const biome = this.data.biome || 'forest'; // Default si falla
+            const progressKey = `${biome}_${this.levelId}`;
+            
+            // Guardar solo si mejoramos el record
+            const currentStars = gameState.completedLevels[progressKey] || 0;
+            if (stars > currentStars) {
+                gameState.completedLevels[progressKey] = stars;
+                SaveSystem.save();
+            }
             
             let starString = "";
             for(let i=0; i<3; i++) starString += (i < stars ? "⭐" : "☆");

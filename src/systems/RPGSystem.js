@@ -89,13 +89,21 @@ class RPGSystem {
         for (let i = 0; i < levels; i++) { 
             for (let key in statsObj) { 
                 const current = statsObj[key]; 
-                // Balanceo: Crecimiento logarítmico para evitar stats locos
+                
+                // BALANCEO DE VELOCIDAD DE ATAQUE (DELAY)
+                // Antes: current - 100 (Muy roto)
+                // Ahora: Reducir un 3% por nivel de encantamiento
                 if (key === 'attackSpeed' || key === 'cdr') {
-                     // Reducir es mejor, pero con límite
-                     const reduce = Math.max(1, Math.floor(current * 0.05)); 
-                     statsObj[key] = Math.max(100, current - reduce); // Cap de velocidad
-                } else {
-                     // Aumentar un 10% compuesto + 1 plano
+                     // Ejemplo: 1000ms -> 970ms -> 940ms...
+                     // Hard cap: nunca bajar de 200ms
+                     let reduction = Math.floor(current * 0.03); 
+                     if (reduction < 5) reduction = 5; // Mínimo 5ms de mejora
+                     
+                     statsObj[key] = Math.max(200, current - reduction); 
+                } 
+                // DAÑO Y DEFENSA
+                else {
+                     // Aumento lineal moderado: +10% o +1 plano, lo que sea mayor
                      const boost = Math.ceil(current * 0.10) + 1; 
                      statsObj[key] = current + boost; 
                 }
@@ -213,22 +221,41 @@ class RPGSystem {
     }
 
     // --- GENERACIÓN UNIVERSAL ---
+    // --- BALANCEO DE GENERACIÓN DE ITEMS (RNG) ---
     generateItem(recipe, rarity, initialEnchant = 0) {
+        // 1. Copiar stats base
         const stats = { ...recipe.baseStats };
-        // Aplicar rareza a stats base
-        for(let k in stats) stats[k] = Math.floor(stats[k] * rarity.mult);
         
+        // 2. Aplicar Multiplicador de Rareza a Stats Base
+        // (Solo daño/defensa, no velocidad para no romperla de inicio)
+        for(let k in stats) {
+            if (k !== 'attackSpeed' && k !== 'cdr') {
+                stats[k] = Math.floor(stats[k] * rarity.mult);
+            }
+        }
+        
+        // 3. Generar Stats Aleatorios (Affixes)
         const pool = this.getStatPool(recipe);
         for (let i = 0; i < rarity.statCount; i++) {
             const stat = pool[Math.floor(Math.random() * pool.length)];
-            const val = Math.floor((Math.random() * (stat.max - stat.min) + stat.min) * rarity.mult);
+            
+            // Calculo valor aleatorio controlado
+            // Ejemplo: Daño (1-3) * Multiplicador Rareza
+            const rawVal = (Math.random() * (stat.max - stat.min) + stat.min);
+            const val = Math.ceil(rawVal * rarity.mult); // Math.ceil para asegurar al menos 1
             
             if(stat.key === 'attackSpeed') {
-                 if(stats[stat.key]) stats[stat.key] -= val; else stats[stat.key] = -val;
+                 // Si sale "Velocidad", restamos delay, PERO POCO.
+                 // Ej: Rango 10-30ms. No 900ms.
+                 if(stats[stat.key]) stats[stat.key] -= val; 
+                 else stats[stat.key] = -val; // Valor negativo indica reducción de delay si es stat nuevo
             } else {
-                 if(stats[stat.key]) stats[stat.key] += val; else stats[stat.key] = val;
+                 if(stats[stat.key]) stats[stat.key] += val; 
+                 else stats[stat.key] = val;
             }
         }
+
+        // 4. Aplicar Encantamiento (+1) si corresponde
         if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
         
         return { 
@@ -237,7 +264,6 @@ class RPGSystem {
             name: `${recipe.name}`, 
             type: recipe.type, 
             subType: recipe.subType, 
-            // PROPIEDAD CLAVE PARA COMPATIBILIDAD CON CODIGO ANTIGUO:
             towerType: (recipe.type === 'tower_part' ? recipe.subType : null),
             twoHanded: recipe.twoHanded || false, 
             rarity: rarity.id, 
@@ -329,6 +355,8 @@ class RPGSystem {
 
         return lootList;
     }
+
+
 
 
 

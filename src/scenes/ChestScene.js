@@ -76,6 +76,7 @@ export default class ChestScene extends Phaser.Scene {
             // Construir objeto final para ResultScene
             const finalWinData = {
                 success: true,
+                biome: this.biome,
                 levelId: this.level,
                 gold: this.baseWinData.gold,
                 xp: this.baseWinData.xp,
