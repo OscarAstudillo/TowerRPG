@@ -1,23 +1,35 @@
 // src/config/Recipes.js
+
+// TIERS:
+// Tier 0: Inicial (Madera cruda / Básico)
+// Tier 1: Cobre / Madera Refinada
+// Tier 2: Hierro / Cedro
+// Tier 3: Acero / Ébano
+
 export const RECIPES = [
-    // --- ARMAS ---
-    { id: 'sword_iron', name: 'Espada de Hierro', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'copper', cost: 100, baseStats: { damage: 5, attackSpeed: 1000 }, twoHanded: false },
-    { id: 'bow_wood', name: 'Arco de Caza', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'wood', cost: 100, baseStats: { damage: 3, range: 150, attackSpeed: 800 }, twoHanded: true },
-    { id: 'staff_magic', name: 'Bastón Arcano', type: 'weapon', subType: 'staff', prof: 'weaponsmith', mat: 'wood', cost: 100, baseStats: { damage: 8, attackSpeed: 1200 }, twoHanded: true },
-    { id: 'dagger_thief', name: 'Daga de Asesino', type: 'weapon', subType: 'dagger', prof: 'weaponsmith', mat: 'copper', cost: 100, baseStats: { damage: 4, attackSpeed: 500 }, twoHanded: false },
-    { id: 'shield_iron', name: 'Escudo Pesado', type: 'offhand', subType: 'shield', prof: 'armorsmith', mat: 'copper', cost: 100, baseStats: { defense: 3, blockChance: 10 } },
+    // --- TIER 0 (Iniciales - Madera/Básico) ---
+    { id: 'sword_wood', name: 'Espada de Entrenamiento', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, baseStats: { damage: 3, attackSpeed: 1000 } },
+    { id: 'bow_training', name: 'Arco Simple', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 2, range: 120, attackSpeed: 900 } },
+    { id: 'staff_wood', name: 'Vara de Madera', type: 'weapon', subType: 'staff', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 4, attackSpeed: 1100 } },
+    
+    // --- TIER 1 (Cobre / Tela Simple / Cuero Simple) ---
+    { id: 'sword_copper', name: 'Espada de Cobre', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_copper', cost: 150, tier: 1, baseStats: { damage: 8, attackSpeed: 1000 } },
+    { id: 'dagger_copper', name: 'Daga de Cobre', type: 'weapon', subType: 'dagger', prof: 'weaponsmith', mat: 'ingot_copper', cost: 120, tier: 1, baseStats: { damage: 5, attackSpeed: 600 } },
+    { id: 'armor_copper', name: 'Peto de Cobre', type: 'armor', subType: 'plate', prof: 'armorsmith', mat: 'ingot_copper', cost: 200, tier: 1, baseStats: { hp: 40, defense: 4 } },
+    { id: 'robe_simple', name: 'Túnica de Lino', type: 'armor', subType: 'cloth', prof: 'armorsmith', mat: 'cloth_simple', cost: 150, tier: 1, baseStats: { hp: 20, cdr: 3 } },
+    
+    // --- TIER 2 (Hierro / Cedro / Cuero Rígido) ---
+    { id: 'sword_iron', name: 'Espada de Hierro', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_iron', cost: 400, tier: 2, baseStats: { damage: 15, attackSpeed: 950 } },
+    { id: 'bow_cedar', name: 'Arco de Cedro', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_cedar', cost: 400, tier: 2, twoHanded: true, baseStats: { damage: 10, range: 180, attackSpeed: 750 } },
+    { id: 'shield_iron', name: 'Escudo de Hierro', type: 'offhand', subType: 'shield', prof: 'armorsmith', mat: 'ingot_iron', cost: 350, tier: 2, baseStats: { defense: 8, blockChance: 15 } },
 
-    // --- ARMADURAS ---
-    { id: 'plate_armor', name: 'Armadura de Placas', type: 'armor', subType: 'plate', prof: 'armorsmith', mat: 'copper', cost: 150, baseStats: { hp: 50, defense: 5 } },
-    { id: 'leather_armor', name: 'Armadura de Cuero', type: 'armor', subType: 'leather', prof: 'armorsmith', mat: 'leather', cost: 150, baseStats: { hp: 30, moveSpeed: 10 } },
-    { id: 'cloth_robe', name: 'Túnica de Tela', type: 'armor', subType: 'cloth', prof: 'armorsmith', mat: 'cloth', cost: 150, baseStats: { hp: 20, cdr: 5 } },
+    // --- TIER 3 (Acero / Ébano / Seda) ---
+    { id: 'sword_steel', name: 'Espada de Acero', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_steel', cost: 800, tier: 3, baseStats: { damage: 25, attackSpeed: 900, critChance: 5 } },
+    { id: 'staff_ebony', name: 'Bastón de Ébano', type: 'weapon', subType: 'staff', prof: 'weaponsmith', mat: 'plank_ebony', cost: 800, tier: 3, twoHanded: true, baseStats: { damage: 30, attackSpeed: 1100 } },
+    { id: 'armor_steel', name: 'Placas de Acero', type: 'armor', subType: 'plate', prof: 'armorsmith', mat: 'ingot_steel', cost: 1000, tier: 3, baseStats: { hp: 150, defense: 15 } },
 
-    // --- ACCESORIOS ---
-    { id: 'ring_gold', name: 'Anillo de Poder', type: 'accessory', subType: 'ring', prof: 'jewelry', mat: 'copper', cost: 200, baseStats: { critChance: 2 } },
-
-    // --- MEJORAS DE TORRE (ESTANDARIZADAS) ---
-    // Nota: Usamos 'subType' para definir qué torre usa esto ('archer', 'cannon', 'mage')
-    { id: 'mod_archer', name: 'Módulo de Arquero', type: 'tower_part', subType: 'archer', prof: 'engineering', mat: 'wood', cost: 300, baseStats: { range: 20, damage: 2 } },
-    { id: 'mod_cannon', name: 'Módulo de Cañón', type: 'tower_part', subType: 'cannon', prof: 'engineering', mat: 'copper', cost: 300, baseStats: { damage: 10, aoe: 10 } },
-    { id: 'mod_mage', name: 'Módulo Mágico', type: 'tower_part', subType: 'mage', prof: 'engineering', mat: 'cloth', cost: 300, baseStats: { attackSpeed: 50, damage: 1 } }
+    // --- MEJORAS DE TORRE (Tier 1 a 3) ---
+    { id: 'mod_archer_1', name: 'Cuerda Reforzada', type: 'tower_part', subType: 'archer', prof: 'engineering', mat: 'cloth_simple', cost: 300, tier: 1, baseStats: { range: 15, damage: 3 } },
+    { id: 'mod_cannon_1', name: 'Cañón de Cobre', type: 'tower_part', subType: 'cannon', prof: 'engineering', mat: 'ingot_copper', cost: 300, tier: 1, baseStats: { damage: 12, aoe: 5 } },
+    { id: 'mod_mage_2', name: 'Cristal de Cedro', type: 'tower_part', subType: 'mage', prof: 'engineering', mat: 'plank_cedar', cost: 600, tier: 2, baseStats: { attackSpeed: 60, damage: 5 } }
 ];

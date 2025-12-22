@@ -1,6 +1,9 @@
 // src/systems/RPGSystem.js
 import { gameState, RARITY, getCurrentHero } from '../config/GameState.js';
 import { RECIPES } from '../config/Recipes.js';
+import { REFINING_RECIPES } from '../config/RefiningRecipes.js';
+import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js';
+import { RAW_MATERIALS } from '../config/Materials.js'; // Importar si necesitas referencias
 
 class RPGSystem {
     
@@ -8,6 +11,93 @@ class RPGSystem {
         // ID string seguro para evitar problemas numéricos
         return "ITEM_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
     }
+
+    // --- NUEVO: SISTEMA DE REFINACIÓN ---
+    refineMaterial(recipeId) {
+        const recipe = REFINING_RECIPES.find(r => r.id === recipeId);
+        if (!recipe) return { success: false, error: "Receta inválida" };
+
+        // Verificar Profesión
+        const profLevel = this.getProfessionLevel('refining');
+        
+        // Verificar Materiales
+        for (let mat in recipe.input) {
+            const required = recipe.input[mat];
+            const available = gameState.materials[mat]?.common || 0; // Usamos 'common' como base para raw
+            if (available < required) return { success: false, error: `Falta material: ${mat}` };
+        }
+
+        // Consumir Materiales
+        for (let mat in recipe.input) {
+            gameState.materials[mat].common -= recipe.input[mat];
+        }
+
+        // Calcular Probabilidad de Rareza Superior (Max 15% al nivel 100)
+        let outputRarity = 'common';
+        const chance = Math.min(0.15, profLevel * 0.0015); // 0.15% por nivel hasta 15%
+        
+        if (Math.random() < chance) {
+            outputRarity = 'uncommon'; // Sube a verde
+            // Podrías añadir lógica para subir más si quieres
+        }
+
+        // Añadir Producto
+        if (!gameState.materials[recipe.output]) gameState.materials[recipe.output] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
+        gameState.materials[recipe.output][outputRarity]++;
+
+        // Subir XP de Refinación
+        this.gainProfessionXP('refining', 'common');
+
+        return { success: true, item: recipe.output, rarity: outputRarity };
+    }
+
+    // --- DROP INTELIGENTE POR BIOMA Y NIVEL ---
+    getDropForLevel(biomeKey, levelId) {
+        const biome = BIOMES[biomeKey];
+        const config = LEVEL_CONFIG[levelId];
+        
+        // 1. Decidir si cae algo
+        if (Math.random() > config.dropRate) return null;
+
+        // 2. Elegir material del bioma
+        const matKey = biome.materials[Math.floor(Math.random() * biome.materials.length)];
+        
+        // 3. Decidir rareza según nivel
+        const rand = Math.random() * 100;
+        let rarity = 'common';
+        let cumulative = 0;
+        for (let r in config.dropChances) {
+            cumulative += config.dropChances[r];
+            if (rand <= cumulative) {
+                rarity = r;
+                break;
+            }
+        }
+
+        return { key: matKey, rarity: rarity, amount: 1 };
+    }
+
+    // --- BALANCEO DE STATS EN GENERACIÓN ---
+    applyEnchantStats(statsObj, levels) { 
+        for (let i = 0; i < levels; i++) { 
+            for (let key in statsObj) { 
+                const current = statsObj[key]; 
+                // Balanceo: Crecimiento logarítmico para evitar stats locos
+                if (key === 'attackSpeed' || key === 'cdr') {
+                     // Reducir es mejor, pero con límite
+                     const reduce = Math.max(1, Math.floor(current * 0.05)); 
+                     statsObj[key] = Math.max(100, current - reduce); // Cap de velocidad
+                } else {
+                     // Aumentar un 10% compuesto + 1 plano
+                     const boost = Math.ceil(current * 0.10) + 1; 
+                     statsObj[key] = current + boost; 
+                }
+            } 
+        } 
+        return statsObj; 
+    }
+
+
 
     gainHeroXP(amount) {
         if (!gameState.selectedClass) return;
@@ -160,13 +250,23 @@ class RPGSystem {
         return [ { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque' }, { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' }, { key: 'damage', min: 1, max: 3, label: 'Daño' } ];
     }
 
+    // IMPORTANTE: Actualizar gainProfessionXP para soportar 'refining'
     gainProfessionXP(profKey, rarityKey) {
-        let xp = 10 * RARITY[rarityKey].mult;
+        let xp = 10 * (RARITY[rarityKey] ? RARITY[rarityKey].mult : 1);
         if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
         gameState.professions[profKey].xp += Math.floor(xp);
-        if (gameState.professions[profKey].xp >= gameState.professions[profKey].maxXp) { gameState.professions[profKey].level++; gameState.professions[profKey].xp = 0; gameState.professions[profKey].maxXp = Math.floor(gameState.professions[profKey].maxXp * 1.5); }
+        if (gameState.professions[profKey].xp >= gameState.professions[profKey].maxXp) { 
+            gameState.professions[profKey].level++; 
+            gameState.professions[profKey].xp = 0; 
+            gameState.professions[profKey].maxXp = Math.floor(gameState.professions[profKey].maxXp * 1.5); 
+        }
     }
-    checkMaterials(mat, amount, rarity) { return gameState.materials[mat] && gameState.materials[mat][rarity] >= amount; }
+
+    // Actualizamos checkMaterials para buscar en materiales refinados también
+    checkMaterials(mat, amount, rarity) { 
+        // Verifica si existe el material en el inventario global de materiales
+        return gameState.materials[mat] && gameState.materials[mat][rarity] >= amount; 
+    }
     consumeMaterials(mat, amount, rarity) { if (gameState.materials[mat]) gameState.materials[mat][rarity] -= amount; }
 }
 
