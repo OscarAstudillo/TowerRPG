@@ -1,7 +1,7 @@
 // src/entities/towers/Tower.js
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
-import { gameState, getTowerBonuses } from '../../config/GameState.js';
+import { gameState, getTowerBonuses } from '../../config/GameState.js'; // Importar gameState
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -18,37 +18,31 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.typeName = stats.name;
         this.baseColor = stats.color;
         
-        // Base
         this.base = scene.add.rectangle(0, 0, 40, 40, 0x808080);
         this.base.setStrokeStyle(2, 0x000000);
         
-        // Torreta
         this.turretGroup = scene.add.container(0, 0);
         this.add([this.base, this.turretGroup]);
         this.setSize(40, 40);
         this.setInteractive({ useHandCursor: true });
 
-        // Rango Visual
         this.rangeCircle = scene.add.circle(x, y, 100, 0xffffff, 0.1);
         this.rangeCircle.setVisible(false);
         this.rangeCircle.setDepth(5); 
 
-        // Barra de Progreso (Mejora)
         this.upgradeBarBg = scene.add.rectangle(0, -30, 40, 6, 0x000000).setVisible(false);
         this.upgradeBarFill = scene.add.rectangle(-20, -30, 0, 6, 0x00ff00).setOrigin(0, 0.5).setVisible(false);
         this.add([this.upgradeBarBg, this.upgradeBarFill]);
 
-        // Stats Iniciales
         this.level = 1;
         this.maxLevel = stats.levels.length; 
         this.lastAttackTime = 0;
-        this.isUpgrading = false; // Estado de mejora
+        this.isUpgrading = false; 
         
         this.updateStats(); 
     }
 
     update(time, delta) {
-        // Si se está mejorando, no ataca
         if (this.isUpgrading) return;
 
         if (time > this.lastAttackTime + this.attackSpeed) {
@@ -60,7 +54,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         }
     }
 
-    // ... (findTargetAndFire y fire SE MANTIENEN IGUALES) ...
     findTargetAndFire(time) {
         let target = null;
         let maxProgress = -1;
@@ -104,18 +97,15 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.scene.tweens.add({ targets: this.turretGroup, y: 5, yoyo: true, duration: 50 });
     }
 
-    // --- LÓGICA DE MEJORA (CORREGIDA) ---
     upgrade() {
         if (this.level >= this.maxLevel) return;
-        if (this.isUpgrading) return; // Evitar doble click
+        if (this.isUpgrading) return; 
 
-        // Iniciar proceso de 3 segundos
         this.isUpgrading = true;
         this.upgradeBarBg.setVisible(true);
         this.upgradeBarFill.setVisible(true);
         this.upgradeBarFill.width = 0;
 
-        // Tween de la barra (3000 ms)
         this.scene.tweens.add({
             targets: this.upgradeBarFill,
             width: 40,
@@ -131,18 +121,15 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.level++;
         this.isUpgrading = false;
         
-        // Ocultar barra
         this.upgradeBarBg.setVisible(false);
         this.upgradeBarFill.setVisible(false);
 
         this.updateStats(); 
         
-        // Efectos visuales
         this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 });
         const flash = this.scene.add.circle(this.x, this.y, 10, 0xffff00, 0.8);
         this.scene.tweens.add({ targets: flash, scale: 5, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
         
-        // Actualizar UI si el menú está abierto
         if (this.scene && this.scene.selectedTowerToUpgrade === this) {
             this.scene.updateUpgradeMenuText();
         }
@@ -157,19 +144,31 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.damage = currentStats.damage;
             this.range = currentStats.range;
             this.attackSpeed = currentStats.fireRate; 
-            
-            // IMPORTANTE: El costo es para el SIGUIENTE nivel.
-            // Si estamos en el último nivel, el costo es 0.
             this.upgradeCost = currentStats.upgradeCost || 0;
-            
             this.aoeRadius = currentStats.aoe || 0;
             this.slowFactor = currentStats.slow || 1;
 
+            // --- APLICAR BONOS DE EQUIPAMIENTO ---
+            // Leemos directamente del GameState actualizado
+            const eq = gameState.towerEquipment[this.typeKey];
+            if (eq) {
+                [eq.slot1, eq.slot2].forEach(item => {
+                    if (item && item.stats) {
+                        this.damage += (item.stats.damage || 0);
+                        this.range += (item.stats.range || 0);
+                        // Velocidad: Restamos delay (mínimo 100ms)
+                        this.attackSpeed = Math.max(100, this.attackSpeed - (item.stats.attackSpeed || 0));
+                        this.doubleAttackChance = (this.doubleAttackChance || 0) + (item.stats.doubleAttack || 0);
+                    }
+                });
+            }
+
+            // Bonos de talentos globales (si existen)
             const bonuses = getTowerBonuses(this.typeKey);
             this.damage += bonuses.damage;
             this.range += bonuses.range;
             this.attackSpeed = Math.max(100, this.attackSpeed - bonuses.attackSpeed);
-            this.doubleAttackChance = bonuses.doubleAttack || 0;
+            this.doubleAttackChance = (this.doubleAttackChance || 0) + (bonuses.doubleAttack || 0);
 
             if (this.rangeCircle) this.rangeCircle.setRadius(this.range);
             this.updateAppearance();

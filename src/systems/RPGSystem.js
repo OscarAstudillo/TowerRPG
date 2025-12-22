@@ -4,13 +4,11 @@ import { RECIPES } from '../config/Recipes.js';
 
 class RPGSystem {
     
-    // --- HELPER: ID ÚNICO DE TEXTO ---
-    // Evita duplicados y errores de precisión numérica
+    // Generador de ID robusto (Tiempo + Random)
     getUniqueId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     }
 
-    // --- SISTEMA DE EXPERIENCIA ---
     gainHeroXP(amount) {
         if (!gameState.selectedClass) return;
         const hero = getCurrentHero();
@@ -23,9 +21,7 @@ class RPGSystem {
                 hero.statPoints += 3; 
                 if (hero.level % 10 === 0) hero.talentPoints++;
                 if (gameState.playerStats) gameState.playerStats.hp = gameState.playerStats.maxHp;
-            } else {
-                hero.xp = hero.maxXp; 
-            }
+            } else { hero.xp = hero.maxXp; }
         }
     }
 
@@ -77,14 +73,10 @@ class RPGSystem {
         if (!recipe) return { success: false, error: "Receta no encontrada" };
         const rarity = RARITY[rarityKey];
         if (!this.checkMaterials(recipe.mat, 3, rarityKey)) return { success: false, error: `Faltan materiales` };
-        
         this.consumeMaterials(recipe.mat, 3, rarityKey);
-        
         const profLevel = this.getProfessionLevelForType(recipe.type);
         const bonusEnchant = Math.floor(profLevel / 10);
-        
         const item = this.generateItem(recipe, rarity, bonusEnchant);
-        
         this.gainProfessionXP(recipe.type, rarityKey);
         return { success: true, item: item };
     }
@@ -93,19 +85,16 @@ class RPGSystem {
         const costAmount = 10; const goldCost = 500;
         if (gameState.gold < goldCost) return { success: false, error: "Falta Oro ($500)" };
         if (!this.checkMaterials('wood', costAmount, rarityKey) || !this.checkMaterials('copper', costAmount, rarityKey) || !this.checkMaterials('leather', costAmount, rarityKey)) return { success: false, error: `Necesitas 10 Madera, 10 Cobre y 10 Cuero` };
-        
         gameState.gold -= goldCost;
         this.consumeMaterials('wood', costAmount, rarityKey); this.consumeMaterials('copper', costAmount, rarityKey); this.consumeMaterials('leather', costAmount, rarityKey);
-        
         const profLevel = this.getProfessionLevelForType('tower_part');
         const bonusEnchant = Math.floor(profLevel / 10);
-        
         const item = this.generateTowerItem(towerType, RARITY[rarityKey], bonusEnchant);
-        
         this.gainProfessionXP('tower_part', rarityKey);
         return { success: true, item: item };
     }
 
+    // --- AQUI ESTA EL CAMBIO CLAVE: Estructura idéntica a Items de Héroe ---
     generateTowerItem(towerType, rarity, initialEnchant = 0) {
         const stats = {};
         const possibleStats = [ { key: 'damage', min: 2, max: 5 }, { key: 'range', min: 10, max: 20 }, { key: 'attackSpeed', min: 50, max: 100 }, { key: 'doubleAttack', min: 5, max: 10 } ];
@@ -119,9 +108,15 @@ class RPGSystem {
         if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
         
         return { 
-            id: this.getUniqueId(), 
+            id: this.getUniqueId(), // ID ÚNICO
             name: `Mejora ${towerType.toUpperCase()}`, 
-            type: 'tower_part', towerType: towerType, rarity: rarity.id, enchant: initialEnchant, stats: stats, color: rarity.color 
+            type: 'tower_part',      // Tipo principal para filtros
+            subType: 'module',       // Subtipo genérico
+            towerType: towerType,    // Específico para lógica de torres
+            rarity: rarity.id, 
+            enchant: initialEnchant, 
+            stats: stats, 
+            color: rarity.color 
         };
     }
 
