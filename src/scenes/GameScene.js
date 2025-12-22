@@ -316,10 +316,16 @@ export default class GameScene extends Phaser.Scene {
         this.physics.pause();
         if (this.spawnTimer) this.spawnTimer.remove();
 
+        // Guardamos que se pasó el nivel
         if (this.level >= (gameState.maxLevel || 1)) {
             gameState.maxLevel = this.level + 1;
             SaveSystem.save();
         }
+
+        // --- CORRECCIÓN DE RECOMPENSA DE ORO ---
+        // Se calcula una recompensa base + bonus por nivel
+        // Ejemplo: Nivel 1 = 100 + 50 = 150 oro. Nivel 5 = 100 + 250 = 350 oro.
+        const rewardGold = 100 + (this.level * 50);
 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000);
 
@@ -328,7 +334,7 @@ export default class GameScene extends Phaser.Scene {
                 biome: this.biome, 
                 level: this.level,
                 winData: { 
-                    gold: this.coins, 
+                    gold: rewardGold,  // Pasamos la recompensa REAL
                     xp: 100 * this.level,
                     baseHp: gameState.baseHp, 
                     enemyLoot: this.sessionLoot 

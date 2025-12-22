@@ -1,10 +1,9 @@
 // src/scenes/ResultScene.js
 import Phaser from 'phaser';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
-// CORRECCIÓN: Se agregó 'gameState' a la importación
-import { RARITY, gameState } from '../config/GameState.js'; 
-// CORRECCIÓN: Se agregó la importación de SaveSystem
-import SaveSystem from '../systems/SaveSystem.js'; 
+// CORRECCIÓN: Se importan las dependencias faltantes
+import { RARITY, gameState } from '../config/GameState.js';
+import SaveSystem from '../systems/SaveSystem.js';
 
 export default class ResultScene extends Phaser.Scene {
     constructor() { super('ResultScene'); }
@@ -12,11 +11,10 @@ export default class ResultScene extends Phaser.Scene {
     init(data) {
         this.success = data.success;
         this.levelId = data.levelId;
-        this.gold = data.gold || 0;
+        this.gold = data.gold || 0; // Este es el oro recompensa
         this.xp = data.xp || 0;
         this.baseHp = data.baseHp || 0; 
         this.loot = data.loot || {};
-        // Recibimos el bioma para guardar el progreso correctamente
         this.biome = data.biome || 'forest'; 
     }
 
@@ -32,7 +30,6 @@ export default class ResultScene extends Phaser.Scene {
         this.add.text(w/2, 100, titleText, { fontFamily: 'Cinzel', fontSize: '48px', fontStyle: 'bold', color: titleColor }).setOrigin(0.5);
 
         if (this.success) {
-            // Cálculo de Estrellas
             let stars = 1;
             if (this.baseHp >= 20) stars = 3;
             else if (this.baseHp > 10) stars = 2;
@@ -45,16 +42,21 @@ export default class ResultScene extends Phaser.Scene {
             this.add.text(w/2, 240, `Oro Ganado: ${this.gold}`, { fontFamily: 'Roboto', fontSize: '18px', color: '#ffd700' }).setOrigin(0.5);
             this.add.text(w/2, 270, `XP Ganada: ${this.xp}`, { fontFamily: 'Roboto', fontSize: '18px', color: '#00ffff' }).setOrigin(0.5);
 
-            // --- GUARDAR PROGRESO (Ahora funcionará porque importamos gameState y SaveSystem) ---
+            // GUARDAR PROGRESO Y RECOMPENSA DE ORO
             const progressKey = `${this.biome}_${this.levelId}`;
             const currentStars = gameState.completedLevels[progressKey] || 0;
             
             if (stars > currentStars) {
                 gameState.completedLevels[progressKey] = stars;
-                SaveSystem.save();
             }
 
-            // Lista de Materiales
+            // SUMAR ORO
+            gameState.gold += this.gold;
+            
+            // GUARDAR TODO
+            SaveSystem.save();
+
+            // LISTA DE MATERIALES
             this.add.text(w/2, 320, "-- MATERIALES OBTENIDOS --", { fontSize: '20px', color: '#aaa' }).setOrigin(0.5);
             
             let lootY = 360;
