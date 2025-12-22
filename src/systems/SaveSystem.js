@@ -3,22 +3,26 @@ import { gameState, updatePlayerStats, initHero } from '../config/GameState.js';
 
 export default class SaveSystem {
     static save() {
-        const data = {
-            gold: gameState.gold,
-            levelsUnlocked: gameState.levelsUnlocked,
-            levelStars: gameState.levelStars,
-            materials: gameState.materials,
-            inventory: gameState.inventory,
-            equipment: gameState.equipment,
-            towerEquipment: gameState.towerEquipment,
-            selectedClass: gameState.selectedClass,
-            professions: gameState.professions,
-            
-            // NUEVO: Guardamos el objeto heroes completo
-            heroes: gameState.heroes
-        };
-        localStorage.setItem('towerRPG_save', JSON.stringify(data));
-        console.log("Juego Guardado");
+        try {
+            const data = {
+                gold: gameState.gold,
+                // Guardamos todo el objeto gameState relevante
+                materials: gameState.materials,
+                inventory: gameState.inventory,
+                equipment: gameState.equipment,
+                towerEquipment: gameState.towerEquipment,
+                selectedClass: gameState.selectedClass,
+                professions: gameState.professions,
+                heroes: gameState.heroes,
+                completedLevels: gameState.completedLevels,
+                maxLevel: gameState.maxLevel,
+                talents: gameState.talents
+            };
+            localStorage.setItem('towerRPG_save', JSON.stringify(data));
+            console.log("Juego Guardado OK");
+        } catch (e) {
+            console.error("Error al guardar:", e);
+        }
     }
 
     static load() {
@@ -27,42 +31,51 @@ export default class SaveSystem {
             try {
                 const data = JSON.parse(json);
                 
-                gameState.gold = data.gold || 0;
-                gameState.levelsUnlocked = data.levelsUnlocked || 1;
-                gameState.levelStars = data.levelStars || {};
-                
-                if(data.materials) gameState.materials = data.materials;
-                if(data.inventory) gameState.inventory = data.inventory;
-                if(data.equipment) gameState.equipment = data.equipment;
-                if(data.towerEquipment) gameState.towerEquipment = data.towerEquipment;
-                if(data.professions) gameState.professions = data.professions;
+                // Carga básica segura
+                gameState.gold = data.gold || 500;
+                if (data.materials) gameState.materials = data.materials;
+                if (data.inventory) gameState.inventory = data.inventory;
+                if (data.equipment) gameState.equipment = data.equipment;
+                if (data.towerEquipment) gameState.towerEquipment = data.towerEquipment;
+                if (data.professions) gameState.professions = data.professions;
+                if (data.completedLevels) gameState.completedLevels = data.completedLevels;
+                if (data.maxLevel) gameState.maxLevel = data.maxLevel;
+                if (data.talents) gameState.talents = data.talents;
 
-                // --- MIGRACIÓN CRÍTICA: DATOS DE HÉROES ---
-                if (data.heroes) {
+                // --- MIGRACIÓN DE HÉROES ROBUSTA ---
+                if (data.heroes && Object.keys(data.heroes).length > 0) {
                     gameState.heroes = data.heroes;
                 } else {
-                    gameState.heroes = {};
-                    // Si es un save viejo, intentamos rescatar lo que había
-                    if (data.selectedClass) {
-                        initHero(data.selectedClass);
-                        // Transferir datos legacy al héroe específico
-                        gameState.heroes[data.selectedClass].level = data.heroLevel || 1;
-                        gameState.heroes[data.selectedClass].xp = data.heroXP || 0;
-                        gameState.heroes[data.selectedClass].statPoints = data.statPoints || 0;
-                        gameState.heroes[data.selectedClass].baseAttributes = data.baseAttributes || { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 };
+                    gameState.heroes = {}; 
+                }
+
+                // Restaurar clase seleccionada y migrar datos legacy si es necesario
+                if (data.selectedClass) {
+                    gameState.selectedClass = data.selectedClass;
+                    
+                    // Si el héroe no existe en la estructura nueva, lo creamos
+                    if (!gameState.heroes[data.selectedClass]) {
+                        console.log("Creando héroe nuevo/migrado:", data.selectedClass);
+                        // Crear estructura vacía primero
+                        gameState.heroes[data.selectedClass] = {
+                            level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, 
+                            talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 }
+                        };
+
+                        // Intentar recuperar nivel legacy si existe
+                        if (data.heroLevel) {
+                            gameState.heroes[data.selectedClass].level = data.heroLevel;
+                        }
                     }
                 }
 
-                if (data.selectedClass) {
-                    gameState.selectedClass = data.selectedClass;
-                    // Asegurar que el héroe actual existe en la estructura
-                    initHero(gameState.selectedClass);
-                }
-
+                // Recalcular todo
                 updatePlayerStats();
-                console.log("Datos Cargados");
+                console.log("Datos Cargados Correctamente");
             } catch (e) {
-                console.error("Error al cargar save:", e);
+                console.error("Error crítico al cargar save:", e);
+                // Si falla la carga, intentamos limpiar para no romper el juego
+                // localStorage.removeItem('towerRPG_save'); 
             }
         }
     }

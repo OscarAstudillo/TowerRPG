@@ -143,25 +143,24 @@ export function updatePlayerStats() {
     if (!gameState.selectedClass) return;
 
     const hero = getCurrentHero();
+    // Fallback seguro si CLASS_BASE_STATS falla
     const classBase = CLASS_BASE_STATS[gameState.selectedClass] || { hp: 100, damage: 10, defense: 0, attackSpeed: 1000 };
     
-    // 1. Empezar con stats base de la clase
-    const stats = { ...gameState.playerStats }; // Copia estructura
+    const stats = { ...gameState.playerStats };
     stats.maxHp = classBase.hp;
     stats.damage = classBase.damage;
     stats.defense = classBase.defense;
     stats.attackSpeed = classBase.attackSpeed;
 
-    // 2. Sumar puntos de atributo gastados (del héroe)
+    // Atributos
     if (hero && hero.baseAttributes) {
         stats.damage += (hero.baseAttributes.damage || 0);
         stats.maxHp += (hero.baseAttributes.maxHp || 0);
         stats.defense += (hero.baseAttributes.defense || 0);
-        // La velocidad reduce el delay (ej: 1000ms - 50ms)
-        stats.attackSpeed -= (hero.baseAttributes.attackSpeed || 0); 
+        stats.attackSpeed -= (hero.baseAttributes.attackSpeed || 0);
     }
 
-    // 3. Sumar Equipo
+    // Equipo
     const equipment = [
         gameState.equipment.mainHand,
         gameState.equipment.offHand,
@@ -174,7 +173,7 @@ export function updatePlayerStats() {
             for (let key in item.stats) {
                 if (stats[key] !== undefined) {
                     if (key === 'attackSpeed' || key === 'cdr') {
-                        stats[key] -= item.stats[key]; // Reducir es bueno
+                        stats[key] -= item.stats[key];
                     } else {
                         stats[key] += item.stats[key];
                     }
@@ -183,9 +182,9 @@ export function updatePlayerStats() {
         }
     });
 
-    // 4. Límites de seguridad
-    if (stats.attackSpeed < 200) stats.attackSpeed = 200; // Cap velocidad (0.2s)
-    if (stats.defense < 0) stats.defense = 0;
+    // Validaciones de seguridad (Evita que el héroe deje de atacar)
+    if (isNaN(stats.attackSpeed) || stats.attackSpeed < 200) stats.attackSpeed = 200; 
+    if (isNaN(stats.damage)) stats.damage = 1;
 
     // 5. Ajustar HP actual si cambió el máximo
     const oldMax = gameState.playerStats.maxHp;
@@ -194,11 +193,7 @@ export function updatePlayerStats() {
     // Asignar al estado global
     Object.assign(gameState.playerStats, stats);
     
-    // Mantener porcentaje de vida
-    if (oldMax > 0 && oldHp > 0) {
-        const percent = oldHp / oldMax;
-        gameState.playerStats.hp = Math.floor(gameState.playerStats.maxHp * percent);
-    } else {
+    if (gameState.playerStats.hp > gameState.playerStats.maxHp) {
         gameState.playerStats.hp = gameState.playerStats.maxHp;
     }
 }

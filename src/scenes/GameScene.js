@@ -53,6 +53,9 @@ export default class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // --- FIX CRÍTICO: Asegurar stats frescos al iniciar nivel ---
+        updatePlayerStats(); 
+        
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
