@@ -1,10 +1,19 @@
 // src/config/GameState.js
 
+// Definimos stats base por clase aquí para no depender de archivos externos si no cargan
+const CLASS_BASE_STATS = {
+    guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000 },
+    arquero: { hp: 100, damage: 12, defense: 2, attackSpeed: 800 },
+    mago: { hp: 90, damage: 20, defense: 1, attackSpeed: 1200 },
+    asesino: { hp: 110, damage: 18, defense: 3, attackSpeed: 600 },
+    paladin: { hp: 180, damage: 10, defense: 8, attackSpeed: 1100 }
+};
+
 export const initialState = {
     gold: 500,
     selectedClass: null,
     
-    // Stats base del jugador
+    // Stats calculados del jugador (se sobrescriben dinámicamente)
     playerStats: {
         hp: 100, maxHp: 100, damage: 10, defense: 0,
         attackSpeed: 1000, moveSpeed: 160,
@@ -24,9 +33,8 @@ export const initialState = {
         mage:   { slot1: null, slot2: null }
     },
 
-    // Materiales (Estructura para refinación)
+    // Materiales
     materials: {
-        // Crudos
         wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         hide: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -41,7 +49,7 @@ export const initialState = {
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         scale: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         
-        // Refinados (Inicializados para evitar errores de undefined)
+        // Refinados
         ingot_copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -65,19 +73,17 @@ export const initialState = {
         refining: { level: 1, xp: 0, maxXp: 100 }
     },
 
+    // Aquí se guardan los datos persistentes de CADA héroe
+    heroes: {}, 
+
     talents: [],
-    
-    // Registro de progreso (Bioma_Nivel -> Estrellas)
     completedLevels: {}, 
-    maxLevel: 1, // Control global del nivel máximo alcanzado (1-10)
-    
+    maxLevel: 1,
     baseHp: 20
 };
 
-// Estado mutable del juego
 export const gameState = JSON.parse(JSON.stringify(initialState));
 
-// Definición de Rarezas
 export const RARITY = {
     common: { id: 'common', name: 'Común', color: 0xffffff, mult: 1.0, statCount: 0 },
     uncommon: { id: 'uncommon', name: 'Poco Común', color: 0x00ff00, mult: 1.2, statCount: 1 },
@@ -86,52 +92,76 @@ export const RARITY = {
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
 };
 
-// --- FUNCIONES EXPORTADAS NECESARIAS ---
+// --- FUNCIONES CLAVE CORREGIDAS ---
 
-// Esta es la función que faltaba y causaba el error en SaveSystem.js
-export function initHero(className) {
-    if (className) gameState.selectedClass = className;
+// Inicializa (o recupera) un héroe en la estructura persistente
+export function initHero(classId) {
+    if (!classId) return null;
+
+    // Si no existe, lo creamos
+    if (!gameState.heroes[classId]) {
+        gameState.heroes[classId] = {
+            level: 1,
+            xp: 0,
+            maxXp: 100,
+            statPoints: 0,
+            talentPoints: 0,
+            talents: [], // IDs de talentos aprendidos
+            // Atributos base comprados con puntos (NO incluye equipo)
+            baseAttributes: { 
+                damage: 0, 
+                maxHp: 0, 
+                attackSpeed: 0, 
+                defense: 0 
+            }
+        };
+    }
     
-    // Restablecer stats base al iniciar/cargar héroe
-    // Aquí puedes definir stats específicos por clase si quieres
-    gameState.playerStats.hp = gameState.playerStats.maxHp;
+    // Establecer como activo
+    gameState.selectedClass = classId;
     
+    // Recalcular stats totales
     updatePlayerStats();
-    return getCurrentHero();
+    
+    return gameState.heroes[classId];
 }
 
+// Devuelve el objeto del héroe actual (o null)
 export function getCurrentHero() {
-    // Retorna un objeto con la info del héroe actual
-    // Si no hay clase seleccionada, retorna valores seguros
-    return {
-        class: gameState.selectedClass || 'none',
-        level: 1, // Por ahora el nivel del héroe es estático o depende de lógica externa
-        xp: 0,
-        maxXp: 100,
-        statPoints: 0,
-        talentPoints: 0,
-        baseAttributes: gameState.playerStats,
-        talents: gameState.talents
-    };
+    if (!gameState.selectedClass) return null;
+    
+    // Autorecuperación si algo falló antes
+    if (!gameState.heroes[gameState.selectedClass]) {
+        return initHero(gameState.selectedClass);
+    }
+    
+    return gameState.heroes[gameState.selectedClass];
 }
 
+// Recalcula los stats finales (Base Clase + Puntos + Equipo)
 export function updatePlayerStats() {
-    // Recalcular stats basados en equipo
-    // 1. Reset a base (valores hardcodeados o del state inicial)
-    const base = {
-        hp: 100, maxHp: 100, damage: 10, defense: 0,
-        attackSpeed: 1000, moveSpeed: 160,
-        critChance: 5, critDamage: 150,
-        lifesteal: 0, regenHp: 0,
-        cdr: 0, doubleAttack: 0, thorns: 0
-    };
+    if (!gameState.selectedClass) return;
 
-    // Ajustes por clase (opcional)
-    if (gameState.selectedClass === 'guerrero') { base.hp = 150; base.defense = 5; }
-    if (gameState.selectedClass === 'arquero') { base.attackSpeed = 800; base.damage = 12; }
-    // ... otros ajustes
+    const hero = getCurrentHero();
+    const classBase = CLASS_BASE_STATS[gameState.selectedClass] || { hp: 100, damage: 10, defense: 0, attackSpeed: 1000 };
+    
+    // 1. Empezar con stats base de la clase
+    const stats = { ...gameState.playerStats }; // Copia estructura
+    stats.maxHp = classBase.hp;
+    stats.damage = classBase.damage;
+    stats.defense = classBase.defense;
+    stats.attackSpeed = classBase.attackSpeed;
 
-    // 2. Sumar equipo
+    // 2. Sumar puntos de atributo gastados (del héroe)
+    if (hero && hero.baseAttributes) {
+        stats.damage += (hero.baseAttributes.damage || 0);
+        stats.maxHp += (hero.baseAttributes.maxHp || 0);
+        stats.defense += (hero.baseAttributes.defense || 0);
+        // La velocidad reduce el delay (ej: 1000ms - 50ms)
+        stats.attackSpeed -= (hero.baseAttributes.attackSpeed || 0); 
+    }
+
+    // 3. Sumar Equipo
     const equipment = [
         gameState.equipment.mainHand,
         gameState.equipment.offHand,
@@ -142,32 +172,38 @@ export function updatePlayerStats() {
     equipment.forEach(item => {
         if (item && item.stats) {
             for (let key in item.stats) {
-                if (base[key] !== undefined) {
+                if (stats[key] !== undefined) {
                     if (key === 'attackSpeed' || key === 'cdr') {
-                        // Restar delay es bueno
-                        base[key] -= item.stats[key];
+                        stats[key] -= item.stats[key]; // Reducir es bueno
                     } else {
-                        base[key] += item.stats[key];
+                        stats[key] += item.stats[key];
                     }
                 }
             }
         }
     });
 
-    // Límites seguros
-    if (base.attackSpeed < 200) base.attackSpeed = 200; // Cap de velocidad
+    // 4. Límites de seguridad
+    if (stats.attackSpeed < 200) stats.attackSpeed = 200; // Cap velocidad (0.2s)
+    if (stats.defense < 0) stats.defense = 0;
+
+    // 5. Ajustar HP actual si cambió el máximo
+    const oldMax = gameState.playerStats.maxHp;
+    const oldHp = gameState.playerStats.hp;
     
-    // Guardar en gameState
-    Object.assign(gameState.playerStats, base);
+    // Asignar al estado global
+    Object.assign(gameState.playerStats, stats);
     
-    // Asegurar HP actual no supere máximo
-    if (gameState.playerStats.hp > gameState.playerStats.maxHp) {
+    // Mantener porcentaje de vida
+    if (oldMax > 0 && oldHp > 0) {
+        const percent = oldHp / oldMax;
+        gameState.playerStats.hp = Math.floor(gameState.playerStats.maxHp * percent);
+    } else {
         gameState.playerStats.hp = gameState.playerStats.maxHp;
     }
 }
 
 export function getTowerBonuses(type) {
-    // Calcular bonos para torres basados en equipo de torre
     const bonuses = { damage: 0, range: 0, attackSpeed: 0, doubleAttack: 0 };
     const eq = gameState.towerEquipment[type];
     
