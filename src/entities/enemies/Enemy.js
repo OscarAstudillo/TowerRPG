@@ -198,9 +198,93 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (this.hp <= 0) this.die(true);
     }
 
-    useBossSkill() { if (this.type === 'boss_goblin') { if (this.scene.spawnMinion) { this.scene.showFloatingText(this.x, this.y - 50, "¡ESBIRROS!", "#00ff00"); this.scene.spawnMinion(this); this.scene.time.delayedCall(500, () => this.scene.spawnMinion(this)); } } else if (this.type === 'boss_golem') { this.isShielded = true; this.scene.showFloatingText(this.x, this.y - 50, "¡ESCUDO!", "#aaaaaa"); const shield = this.scene.add.circle(0, 0, 40, 0xaaaaaa, 0.3); shield.setStrokeStyle(2, 0xffffff); this.add(shield); this.scene.time.delayedCall(3000, () => { this.isShielded = false; if(shield.active) shield.destroy(); }); } else if (this.type === 'boss_wizard') { this.follower.t = Math.min(1, this.follower.t + 0.05); this.scene.showFloatingText(this.x, this.y - 50, "¡BLINK!", "#800080"); const flash = this.scene.add.circle(this.x, this.y, 30, 0x800080); this.scene.tweens.add({ targets: flash, scale: 0, duration: 300, onComplete: () => flash.destroy() }); } }
-    performHeal() { if (!this.scene || !this.scene.enemies) return; const healRange = 150; let healed = false; this.scene.enemies.children.iterate(e => { if (e !== this && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < healRange) { if (e.hp < e.maxHp) { e.hp = Math.min(e.maxHp, e.hp + 20); healed = true; } } }); if (healed && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "CURAR", "#ff69b4"); }
-    takeDamage(amount) { if (this.isShielded) { if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); return; } let dmg = Math.max(1, amount - this.armor); this.hp -= dmg; if (this.scene && this.scene.showFloatingText) { const isCrit = Math.random() > 0.8; if (isCrit) dmg *= 1.5; const color = isCrit ? '#ffaa00' : '#ffffff'; this.scene.showFloatingText(this.x, this.y - 30, `-${Math.floor(dmg)}`, color); } if (this.hp <= 0) { this.die(true); } else { this.scene.tweens.add({ targets: this, alpha: 0.5, yoyo: true, duration: 50 }); } }
-    checkAttackPlayer(time) { if (!this.scene || !this.scene.player) return; const player = this.scene.player; if (!player.active || player.isDead) return; const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y); if (dist < 50) { if (time > this.lastAttackTime + 1000) { player.takeDamage(this.damage); this.lastAttackTime = time; this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 }); } } }
-    die(killedByPlayer) { if (!this.scene) return; const scene = this.scene; if (killedByPlayer) { if (scene.onEnemyKilled) scene.onEnemyKilled(this); } else { if (scene.onEnemyLeaks) scene.onEnemyLeaks(this.leakDamage); } this.destroy(); if (scene.checkWaveStatus) { scene.time.delayedCall(100, () => scene.checkWaveStatus()); } }
+    // --- CORRECCIÓN AQUÍ: Checks de seguridad (this.scene && this.active) ---
+    useBossSkill() { 
+        if (this.type === 'boss_goblin') { 
+            if (this.scene && this.scene.spawnMinion) { 
+                this.scene.showFloatingText(this.x, this.y - 50, "¡ESBIRROS!", "#00ff00"); 
+                this.scene.spawnMinion(this); 
+                
+                // VALIDACIÓN EXTRA
+                this.scene.time.delayedCall(500, () => {
+                    if (this.active && this.scene && this.scene.spawnMinion) {
+                        this.scene.spawnMinion(this); 
+                    }
+                }); 
+            } 
+        } else if (this.type === 'boss_golem') { 
+            this.isShielded = true; 
+            this.scene.showFloatingText(this.x, this.y - 50, "¡ESCUDO!", "#aaaaaa"); 
+            const shield = this.scene.add.circle(0, 0, 40, 0xaaaaaa, 0.3); 
+            shield.setStrokeStyle(2, 0xffffff); 
+            this.add(shield); 
+            this.scene.time.delayedCall(3000, () => { 
+                this.isShielded = false; 
+                if(shield.active) shield.destroy(); 
+            }); 
+        } else if (this.type === 'boss_wizard') { 
+            this.follower.t = Math.min(1, this.follower.t + 0.05); 
+            this.scene.showFloatingText(this.x, this.y - 50, "¡BLINK!", "#800080"); 
+            const flash = this.scene.add.circle(this.x, this.y, 30, 0x800080); 
+            this.scene.tweens.add({ targets: flash, scale: 0, duration: 300, onComplete: () => flash.destroy() }); 
+        } 
+    }
+
+    performHeal() { 
+        if (!this.scene || !this.scene.enemies) return; 
+        const healRange = 150; let healed = false; 
+        this.scene.enemies.children.iterate(e => { 
+            if (e !== this && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < healRange) { 
+                if (e.hp < e.maxHp) { e.hp = Math.min(e.maxHp, e.hp + 20); healed = true; } 
+            } 
+        }); 
+        if (healed && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "CURAR", "#ff69b4"); 
+    }
+
+    takeDamage(amount) { 
+        if (this.isShielded) { if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); return; } 
+        let dmg = Math.max(1, amount - this.armor); 
+        this.hp -= dmg; 
+        if (this.scene && this.scene.showFloatingText) { 
+            const isCrit = Math.random() > 0.8; if (isCrit) dmg *= 1.5; 
+            const color = isCrit ? '#ffaa00' : '#ffffff'; 
+            this.scene.showFloatingText(this.x, this.y - 30, `-${Math.floor(dmg)}`, color); 
+        } 
+        if (this.hp <= 0) { this.die(true); } 
+        else { this.scene.tweens.add({ targets: this, alpha: 0.5, yoyo: true, duration: 50 }); } 
+    }
+
+    checkAttackPlayer(time) { 
+        if (!this.scene || !this.scene.player) return; 
+        const player = this.scene.player; 
+        if (!player.active || player.isDead) return; 
+        const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y); 
+        if (dist < 50) { 
+            if (time > this.lastAttackTime + 1000) { 
+                player.takeDamage(this.damage); 
+                this.lastAttackTime = time; 
+                this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 }); 
+            } 
+        } 
+    }
+
+    die(killedByPlayer) { 
+        if (!this.scene) return; 
+        const scene = this.scene; 
+        
+        if (killedByPlayer) { 
+            if (scene.onEnemyKilled) scene.onEnemyKilled(this); 
+        } else { 
+            if (scene.onEnemyLeaks) scene.onEnemyLeaks(this.leakDamage); 
+        } 
+        
+        this.destroy(); 
+        
+        // Llamada segura
+        if (scene.checkWaveStatus) { 
+            scene.time.delayedCall(100, () => {
+                if (scene && scene.checkWaveStatus) scene.checkWaveStatus(); 
+            }); 
+        } 
+    }
 }
