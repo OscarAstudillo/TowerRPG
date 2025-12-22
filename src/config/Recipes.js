@@ -2,14 +2,14 @@
 
 export const RECIPES = [
     // --- TIER 0 (Iniciales - Madera/Básico) ---
-    { id: 'sword_wood', name: 'Espada de Entrenamiento', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, baseStats: { damage: 3, attackSpeed: 1000 } },
-    { id: 'bow_training', name: 'Arco Simple', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 2, range: 120, attackSpeed: 900 } },
+    { id: 'sword_wood', name: 'Espada de Entrenamiento', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, baseStats: { damage: 3, attackSpeed: 1200 } },
+    { id: 'bow_training', name: 'Arco Simple', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 2, range: 120, attackSpeed: 1100 } },
     { id: 'staff_wood', name: 'Vara de Madera', type: 'weapon', subType: 'staff', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 4, attackSpeed: 1100 } },
     { id: 'armor_wood', name: 'Escudo de Leña', type: 'offhand', subType: 'shield', prof: 'armorsmith', mat: 'plank_wood', cost: 40, tier: 0, baseStats: { defense: 2, blockChance: 5 } },
 
     // --- TIER 1 (Cobre / Tela Simple / Cuero Simple) ---
-    { id: 'sword_copper', name: 'Espada de Cobre', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_copper', cost: 150, tier: 1, baseStats: { damage: 8, attackSpeed: 1000 } },
-    { id: 'dagger_copper', name: 'Daga de Cobre', type: 'weapon', subType: 'dagger', prof: 'weaponsmith', mat: 'ingot_copper', cost: 120, tier: 1, baseStats: { damage: 5, attackSpeed: 600 } },
+    { id: 'sword_copper', name: 'Espada de Cobre', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_copper', cost: 150, tier: 1, baseStats: { damage: 8, attackSpeed: 1100 } },
+    { id: 'dagger_copper', name: 'Daga de Cobre', type: 'weapon', subType: 'dagger', prof: 'weaponsmith', mat: 'ingot_copper', cost: 120, tier: 1, baseStats: { damage: 5, attackSpeed: 800 } },
     { id: 'armor_copper', name: 'Peto de Cobre', type: 'armor', subType: 'plate', prof: 'armorsmith', mat: 'ingot_copper', cost: 200, tier: 1, baseStats: { hp: 40, defense: 4 } },
     { id: 'robe_simple', name: 'Túnica de Lino', type: 'armor', subType: 'cloth', prof: 'armorsmith', mat: 'cloth_simple', cost: 150, tier: 1, baseStats: { hp: 20, cdr: 3 } },
     // --- ACCESORIOS (NUEVO) ---

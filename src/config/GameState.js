@@ -10,13 +10,13 @@ const CLASS_BASE_STATS = {
 };
 
 export const initialState = {
-    gold: 500,
+    gold: 5000,
     selectedClass: null,
     
     // Stats calculados del jugador (se sobrescriben dinámicamente)
     playerStats: {
         hp: 100, maxHp: 100, damage: 10, defense: 0,
-        attackSpeed: 1000, moveSpeed: 160,
+        attackSpeed: 1500, moveSpeed: 160,
         critChance: 5, critDamage: 150,
         lifesteal: 0, regenHp: 0,
         cdr: 0, doubleAttack: 0, thorns: 0
@@ -35,15 +35,15 @@ export const initialState = {
 
     // Materiales
     materials: {
-        wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        hide: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        wood: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        copper: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        hide: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         coal: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        scraps: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        scraps: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cotton: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         silk: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
