@@ -11,6 +11,8 @@ import { TOWER_TYPES } from '../config/TowerStats.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import { RECIPES } from '../config/Recipes.js';
+// CORRECCIÓN: Importar BIOMES
+import { BIOMES } from '../config/Levels.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -39,6 +41,7 @@ export default class GameScene extends Phaser.Scene {
 
         // --- CARGAR TEMA VISUAL DEL BIOMA ---
         const biomeData = BIOMES[this.biome];
+        // Usamos el tema del bioma, o un fallback gris si falla
         this.theme = biomeData ? biomeData.theme : { bg: 0x333333, path: 0x555555, accent: 0x00ffff, grid: 0x444444 };
 
         if (!gameState.playerStats) updatePlayerStats();
@@ -72,7 +75,8 @@ export default class GameScene extends Phaser.Scene {
 
         this.TOP_MARGIN = 120;
         this.cameras.main.scrollY = -this.TOP_MARGIN;
-        // COLOR DE FONDO SEGÚN BIOMA
+        
+        // CORRECCIÓN: Usar el color de fondo del tema cargado
         this.cameras.main.setBackgroundColor(this.theme.bg);
 
         const w = this.scale.width;
@@ -97,10 +101,12 @@ export default class GameScene extends Phaser.Scene {
         const graphics = this.add.graphics();
         
         // Patrón de grilla sutil
-        graphics.lineStyle(2, this.theme.grid, 0.3);
-        for(let i=0; i<w; i+=100) { graphics.moveTo(i,0); graphics.lineTo(i,h); }
-        for(let j=0; j<h; j+=100) { graphics.moveTo(0,j); graphics.lineTo(w,j); }
-        graphics.strokePath();
+        if (this.theme.grid) {
+            graphics.lineStyle(2, this.theme.grid, 0.3);
+            for(let i=0; i<w; i+=100) { graphics.moveTo(i,0); graphics.lineTo(i,h); }
+            for(let j=0; j<h; j+=100) { graphics.moveTo(0,j); graphics.lineTo(w,j); }
+            graphics.strokePath();
+        }
 
         // Camino Principal
         graphics.lineStyle(60 * Math.min(this.sx, this.sy), this.theme.path, 1);
@@ -117,7 +123,6 @@ export default class GameScene extends Phaser.Scene {
         this.createSpawnIndicator();
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // ... (RESTO DEL CÓDIGO IGUAL: Inputs, Colliders, UI) ...
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 
@@ -332,15 +337,11 @@ export default class GameScene extends Phaser.Scene {
         this.physics.pause();
         if (this.spawnTimer) this.spawnTimer.remove();
 
-        // Guardamos que se pasó el nivel
         if (this.level >= (gameState.maxLevel || 1)) {
             gameState.maxLevel = this.level + 1;
             SaveSystem.save();
         }
 
-        // --- CORRECCIÓN DE RECOMPENSA DE ORO ---
-        // Se calcula una recompensa base + bonus por nivel
-        // Ejemplo: Nivel 1 = 100 + 50 = 150 oro. Nivel 5 = 100 + 250 = 350 oro.
         const rewardGold = 100 + (this.level * 50);
 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000);
@@ -350,7 +351,7 @@ export default class GameScene extends Phaser.Scene {
                 biome: this.biome, 
                 level: this.level,
                 winData: { 
-                    gold: rewardGold,  // Pasamos la recompensa REAL
+                    gold: rewardGold,  
                     xp: 100 * this.level,
                     baseHp: gameState.baseHp, 
                     enemyLoot: this.sessionLoot 
@@ -378,13 +379,7 @@ export default class GameScene extends Phaser.Scene {
         try { 
             this.coins += (enemy.coinReward || 10); 
             if (RPGSystem && RPGSystem.gainHeroXP) { RPGSystem.gainHeroXP(enemy.xpReward || 10); } 
-            
-            if (enemy.type.startsWith('boss')) { 
-                this.generateBossLoot(enemy); 
-            } else { 
-                this.spawnLoot(enemy.x, enemy.y); 
-            } 
-            
+            if (enemy.type.startsWith('boss')) { this.generateBossLoot(enemy); } else { this.spawnLoot(enemy.x, enemy.y); } 
             this.createExplosion(enemy.x, enemy.y, enemy.colorVal); 
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); 
             this.updateUI(); 
@@ -392,41 +387,33 @@ export default class GameScene extends Phaser.Scene {
     }
     
     generateBossLoot(boss) { 
-        const mats = ['wood', 'copper', 'scraps', 'hide']; // Nombres corregidos para Tier 1
+        const mats = ['wood', 'copper', 'scraps', 'hide']; 
         const matType = mats[Math.floor(Math.random() * mats.length)]; 
         const qty = Phaser.Math.Between(2, 5); 
-        
         if(!gameState.materials[matType]) gameState.materials[matType] = {common:0, uncommon:0, rare:0, epic:0, legendary:0};
         gameState.materials[matType]['common'] += qty; 
-        
         this.bossLootLog.push({ text: `${qty}x ${matType.toUpperCase()}`, color: '#ffffff' }); 
         this.showFloatingText(boss.x, boss.y, "¡BONUS!", "#ffd700"); 
     }
 
     createExplosion(x, y, color) { const circle = this.add.circle(x, y, 5, color); this.tweens.add({ targets: circle, scale: 4, alpha: 0, duration: 300, onComplete: () => circle.destroy() }); for(let i=0; i<4; i++) { const spark = this.add.rectangle(x, y, 4, 4, color); const angle = Phaser.Math.DegToRad(Math.random() * 360); const dist = 30; this.tweens.add({ targets: spark, x: x + Math.cos(angle) * dist, y: y + Math.sin(angle) * dist, alpha: 0, duration: 400, onComplete: () => spark.destroy() }); } }
     
-    // --- CORRECCIÓN CRÍTICA DE MATERIALES ---
     spawnLoot(x, y) { 
         if (Math.random() > 0.30) return; 
-        
         let type = 'wood'; 
         let rarity = 'common'; 
-        
         const rollType = Math.random(); 
         if (rollType < 0.15) { type = 'potion_hp'; } 
         else if (rollType < 0.25) { type = 'coin_bag'; } 
         else if (rollType < 0.30) { type = 'xp_tome'; } 
         else { 
-            // Materiales con nombres correctos según GameState/Materials
             const matRoll = Math.random(); 
             if (matRoll < 0.25) type = 'wood'; 
             else if (matRoll < 0.50) type = 'copper'; 
-            else if (matRoll < 0.75) type = 'scraps'; // Antes era cloth
-            else type = 'hide'; // Antes era leather
-            
+            else if (matRoll < 0.75) type = 'scraps'; 
+            else type = 'hide'; 
             rarity = 'common'; 
         } 
-        
         const item = new Loot(this, x, y, type, rarity); 
         this.loots.add(item); 
     }
@@ -449,17 +436,12 @@ export default class GameScene extends Phaser.Scene {
                 this.showFloatingText(lootItem.x, lootItem.y, `+${xp} XP`, '#0000ff'); 
             } 
         } else { 
-            // Verificación segura
             if(gameState.materials[lootItem.typeKey]) {
                 gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; 
-                
                 if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {}; 
                 if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; 
                 this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; 
-                
                 this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); 
-            } else {
-                console.warn("Intento de recoger material inexistente:", lootItem.typeKey);
             }
         } 
         lootItem.destroy(); 
@@ -467,7 +449,6 @@ export default class GameScene extends Phaser.Scene {
     
     showFloatingText(x, y, message, color = '#fff', duration = 800) { const isCrit = color === '#ffaa00'; const fontSize = isCrit ? '32px' : '20px'; const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: fontSize, fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: isCrit ? 6 : 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, scale: isCrit ? 1.5 : 1.2, duration: duration, ease: 'Power2', onComplete: () => text.destroy() }); }
     showLevelUpEffect() { const w = this.scale.width; const h = this.scale.height; const txt = this.add.text(w/2, h/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, ease: 'Back.out', yoyo: true, hold: 1000, onComplete: () => txt.destroy() }); this.cameras.main.flash(500, 255, 215, 0); gameState.playerStats.hp = gameState.playerStats.maxHp; if(this.player && this.player.createEffect) this.player.createEffect('heal'); }
-    
     createBuildSlots() { const rawSlots = this.currentLevelData.towerSlots || []; rawSlots.forEach(slot => { const site = new BuildSite(this, slot.x * this.sx, slot.y * this.sy); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
     tryBuildTower(site) { if (site.isOccupied) return; const stats = TOWER_TYPES[this.selectedTowerType]; if (this.coins >= stats.baseCost) { this.coins -= stats.baseCost; const tower = new Tower(this, site.x, site.y, this.selectedTowerType, this.enemies, this.projectiles, site, stats.baseCost); this.towers.add(tower); site.occupy(); this.updateUI(); this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); } else { this.cameras.main.shake(100, 0.005); } }
     createUpgradeUI() { this.upgradeContainer = this.add.container(0, 0).setDepth(2000); this.upgradeContainer.setVisible(false); const bg = this.add.rectangle(0, 0, 220, 160, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive(); this.upgradeText = this.add.text(0, -50, '', { fontSize: '14px', align: 'center', color: '#fff' }).setOrigin(0.5); this.upgradeBtn = this.add.rectangle(0, 0, 180, 35, 0x00aa00).setInteractive({ useHandCursor: true }); this.upgradeBtnText = this.add.text(0, 0, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); this.sellBtn = this.add.rectangle(0, 50, 180, 35, 0xaa0000).setInteractive({ useHandCursor: true }); this.sellBtnText = this.add.text(0, 50, 'VENDER', { fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5); this.upgradeBtn.on('pointerdown', () => this.tryUpgradeTower()); this.sellBtn.on('pointerdown', () => this.sellTower()); this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.sellBtn, this.sellBtnText]); }
