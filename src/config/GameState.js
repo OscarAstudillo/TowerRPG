@@ -11,7 +11,7 @@ const CLASS_BASE_STATS = {
 };
 
 export const initialState = {
-    gold: 500,
+    gold: 5000,
     selectedClass: null,
     
     playerStats: {
