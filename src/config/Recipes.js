@@ -19,6 +19,32 @@ export const RECIPES = [
     // **NUEVO: Cuero Tier 1**
     { id: 'vest_simple', name: 'Chaleco de Cuero', type: 'armor', subType: 'leather', prof: 'armorsmith', mat: 'leather_simple', cost: 180, tier: 1, baseStats: { hp: 30, moveSpeed: 10 } },
 
+    // --- NUEVO: RECETAS ESPECIALES (Tier 1.5) - Se desbloquean por Misión ---
+    { 
+        id: 'bow_long_reinforced', 
+        name: 'Arco Largo Reforzado', 
+        type: 'weapon', subType: 'bow', 
+        prof: 'weaponsmith', 
+        mat: 'plank_wood', // Usa madera pero pide más cantidad (lógica interna de craft) o mix
+        cost: 250, 
+        tier: 1, 
+        isLocked: true, // BLOQUEADO AL INICIO
+        twoHanded: true,
+        baseStats: { damage: 10, range: 450, attackSpeed: 1000 } // Rango y daño mejorados vs arco normal
+    },
+    { 
+        id: 'shield_heavy_copper', 
+        name: 'Escudo Pesado de Cobre', 
+        type: 'offhand', subType: 'shield', 
+        prof: 'armorsmith', 
+        mat: 'ingot_copper', 
+        cost: 250, 
+        tier: 1, 
+        isLocked: true, 
+        baseStats: { defense: 5, hp: 30 } // Mejor que escudo normal
+    },
+
+
     // --- TIER 2 (Hierro / Cedro / Cuero Rígido) ---
     { id: 'sword_iron', name: 'Espada de Hierro', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'ingot_iron', cost: 400, tier: 2, baseStats: { damage: 15, attackSpeed: 950 } },
     { id: 'bow_cedar', name: 'Arco de Cedro', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_cedar', cost: 400, tier: 2, twoHanded: true, baseStats: { damage: 10, range: 180, attackSpeed: 750 } },

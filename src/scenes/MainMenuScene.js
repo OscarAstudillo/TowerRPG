@@ -434,6 +434,14 @@ export default class MainMenuScene extends Phaser.Scene {
         let startX = this.scale.width * 0.15; let startY = this.scale.height * 0.35; let col = 0;
         
         const categoryRecipes = RECIPES.filter(r => {
+            // --- NUEVO: FILTRO DE RECETAS BLOQUEADAS ---
+            if (r.isLocked) {
+                // Solo mostrar si está en unlockedRecipes
+                if (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id)) {
+                    return false; // Ocultar
+                }
+            }
+
             if (this.forgeCategory === 'tower_part') return r.type === 'tower_part';
             if (this.forgeCategory === 'accessory') return r.type === 'accessory';
             if (this.forgeCategory === 'weapon') {
@@ -449,6 +457,30 @@ export default class MainMenuScene extends Phaser.Scene {
             }
             return false;
         });
+
+        // ... (resto de refreshForge igual que antes: categoryRecipes.forEach...)
+        categoryRecipes.forEach(recipe => {
+            // Color especial si es desbloqueada
+            const isSpecial = recipe.isLocked; 
+            const strokeColor = isSpecial ? 0x00ffff : 0xffffff;
+
+            const btn = this.add.rectangle(startX + (col * 250), startY, 220, 45, 0x222222).setInteractive({useHandCursor:true}).setStrokeStyle(isSpecial ? 2 : 1, strokeColor);
+            const txt = this.add.text(startX + (col * 250), startY, recipe.name, { ...this.fontBody, color: isSpecial ? '#00ffff' : '#fff'}).setOrigin(0.5);
+            btn.on('pointerdown', () => { this.expandedRecipeId = (this.expandedRecipeId === recipe.id) ? null : recipe.id; this.refreshForge(); });
+            this.recipesContainer.add([btn, txt]); startY += 55;
+            
+            if (this.expandedRecipeId === recipe.id) {
+                ['common', 'uncommon', 'rare'].forEach(rarity => { 
+                    const rData = RARITY[rarity]; const rBtn = this.add.rectangle(startX + (col * 250) + 20, startY, 180, 35, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rData.color); const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'12px', color: '#' + rData.color.toString(16)}).setOrigin(0.5);
+                    rBtn.on('pointerdown', () => this.selectNormalRecipe(recipe, rarity)); 
+                    this.recipesContainer.add([rBtn, rTxt]); 
+                    startY += 40;
+                }); 
+                startY += 10;
+            }
+            if (startY > this.scale.height * 0.8) { col++; startY = this.scale.height * 0.35; }
+        });
+    
 
         categoryRecipes.forEach(recipe => {
             const btn = this.add.rectangle(startX + (col * 250), startY, 220, 45, 0x222222).setInteractive({useHandCursor:true}).setStrokeStyle(1, 0xffffff);
@@ -687,19 +719,34 @@ export default class MainMenuScene extends Phaser.Scene {
         let y = 0;
         
         if (gameState.quests.active.length === 0) {
-            this.questListContainer.add(this.add.text(0, 100, "¡Todas las misiones completadas!\nVuelve mañana.", { ...this.fontBody, align: 'center' }).setOrigin(0.5));
+            this.questListContainer.add(this.add.text(0, 100, "¡Misiones completadas!\nVuelve mañana.", { ...this.fontBody, align: 'center' }).setOrigin(0.5));
             return;
         }
 
         gameState.quests.active.forEach(quest => {
-            // Fondo de cada misión
-            const qBg = this.add.rectangle(0, y, 450, 100, 0x333333).setStrokeStyle(1, 0xaaaaaa);
+            const qBg = this.add.rectangle(0, y, 450, 120, 0x333333).setStrokeStyle(1, 0xaaaaaa); // Un poco más alto para el texto
             
-            // Texto: Descripción y Progreso
-            const qTitle = this.add.text(-200, y - 20, quest.desc, { ...this.fontHeader, fontSize: '18px' }).setOrigin(0, 0.5);
-            const qProgress = this.add.text(-200, y + 20, `Progreso: ${quest.progress}/${quest.count}`, { ...this.fontBody, color: '#00ffff' }).setOrigin(0, 0.5);
+            // Texto descriptivo
+            const qTitle = this.add.text(-210, y - 40, quest.desc, { ...this.fontHeader, fontSize: '18px' }).setOrigin(0, 0.5);
+            const qProgress = this.add.text(-210, y - 10, `Progreso: ${quest.progress}/${quest.count}`, { ...this.fontBody, color: '#00ffff' }).setOrigin(0, 0.5);
             
-            // Botón de Reclamar (si está completa) o Estado
+            // --- NUEVO: TEXTO DE RECOMPENSA ---
+            let rewardText = "Recompensa: ";
+            if (quest.reward.gold) rewardText += `$${quest.reward.gold} `;
+            if (quest.reward.xp) rewardText += `${quest.reward.xp} XP `;
+            if (quest.reward.material) {
+                const matName = (RAW_MATERIALS[quest.reward.material] || {name: quest.reward.material}).name;
+                rewardText += `3x ${matName} `;
+            }
+            if (quest.reward.recipe) {
+                // Buscamos el nombre de la receta
+                const r = RECIPES.find(rec => rec.id === quest.reward.recipe);
+                const rName = r ? r.name : "Receta Secreta";
+                rewardText += `\n📜 PLANO: ${rName}`;
+            }
+
+            const qReward = this.add.text(-210, y + 25, rewardText, { ...this.fontSmall, color: '#ffd700', fontSize: '12px' }).setOrigin(0, 0.5);
+            
             let statusBtn;
             if (quest.completed) {
                 statusBtn = this.add.rectangle(150, y, 120, 40, 0x006400).setInteractive({ useHandCursor: true });
@@ -710,16 +757,17 @@ export default class MainMenuScene extends Phaser.Scene {
                         SaveSystem.save();
                         this.refreshQuestList();
                         this.goldText.setText(`ORO: ${gameState.gold}`);
+                        if(res.reward.recipe) this.refreshForge(); // Actualizar forja si desbloqueamos receta
                         this.showCentralAlert("¡Recompensa Reclamada!", "#ffd700");
                     }
                 });
-                this.questListContainer.add([qBg, qTitle, qProgress, statusBtn, btnTxt]);
+                this.questListContainer.add([qBg, qTitle, qProgress, qReward, statusBtn, btnTxt]);
             } else {
                 statusBtn = this.add.text(150, y, "En Curso", { ...this.fontBody, color: '#aaaaaa', fontStyle: 'italic' }).setOrigin(0.5);
-                this.questListContainer.add([qBg, qTitle, qProgress, statusBtn]);
+                this.questListContainer.add([qBg, qTitle, qProgress, qReward, statusBtn]);
             }
             
-            y += 120;
+            y += 140; // Espacio vertical
         });
-        }
+    }
 }

@@ -1,22 +1,22 @@
 // src/config/GameState.js
+import { ITEM_SETS } from './ItemSets.js'; // <--- ESTO FALTABA Y CAUSABA EL ERROR
 
-// Definimos stats base por clase (AHORA CON RANGO)
+// Definimos stats base por clase
 const CLASS_BASE_STATS = {
-    guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000, range: 100 }, // Melee
-    arquero: { hp: 100, damage: 12, defense: 2, attackSpeed: 800, range: 350 },   // Rango largo
-    mago: { hp: 90, damage: 20, defense: 1, attackSpeed: 1200, range: 280 },      // Rango medio
-    asesino: { hp: 110, damage: 18, defense: 3, attackSpeed: 600, range: 80 },    // Melee corto
-    paladin: { hp: 180, damage: 10, defense: 8, attackSpeed: 1100, range: 100 }   // Melee
+    guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000, range: 100 },
+    arquero: { hp: 100, damage: 12, defense: 2, attackSpeed: 800, range: 350 },
+    mago: { hp: 90, damage: 20, defense: 1, attackSpeed: 1200, range: 280 },
+    asesino: { hp: 110, damage: 18, defense: 3, attackSpeed: 600, range: 80 },
+    paladin: { hp: 180, damage: 10, defense: 8, attackSpeed: 1100, range: 100 }
 };
 
 export const initialState = {
     gold: 500,
     selectedClass: null,
     
-    // Stats del jugador (Incluye 'range' para que ataque)
     playerStats: {
         hp: 100, maxHp: 100, damage: 10, defense: 0,
-        attackSpeed: 1000, moveSpeed: 160, range: 120, // Default range
+        attackSpeed: 1000, moveSpeed: 160, range: 120,
         critChance: 5, critDamage: 150,
         lifesteal: 0, regenHp: 0,
         cdr: 0, doubleAttack: 0, thorns: 0
@@ -32,7 +32,7 @@ export const initialState = {
     },
 
     materials: {
-        wood: { common: 0, uncommon: 0, rare: 0, epic:   0, legendary: 0 },
+        wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         hide: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -45,13 +45,11 @@ export const initialState = {
         silk: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         scale: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        
-        // Refinados
         ingot_copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        plank_wood: { common: 6, uncommon: 6, rare: 6, epic: 0, legendary: 0 },
+        plank_wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         plank_cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         plank_ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cloth_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -70,15 +68,16 @@ export const initialState = {
         refining: { level: 1, xp: 0, maxXp: 100 }
     },
 
-    // NUEVO: Sistema de Misiones
     quests: {
-        active: [], // Lista de misiones actuales
-        lastRefresh: 0 // Para refrescar misiones cada 24h (simulado)
+        active: [],
+        lastRefresh: 0
     },
 
     heroes: {}, 
     talents: [],
     completedLevels: {}, 
+    unlockedRecipes: [], // NUEVO: Para guardar recetas especiales ganadas
+    activeSets: [],
     maxLevel: 1,
     baseHp: 20
 };
@@ -93,38 +92,9 @@ export const RARITY = {
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
 };
 
-// --- FUNCIONES ---
+export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }
+export function getCurrentHero() { if (!gameState.selectedClass) return null; if (!gameState.heroes[gameState.selectedClass]) { return initHero(gameState.selectedClass); } return gameState.heroes[gameState.selectedClass]; }
 
-export function initHero(classId) {
-    if (!classId) return null;
-
-    if (!gameState.heroes[classId]) {
-        gameState.heroes[classId] = {
-            level: 1,
-            xp: 0,
-            maxXp: 100,
-            statPoints: 0,
-            talentPoints: 0,
-            talents: [],
-            baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 }
-        };
-    }
-    
-    gameState.selectedClass = classId;
-    updatePlayerStats();
-    
-    return gameState.heroes[classId];
-}
-
-export function getCurrentHero() {
-    if (!gameState.selectedClass) return null;
-    if (!gameState.heroes[gameState.selectedClass]) {
-        return initHero(gameState.selectedClass);
-    }
-    return gameState.heroes[gameState.selectedClass];
-}
-
-// --- FUNCIÓN ACTUALIZADA CON LÓGICA DE SETS ---
 export function updatePlayerStats() {
     if (!gameState.selectedClass) return;
 
@@ -133,14 +103,12 @@ export function updatePlayerStats() {
     
     const stats = { ...gameState.playerStats };
     
-    // 1. Base
     stats.maxHp = classBase.hp;
     stats.damage = classBase.damage;
     stats.defense = classBase.defense;
     stats.attackSpeed = classBase.attackSpeed;
     stats.range = classBase.range || 100;
 
-    // 2. Atributos
     if (hero && hero.baseAttributes) {
         stats.damage += (hero.baseAttributes.damage || 0);
         stats.maxHp += (hero.baseAttributes.maxHp || 0);
@@ -148,7 +116,6 @@ export function updatePlayerStats() {
         stats.attackSpeed -= (hero.baseAttributes.attackSpeed || 0);
     }
 
-    // 3. Equipo y Sets
     const equipment = [
         gameState.equipment.mainHand,
         gameState.equipment.offHand,
@@ -156,11 +123,9 @@ export function updatePlayerStats() {
         gameState.equipment.accessory
     ];
 
-    // Conteo de Sets
     const setCount = {};
     equipment.forEach(item => {
         if (item) {
-            // Sumar stats normales
             if (item.stats) {
                 for (let key in item.stats) {
                     if (stats[key] !== undefined) {
@@ -170,45 +135,42 @@ export function updatePlayerStats() {
                 }
             }
             
-            // Chequear sets
-            // Iteramos todos los sets definidos para ver si este item pertenece a alguno
-            for (let setKey in ITEM_SETS) {
-                const set = ITEM_SETS[setKey];
-                if (set.items.includes(item.recipeId)) { // Usamos recipeId para identificar
-                    if (!setCount[setKey]) setCount[setKey] = 0;
-                    setCount[setKey]++;
+            // Ahora ITEM_SETS está definido gracias al import
+            if (ITEM_SETS) {
+                for (let setKey in ITEM_SETS) {
+                    const set = ITEM_SETS[setKey];
+                    if (set.items.includes(item.recipeId)) {
+                        if (!setCount[setKey]) setCount[setKey] = 0;
+                        setCount[setKey]++;
+                    }
                 }
             }
         }
     });
 
-    // Aplicar Bonos de Set
-    gameState.activeSets = []; // Para mostrar en UI
-    for (let setKey in setCount) {
-        const count = setCount[setKey];
-        const setDef = ITEM_SETS[setKey];
-        
-        let activeBonusesText = [];
-        
-        setDef.bonuses.forEach(bonus => {
-            if (count >= bonus.count) {
-                activeBonusesText.push(`(${bonus.count}) ${bonus.desc}`);
-                // Aplicar stats del bono
-                for (let statKey in bonus.stats) {
-                    if (stats[statKey] !== undefined) {
-                        if (statKey === 'attackSpeed' || statKey === 'cdr') stats[statKey] -= bonus.stats[statKey];
-                        else stats[statKey] += bonus.stats[statKey];
+    gameState.activeSets = [];
+    if (ITEM_SETS) {
+        for (let setKey in setCount) {
+            const count = setCount[setKey];
+            const setDef = ITEM_SETS[setKey];
+            let activeBonusesText = [];
+            setDef.bonuses.forEach(bonus => {
+                if (count >= bonus.count) {
+                    activeBonusesText.push(`(${bonus.count}) ${bonus.desc}`);
+                    for (let statKey in bonus.stats) {
+                        if (stats[statKey] !== undefined) {
+                            if (statKey === 'attackSpeed' || statKey === 'cdr') stats[statKey] -= bonus.stats[statKey];
+                            else stats[statKey] += bonus.stats[statKey];
+                        }
                     }
                 }
+            });
+            if (activeBonusesText.length > 0) {
+                gameState.activeSets.push({ name: setDef.name, bonuses: activeBonusesText });
             }
-        });
-
-        if (activeBonusesText.length > 0) {
-            gameState.activeSets.push({ name: setDef.name, bonuses: activeBonusesText });
         }
     }
 
-    // 4. Validaciones
     if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
     if (stats.range < 50) stats.range = 50;
 
@@ -231,4 +193,3 @@ export function getTowerBonuses(type) {
     }
     return bonuses;
 }
-

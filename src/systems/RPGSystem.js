@@ -360,9 +360,9 @@ class RPGSystem {
     // --- NUEVO: SISTEMA DE MISIONES ---
     
     generateDailyQuests() {
-        // Si ya hay misiones activas, no hacer nada (o refrescar si pasó tiempo)
         if (gameState.quests.active.length > 0) return;
 
+        // Templates normales
         const templates = [
             { type: 'kill', target: 'any', count: 20, desc: "Mata 20 Enemigos", reward: { gold: 100, xp: 50 } },
             { type: 'craft', target: 'weapon', count: 1, desc: "Forja 1 Arma", reward: { gold: 150, material: 'wood' } },
@@ -370,31 +370,62 @@ class RPGSystem {
             { type: 'boss', target: 'any', count: 1, desc: "Vence a un Jefe", reward: { gold: 300, material: 'iron' } }
         ];
 
-        // Seleccionar 3 misiones al azar
-        for(let i=0; i<3; i++) {
-            const template = templates[Math.floor(Math.random() * templates.length)];
-            gameState.quests.active.push({
-                id: this.getUniqueId(),
-                ...template,
-                progress: 0,
-                completed: false,
-                claimed: false
-            });
+        // 5% de probabilidad de misión con Receta Especial
+        const rollSpecial = Math.random();
+        if (rollSpecial < 0.05) { // 5% chance
+            // Buscar una receta bloqueada que no tengamos
+            const lockedRecipes = RECIPES.filter(r => r.isLocked && (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id)));
+            
+            if (lockedRecipes.length > 0) {
+                const specialRecipe = lockedRecipes[Math.floor(Math.random() * lockedRecipes.length)];
+                
+                // Agregar Misión Especial al inicio
+                gameState.quests.active.push({
+                    id: this.getUniqueId(),
+                    type: 'kill', // Misión difícil
+                    target: 'any',
+                    count: 50, // Matar muchos enemigos
+                    desc: `[RARA] Consigue planos de: ${specialRecipe.name}`,
+                    progress: 0,
+                    completed: false,
+                    claimed: false,
+                    reward: { recipe: specialRecipe.id, gold: 50 } // Recompensa principal es la receta
+                });
+                
+                // Rellenar con 2 normales
+                for(let i=0; i<2; i++) {
+                    this.addRandomQuest(templates);
+                }
+                return;
+            }
         }
+
+        // Si no sale especial, 3 normales
+        for(let i=0; i<3; i++) {
+            this.addRandomQuest(templates);
+        }
+    }
+
+    addRandomQuest(templates) {
+        const template = templates[Math.floor(Math.random() * templates.length)];
+        gameState.quests.active.push({
+            id: this.getUniqueId(),
+            ...template,
+            progress: 0,
+            completed: false,
+            claimed: false
+        });
     }
 
     updateQuestProgress(type, target, amount = 1) {
         if (!gameState.quests || !gameState.quests.active) return;
-
         gameState.quests.active.forEach(quest => {
             if (!quest.completed && quest.type === type) {
-                // Verificar target (o 'any')
                 if (quest.target === 'any' || quest.target === target) {
                     quest.progress += amount;
                     if (quest.progress >= quest.count) {
                         quest.progress = quest.count;
                         quest.completed = true;
-                        // Notificación visual pendiente (se manejará en la escena)
                     }
                 }
             }
@@ -406,17 +437,21 @@ class RPGSystem {
         if (quest && quest.completed && !quest.claimed) {
             quest.claimed = true;
             
-            // Dar recompensas
+            // Recompensas
             if (quest.reward.gold) gameState.gold += quest.reward.gold;
             if (quest.reward.xp) this.gainHeroXP(quest.reward.xp);
             if (quest.reward.material) {
                 if (!gameState.materials[quest.reward.material]) gameState.materials[quest.reward.material] = { common: 0 };
-                gameState.materials[quest.reward.material].common += 3; // Dar 3 materiales
+                gameState.materials[quest.reward.material].common += 3;
+            }
+            if (quest.reward.recipe) {
+                if (!gameState.unlockedRecipes) gameState.unlockedRecipes = [];
+                if (!gameState.unlockedRecipes.includes(quest.reward.recipe)) {
+                    gameState.unlockedRecipes.push(quest.reward.recipe);
+                }
             }
             
-            // Eliminar de activas
             gameState.quests.active = gameState.quests.active.filter(q => q.id !== questId);
-            
             return { success: true, reward: quest.reward };
         }
         return { success: false };
