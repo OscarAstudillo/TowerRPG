@@ -149,20 +149,44 @@ export default class MainMenuScene extends Phaser.Scene {
     
     createFusionModals(cx, cy) {
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
+        
+        // Modal de Lista
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
-        this.fusionList = this.add.container(0, -150);
+        const fTitle = this.add.text(0, -220, "SELECCIONA 2° ITEM (SACRIFICIO)", { ...this.fontHeader, fontSize: '24px' }).setOrigin(0.5);
+        this.fusionList = this.add.container(0, -180); // Subimos un poco el contenedor
         const fCancel = this.add.text(0, 220, "CANCELAR", { ...this.fontBtn, color: '#ff0000' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         fCancel.on('pointerdown', () => this.fusionListModal.setVisible(false));
-        this.fusionListModal.add([fBg, this.fusionList, fCancel]);
+        this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel]);
+
+        // Modal de Confirmación
         this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
-        const fcBg = this.add.rectangle(0, 0, 800, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
-        const fcInfo = this.add.text(0, -220, "Confirmar Fusión (50% Chance Stats)", { ...this.fontHeader }).setOrigin(0.5);
-        this.fusionItem1Info = this.add.text(-200, 0, "", { ...this.fontBody }).setOrigin(0.5);
-        this.fusionItem2Info = this.add.text(200, 0, "", { ...this.fontBody }).setOrigin(0.5);
-        const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true});
+        const fcBg = this.add.rectangle(0, 0, 900, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
+        const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { ...this.fontTitle, fontSize:'32px' }).setOrigin(0.5);
+        const fcInfo = this.add.text(0, -220, "El resultado heredará los stats de UNO de los dos (50/50).\nEl nivel de encantamiento subirá +1.", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5);
+
+        // Paneles visuales para los items
+        const panelY = 0;
+        // Panel Izquierdo (Item Base)
+        const leftBg = this.add.rectangle(-220, panelY, 350, 400, 0x000000).setStrokeStyle(2, 0x00ffff);
+        const leftTitle = this.add.text(-220, panelY - 180, "ITEM BASE", { ...this.fontHeader, color: '#00ffff' }).setOrigin(0.5);
+        this.fusionItem1Info = this.add.text(-220, panelY, "", { ...this.fontBody, align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
+
+        // Panel Derecho (Sacrificio)
+        const rightBg = this.add.rectangle(220, panelY, 350, 400, 0x000000).setStrokeStyle(2, 0xff00ff);
+        const rightTitle = this.add.text(220, panelY - 180, "SACRIFICIO", { ...this.fontHeader, color: '#xff00ff' }).setOrigin(0.5);
+        this.fusionItem2Info = this.add.text(220, panelY, "", { ...this.fontBody, align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
+
+        // Flecha central
+        const arrow = this.add.text(0, panelY, "➡", { fontSize: '64px', color: '#fff' }).setOrigin(0.5);
+
+        const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
         const confirmTxt = this.add.text(0, 250, "¡FUSIONAR!", this.fontBtn).setOrigin(0.5);
         confirmBtn.on('pointerdown', () => this.executeFusion());
-        this.fusionConfirmModal.add([fcBg, fcInfo, this.fusionItem1Info, this.fusionItem2Info, confirmBtn, confirmTxt]);
+        
+        const backBtn = this.add.text(0, 310, "Volver", { ...this.fontBody, color: '#888' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        backBtn.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
+
+        this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftBg, leftTitle, this.fusionItem1Info, rightBg, rightTitle, this.fusionItem2Info, arrow, confirmBtn, confirmTxt, backBtn]);
     }
 
     createInvCategoryBtn(x, y, label, cat) { 
@@ -301,7 +325,38 @@ export default class MainMenuScene extends Phaser.Scene {
     forceUnequip(slot) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
     initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
     populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => String(i.id) !== String(this.itemToFuse1.id) && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const txt = this.add.text(0, y, `${item.name}`, { ...this.fontBody }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
-    selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); this.fusionItem1Info.setText(this.itemToFuse1.name); this.fusionItem2Info.setText(this.itemToFuse2.name); }
+    selectSecondItemForFusion(item2) { 
+        this.itemToFuse2 = item2; 
+        this.fusionListModal.setVisible(false); 
+        this.fusionConfirmModal.setVisible(true); 
+        
+        // Helper para formatear stats
+        const formatItemInfo = (item) => {
+            const colorHex = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0');
+            const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '');
+            return `[color=${colorHex}]${item.name}[/color]\n\nNivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\n\nSTATS:\n${statsStr}`;
+        };
+
+        // NOTA: Phaser Text normal no soporta BBCode ([color]) por defecto sin configuración avanzada,
+        // así que usaremos setColor en el objeto si es necesario, o texto plano limpio.
+        // Aquí uso texto plano limpio para asegurar compatibilidad.
+        
+        const getInfo = (item) => {
+            let s = `** ${item.name} **\n`;
+            s += `Nivel: +${item.enchant} | ${RARITY[item.rarity].name}\n`;
+            s += `----------------\n`;
+            for (let k in item.stats) {
+                s += `${k}: ${item.stats[k]}\n`;
+            }
+            return s;
+        };
+
+        this.fusionItem1Info.setText(getInfo(this.itemToFuse1)); 
+        this.fusionItem1Info.setColor('#' + (this.itemToFuse1.color || 0xffffff).toString(16).padStart(6,'0'));
+        
+        this.fusionItem2Info.setText(getInfo(this.itemToFuse2));
+        this.fusionItem2Info.setColor('#' + (this.itemToFuse2.color || 0xffffff).toString(16).padStart(6,'0'));
+    }
     executeFusion() { const item1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id); const item2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id); if (!item1 || !item2) return; const result = RPGSystem.fuseSpecificItems(item1, item2); if (result.success) { gameState.inventory = gameState.inventory.filter(i => i.id !== item1.id && i.id !== item2.id); this.safeAddItemToInventory(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); this.showCentralAlert(`FUSIÓN EXITOSA: ${result.item.name}`, '#00ff00'); } }
 
     // --- VISTA FORJA ORGANIZADA ---
