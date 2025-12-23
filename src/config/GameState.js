@@ -118,6 +118,7 @@ export function getCurrentHero() {
     return gameState.heroes[gameState.selectedClass];
 }
 
+// --- FUNCIÓN ACTUALIZADA CON LÓGICA DE SETS ---
 export function updatePlayerStats() {
     if (!gameState.selectedClass) return;
 
@@ -126,14 +127,14 @@ export function updatePlayerStats() {
     
     const stats = { ...gameState.playerStats };
     
-    // Resetear a base de clase
+    // 1. Base
     stats.maxHp = classBase.hp;
     stats.damage = classBase.damage;
     stats.defense = classBase.defense;
     stats.attackSpeed = classBase.attackSpeed;
-    stats.range = classBase.range || 100; // IMPORTANTE: Recuperar rango base
+    stats.range = classBase.range || 100;
 
-    // Atributos comprados
+    // 2. Atributos
     if (hero && hero.baseAttributes) {
         stats.damage += (hero.baseAttributes.damage || 0);
         stats.maxHp += (hero.baseAttributes.maxHp || 0);
@@ -141,7 +142,7 @@ export function updatePlayerStats() {
         stats.attackSpeed -= (hero.baseAttributes.attackSpeed || 0);
     }
 
-    // Equipo
+    // 3. Equipo y Sets
     const equipment = [
         gameState.equipment.mainHand,
         gameState.equipment.offHand,
@@ -149,30 +150,64 @@ export function updatePlayerStats() {
         gameState.equipment.accessory
     ];
 
+    // Conteo de Sets
+    const setCount = {};
     equipment.forEach(item => {
-        if (item && item.stats) {
-            for (let key in item.stats) {
-                if (stats[key] !== undefined) {
-                    if (key === 'attackSpeed' || key === 'cdr') {
-                        stats[key] -= item.stats[key];
-                    } else {
-                        stats[key] += item.stats[key];
+        if (item) {
+            // Sumar stats normales
+            if (item.stats) {
+                for (let key in item.stats) {
+                    if (stats[key] !== undefined) {
+                        if (key === 'attackSpeed' || key === 'cdr') stats[key] -= item.stats[key];
+                        else stats[key] += item.stats[key];
                     }
+                }
+            }
+            
+            // Chequear sets
+            // Iteramos todos los sets definidos para ver si este item pertenece a alguno
+            for (let setKey in ITEM_SETS) {
+                const set = ITEM_SETS[setKey];
+                if (set.items.includes(item.recipeId)) { // Usamos recipeId para identificar
+                    if (!setCount[setKey]) setCount[setKey] = 0;
+                    setCount[setKey]++;
                 }
             }
         }
     });
 
-    // Validaciones
-    if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
-    if (stats.range < 50) stats.range = 50; // Rango mínimo seguro
+    // Aplicar Bonos de Set
+    gameState.activeSets = []; // Para mostrar en UI
+    for (let setKey in setCount) {
+        const count = setCount[setKey];
+        const setDef = ITEM_SETS[setKey];
+        
+        let activeBonusesText = [];
+        
+        setDef.bonuses.forEach(bonus => {
+            if (count >= bonus.count) {
+                activeBonusesText.push(`(${bonus.count}) ${bonus.desc}`);
+                // Aplicar stats del bono
+                for (let statKey in bonus.stats) {
+                    if (stats[statKey] !== undefined) {
+                        if (statKey === 'attackSpeed' || statKey === 'cdr') stats[statKey] -= bonus.stats[statKey];
+                        else stats[statKey] += bonus.stats[statKey];
+                    }
+                }
+            }
+        });
 
-    // Aplicar
-    Object.assign(gameState.playerStats, stats);
-    
-    if (gameState.playerStats.hp > gameState.playerStats.maxHp) {
-        gameState.playerStats.hp = gameState.playerStats.maxHp;
+        if (activeBonusesText.length > 0) {
+            gameState.activeSets.push({ name: setDef.name, bonuses: activeBonusesText });
+        }
     }
+
+    // 4. Validaciones
+    if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
+    if (stats.range < 50) stats.range = 50;
+
+    Object.assign(gameState.playerStats, stats);
+    if (gameState.playerStats.hp > gameState.playerStats.maxHp) gameState.playerStats.hp = gameState.playerStats.maxHp;
 }
 
 export function getTowerBonuses(type) {
