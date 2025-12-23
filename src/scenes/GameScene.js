@@ -307,6 +307,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.biome === 'mountain') bossType = 'boss_golem';
         if (this.biome === 'volcano') bossType = 'boss_wizard';
 
+        // CORRECCIÓN: Usar this.pathPoints en lugar de this.path
         const boss = new Enemy(this, this.pathPoints, this.hpMultiplier * 2.5, bossType);
         this.enemies.add(boss);
         this.showFloatingText(boss.x, boss.y - 50, "¡EL JEFE HA LLEGADO!", "#ff0000");
