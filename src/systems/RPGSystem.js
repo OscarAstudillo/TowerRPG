@@ -198,6 +198,7 @@ class RPGSystem {
         const item = this.generateItem(recipe, rarity, bonusEnchant);
         
         this.gainProfessionXP(profKey, rarityKey);
+        this.updateQuestProgress('craft', recipe.type, 1); // ej: craft weapon
         return { success: true, item: item };
     }
 
@@ -356,6 +357,70 @@ class RPGSystem {
         return lootList;
     }
 
+    // --- NUEVO: SISTEMA DE MISIONES ---
+    
+    generateDailyQuests() {
+        // Si ya hay misiones activas, no hacer nada (o refrescar si pasó tiempo)
+        if (gameState.quests.active.length > 0) return;
+
+        const templates = [
+            { type: 'kill', target: 'any', count: 20, desc: "Mata 20 Enemigos", reward: { gold: 100, xp: 50 } },
+            { type: 'craft', target: 'weapon', count: 1, desc: "Forja 1 Arma", reward: { gold: 150, material: 'wood' } },
+            { type: 'collect', target: 'copper', count: 5, desc: "Consigue 5 Cobre", reward: { gold: 80, xp: 30 } },
+            { type: 'boss', target: 'any', count: 1, desc: "Vence a un Jefe", reward: { gold: 300, material: 'iron' } }
+        ];
+
+        // Seleccionar 3 misiones al azar
+        for(let i=0; i<3; i++) {
+            const template = templates[Math.floor(Math.random() * templates.length)];
+            gameState.quests.active.push({
+                id: this.getUniqueId(),
+                ...template,
+                progress: 0,
+                completed: false,
+                claimed: false
+            });
+        }
+    }
+
+    updateQuestProgress(type, target, amount = 1) {
+        if (!gameState.quests || !gameState.quests.active) return;
+
+        gameState.quests.active.forEach(quest => {
+            if (!quest.completed && quest.type === type) {
+                // Verificar target (o 'any')
+                if (quest.target === 'any' || quest.target === target) {
+                    quest.progress += amount;
+                    if (quest.progress >= quest.count) {
+                        quest.progress = quest.count;
+                        quest.completed = true;
+                        // Notificación visual pendiente (se manejará en la escena)
+                    }
+                }
+            }
+        });
+    }
+
+    claimQuestReward(questId) {
+        const quest = gameState.quests.active.find(q => q.id === questId);
+        if (quest && quest.completed && !quest.claimed) {
+            quest.claimed = true;
+            
+            // Dar recompensas
+            if (quest.reward.gold) gameState.gold += quest.reward.gold;
+            if (quest.reward.xp) this.gainHeroXP(quest.reward.xp);
+            if (quest.reward.material) {
+                if (!gameState.materials[quest.reward.material]) gameState.materials[quest.reward.material] = { common: 0 };
+                gameState.materials[quest.reward.material].common += 3; // Dar 3 materiales
+            }
+            
+            // Eliminar de activas
+            gameState.quests.active = gameState.quests.active.filter(q => q.id !== questId);
+            
+            return { success: true, reward: quest.reward };
+        }
+        return { success: false };
+    }
 
 
 

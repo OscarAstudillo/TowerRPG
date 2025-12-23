@@ -70,6 +70,12 @@ export const initialState = {
         refining: { level: 1, xp: 0, maxXp: 100 }
     },
 
+    // NUEVO: Sistema de Misiones
+    quests: {
+        active: [], // Lista de misiones actuales
+        lastRefresh: 0 // Para refrescar misiones cada 24h (simulado)
+    },
+
     heroes: {}, 
     talents: [],
     completedLevels: {}, 
@@ -225,3 +231,4 @@ export function getTowerBonuses(type) {
     }
     return bonuses;
 }
+

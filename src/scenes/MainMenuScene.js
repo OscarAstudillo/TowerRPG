@@ -88,6 +88,17 @@ export default class MainMenuScene extends Phaser.Scene {
         this.add.text(cx, botY, 'IR AL MAPA', { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5);
         playBtn.on('pointerdown', () => this.scene.start('WorldMapScene'));
 
+        // BOTÓN DE MISIONES
+        const questBtn = this.add.rectangle(w - 150, h * 0.2, 120, 40, 0x800080).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xffffff);
+        this.add.text(w - 150, h * 0.2, "MISIONES", this.fontBtn).setOrigin(0.5);
+        questBtn.on('pointerdown', () => this.toggleQuestModal());
+
+        // Inicializar misiones si no hay
+        RPGSystem.generateDailyQuests();
+        
+        // Crear el contenedor del modal (oculto al inicio)
+        this.createQuestModal(w, h, cx, cy);
+
         const changeHeroBtn = this.add.text(50, botY, 'CAMBIAR HÉROE', { ...this.fontBtn, color: '#00ffff' }).setInteractive({ useHandCursor: true }).setOrigin(0, 0.5);
         changeHeroBtn.on('pointerdown', () => { gameState.selectedClass = null; this.scene.start('HeroSelectScene'); });
 
@@ -646,4 +657,69 @@ export default class MainMenuScene extends Phaser.Scene {
     createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
     refreshTowersView() { const types = ['archer', 'cannon', 'mage']; types.forEach(type => { const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } }); const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`); if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); } for (let s = 1; s <= 2; s++) { const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`); if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } } } }); }
     showTowerUnequipModal(item, towerType, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) { gameState.towerEquipment[towerType][slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); this.refreshTowersView(); modal.destroy(); this.showCentralAlert("Mejora desequipada", "#ffff00"); } else { this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.towersContainer.add(modal); }
+    createQuestModal(w, h, cx, cy) {
+        this.questContainer = this.add.container(0, 0).setVisible(false).setDepth(2000);
+        
+        // Fondo oscuro que cubre todo
+        const blocker = this.add.rectangle(cx, cy, w, h, 0x000000, 0.8).setInteractive();
+        
+        // Panel
+        const bg = this.add.rectangle(cx, cy, 500, 600, 0x222222).setStrokeStyle(4, 0xffd700);
+        const title = this.add.text(cx, cy - 250, "TABLÓN DE MISIONES", { ...this.fontTitle, fontSize: '28px' }).setOrigin(0.5);
+        
+        const closeBtn = this.add.text(cx + 220, cy - 280, "X", { fontSize: '32px', color: '#ff0000', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
+        closeBtn.on('pointerdown', () => this.toggleQuestModal());
+        
+        this.questListContainer = this.add.container(cx, cy - 150);
+        
+        this.questContainer.add([blocker, bg, title, closeBtn, this.questListContainer]);
+        this.add.existing(this.questContainer); // Asegurar que se añade a la escena
+    }
+
+    toggleQuestModal() {
+        const isVisible = !this.questContainer.visible;
+        this.questContainer.setVisible(isVisible);
+        if (isVisible) this.refreshQuestList();
+    }
+
+    refreshQuestList() {
+        this.questListContainer.removeAll(true);
+        let y = 0;
+        
+        if (gameState.quests.active.length === 0) {
+            this.questListContainer.add(this.add.text(0, 100, "¡Todas las misiones completadas!\nVuelve mañana.", { ...this.fontBody, align: 'center' }).setOrigin(0.5));
+            return;
+        }
+
+        gameState.quests.active.forEach(quest => {
+            // Fondo de cada misión
+            const qBg = this.add.rectangle(0, y, 450, 100, 0x333333).setStrokeStyle(1, 0xaaaaaa);
+            
+            // Texto: Descripción y Progreso
+            const qTitle = this.add.text(-200, y - 20, quest.desc, { ...this.fontHeader, fontSize: '18px' }).setOrigin(0, 0.5);
+            const qProgress = this.add.text(-200, y + 20, `Progreso: ${quest.progress}/${quest.count}`, { ...this.fontBody, color: '#00ffff' }).setOrigin(0, 0.5);
+            
+            // Botón de Reclamar (si está completa) o Estado
+            let statusBtn;
+            if (quest.completed) {
+                statusBtn = this.add.rectangle(150, y, 120, 40, 0x006400).setInteractive({ useHandCursor: true });
+                const btnTxt = this.add.text(150, y, "RECLAMAR", this.fontBtn).setOrigin(0.5);
+                statusBtn.on('pointerdown', () => {
+                    const res = RPGSystem.claimQuestReward(quest.id);
+                    if (res.success) {
+                        SaveSystem.save();
+                        this.refreshQuestList();
+                        this.goldText.setText(`ORO: ${gameState.gold}`);
+                        this.showCentralAlert("¡Recompensa Reclamada!", "#ffd700");
+                    }
+                });
+                this.questListContainer.add([qBg, qTitle, qProgress, statusBtn, btnTxt]);
+            } else {
+                statusBtn = this.add.text(150, y, "En Curso", { ...this.fontBody, color: '#aaaaaa', fontStyle: 'italic' }).setOrigin(0.5);
+                this.questListContainer.add([qBg, qTitle, qProgress, statusBtn]);
+            }
+            
+            y += 120;
+        });
+        }
 }

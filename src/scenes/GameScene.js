@@ -385,6 +385,11 @@ export default class GameScene extends Phaser.Scene {
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); 
             this.updateUI(); 
         } catch (err) { console.warn("Error visual al matar enemigo:", err); } 
+
+        RPGSystem.updateQuestProgress('kill', 'any', 1);
+        if (enemy.type.startsWith('boss')) {
+            RPGSystem.updateQuestProgress('boss', 'any', 1);
+        }
     }
     
     generateBossLoot(boss) { 
@@ -444,6 +449,10 @@ export default class GameScene extends Phaser.Scene {
                 this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; 
                 this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); 
             }
+
+            if (!lootItem.isConsumable) {
+            RPGSystem.updateQuestProgress('collect', lootItem.typeKey, 1);
+        }
         } 
         lootItem.destroy(); 
     }
