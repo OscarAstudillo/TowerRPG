@@ -1,5 +1,4 @@
 // src/scenes/MainMenuScene.js
-
 import Phaser from 'phaser';
 import { gameState, updatePlayerStats, RARITY, getCurrentHero } from '../config/GameState.js';
 import RPGSystem from '../systems/RPGSystem.js';
@@ -30,9 +29,9 @@ export default class MainMenuScene extends Phaser.Scene {
         // ESTILOS: Texto Principal Blanco
         this.fontTitle = { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000000', strokeThickness: 4 };
         this.fontHeader = { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
-        this.fontBody = { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 }; // Blanco
+        this.fontBody = { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 }; 
         this.fontBtn = { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 2 };
-        this.fontSmall = { fontFamily: 'Roboto', fontSize: '12px', color: '#dddddd' }; // Blanco ligeramente gris
+        this.fontSmall = { fontFamily: 'Roboto', fontSize: '12px', color: '#dddddd' }; 
     }
 
     create() {
@@ -221,6 +220,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invItemsContainer = this.add.container(gridX, gridY); 
         this.invContainer.add(this.invItemsContainer);
         
+        // Contenedor para el detalle (se reconstruirá)
         const detailX = w * 0.78;
         this.itemDetailContainer = this.add.container(detailX, gridY); 
         this.itemDetailContainer.setVisible(false); 
@@ -411,12 +411,11 @@ export default class MainMenuScene extends Phaser.Scene {
     }
     executeFusion() { const item1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id); const item2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id); if (!item1 || !item2) return; const result = RPGSystem.fuseSpecificItems(item1, item2); if (result.success) { gameState.inventory = gameState.inventory.filter(i => i.id !== item1.id && i.id !== item2.id); this.safeAddItemToInventory(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); this.showCentralAlert(`FUSIÓN EXITOSA: ${result.item.name}`, '#00ff00'); } }
 
-    // --- VISTA FORJA ORGANIZADA (CORREGIDA DUPLICADOS Y COLOR BLANCO) ---
+    // --- VISTA FORJA ORGANIZADA (CORREGIDA) ---
     createForgeView(w, h, cx, cy) {
         this.profText = this.add.text(cx, h * 0.15, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
-        this.forgeMsg = this.add.text(cx, h - 50, '', { ...this.fontHeader }).setOrigin(0.5);
-        this.forgeContainer.add(this.forgeMsg);
+        // this.forgeMsg eliminado, ahora se usan alertas
         
         const catY = h * 0.22;
         this.createForgeCatBtn(w * 0.2, catY, "ARMAS", 'weapon');
@@ -430,7 +429,9 @@ export default class MainMenuScene extends Phaser.Scene {
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
         
-        const detailX = w * 0.78; const detailY = h * 0.55; 
+        // Contenedor para el detalle (se reconstruirá)
+        const detailX = w * 0.78; 
+        const detailY = h * 0.35; // --- CAMBIO: AJUSTADO MÁS ARRIBA ---
         this.recipeDetailContainer = this.add.container(detailX, detailY); 
         this.recipeDetailContainer.setVisible(false);
         this.forgeContainer.add(this.recipeDetailContainer); 
@@ -473,10 +474,9 @@ export default class MainMenuScene extends Phaser.Scene {
         this.recipesContainer.removeAll(true);
         let startX = this.scale.width * 0.15; let startY = this.scale.height * 0.35; let col = 0;
         
-        // CORRECCIÓN: Un solo filtrado que incluye la lógica de recetas bloqueadas
         const categoryRecipes = RECIPES.filter(r => {
             if (r.isLocked && (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id))) {
-                return false; // Ocultar bloqueadas no desbloqueadas
+                return false; 
             }
 
             if (this.forgeCategory === 'tower_part') return r.type === 'tower_part';
@@ -508,7 +508,6 @@ export default class MainMenuScene extends Phaser.Scene {
                 ['common', 'uncommon', 'rare'].forEach(rarity => { 
                     const rData = RARITY[rarity]; 
                     const rBtn = this.add.rectangle(startX + (col * 250) + 20, startY, 180, 35, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rData.color); 
-                    // Usamos fontBody para el texto, que es blanco, y luego aplicamos el color de rareza
                     const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'12px' }).setOrigin(0.5).setColor('#' + rData.color.toString(16).padStart(6,'0'));
                     rBtn.on('pointerdown', () => this.selectNormalRecipe(recipe, rarity)); 
                     this.recipesContainer.add([rBtn, rTxt]); 
@@ -539,7 +538,6 @@ export default class MainMenuScene extends Phaser.Scene {
         infoText += setInfo ? `\n${setInfo}` : "";
         
         let currentY = 0;
-        // El título toma el color de la rareza, pero el cuerpo es blanco
         const title = this.add.text(0, currentY, recipe.name, { ...this.fontHeader, fontSize: '18px', color: hexColor, align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += title.height + 20;
 
@@ -553,18 +551,24 @@ export default class MainMenuScene extends Phaser.Scene {
         const bg = this.add.rectangle(0, bgHeight/2 - 20, 320, bgHeight, 0x000000, 0.95).setStrokeStyle(2, 0xffd700);
         
         this.recipeDetailContainer.add([bg, title, stats, craftBtn]);
-        this.forgeMsg.setText("");
     }
 
     handleCraftButton() { const sel = this.craftSelection; if (!sel.type) return; this.executeCraftItem(sel.recipe, sel.rarity); }
+    
+    // --- CAMBIO: USAR ALERTAS EN LUGAR DE TEXTO ABAJO ---
     executeCraftItem(recipe, rarityKey) {
         const rarity = RARITY[rarityKey]; const cost = Math.floor(recipe.cost * rarity.mult);
-        if (gameState.gold < cost) { this.forgeMsg.setText("¡Falta Oro!"); this.forgeMsg.setColor('#ff0000'); return; }
+        if (gameState.gold < cost) { 
+            this.showCentralAlert("¡Falta Oro!", '#ff0000'); 
+            return; 
+        }
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         if (result.success) { 
             gameState.gold -= cost; this.safeAddItemToInventory(result.item); this.goldText.setText(`ORO: ${gameState.gold}`); SaveSystem.save(); 
             this.showCentralAlert(`¡CREADO: ${result.item.name}!`, '#' + RARITY[rarityKey].color.toString(16).padStart(6,'0')); 
-        } else { this.forgeMsg.setText(`ERROR: ${result.error}`); this.forgeMsg.setColor('#ff0000'); } 
+        } else { 
+            this.showCentralAlert(`ERROR: ${result.error}`, '#ff0000'); 
+        } 
     }
     
     // --- VISTA TALENTOS (SCROLLABLE) ---
@@ -686,7 +690,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
     executeRefine(id) { const res = RPGSystem.refineMaterial(id); if(res.success) { SaveSystem.save(); this.refreshRefining(); this.showCentralAlert("REFINADO OK", '#00ff00'); } }
 
-    // --- VISTAS HEROE Y TORRES (COLOR BLANCO APLICADO) ---
+    // --- VISTAS HEROE Y TORRES ---
     createHeroView(w, h, cx, cy) { this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); this.heroContainer.add(this.heroLevelText); const leftX = w * 0.3; const contentY = h * 0.3; const panelWidth = 450; const panelHeight = 550; const statsBg = this.add.rectangle(leftX, cy + 20, panelWidth, panelHeight, 0x000000, 0.8).setStrokeStyle(2, 0x555555); this.heroContainer.add(statsBg); const textStartX = leftX - (panelWidth / 2) + 20; const textStartY = (cy + 20) - (panelHeight / 2) + 20; this.heroStatsText = this.add.text(textStartX, textStartY, '', { ...this.fontBody, fontSize: '15px', lineHeight: 22 }); this.heroContainer.add(this.heroStatsText); this.equippedTextContainer = this.add.container(0, 0); this.heroContainer.add(this.equippedTextContainer); const rightX = w * 0.75; let upgradeY = h * 0.3; this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5); this.heroContainer.add(this.pointsText); upgradeY += 60; const statsToUpgrade = [ { label: "Daño (+1)", key: 'damage' }, { label: "Vida (+10)", key: 'hp' }, { label: "Vel. Atq (+10ms)", key: 'speed' }, { label: "Defensa (+1)", key: 'defense' } ]; statsToUpgrade.forEach((s, i) => { this.createStatButton(rightX, upgradeY + (i * 60), s.label, s.key); }); }
     createStatButton(x, y, label, statKey) { const btn = this.add.rectangle(x, y, 220, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00); const txt = this.add.text(x, y, label, this.fontBtn).setOrigin(0.5); btn.on('pointerdown', () => { if (RPGSystem.spendStatPoint(statKey)) { this.refreshHero(); SaveSystem.save(); } }); this.heroContainer.add([btn, txt]); }
     refreshHero() { updatePlayerStats(); const s = gameState.playerStats; const eq = gameState.equipment; const hero = getCurrentHero(); const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); let setsText = ""; if (gameState.activeSets && gameState.activeSets.length > 0) { setsText = "\n\n-- SETS ACTIVOS --\n"; gameState.activeSets.forEach(set => { setsText += `[${set.name}]\n`; set.bonuses.forEach(b => setsText += `  ${b}\n`); }); } const details = `Crítico: ${s.critChance}% (x${s.critDamage}%) \nRobo Vida: ${s.lifesteal}%  |  Regen HP: ${s.regenHp}/5s \nDoble Ataque: ${s.doubleAttack}%  |  Espinas: ${s.thorns} \nCooldown: -${s.cdr}%${setsText}`; this.heroStatsText.setText(`CLASE: [ ${clsName} ]\n\n-- ATRIBUTOS BASE --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}\n⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}\n⚡ Delay Atq: ${s.attackSpeed}ms\n📏 Rango: ${s.range}\n\n-- EXTRAS --\n${details}`); this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); this.equippedTextContainer.removeAll(true); const startX = this.heroStatsText.x; let startY = this.heroStatsText.y + 300; this.equippedTextContainer.add(this.add.text(startX, startY, "-- EQUIPAMIENTO (Clic gestiona) --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); startY += 30; const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; slots.forEach(slot => { const item = eq[slot.key]; const slotBg = this.add.rectangle(startX + 180, startY + 10, 360, 30, 0x222222).setOrigin(0.5).setInteractive({useHandCursor: true}); slotBg.setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); const name = item ? `${item.name} (+${item.enchant})` : '- VACÍO (Ir a Mochila) -'; const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888'; const txt = this.add.text(startX, startY, `${slot.label}:`, this.fontBody); const valTxt = this.add.text(startX + 80, startY, name, { ...this.fontBody, color: color, fontStyle: 'bold' }); slotBg.on('pointerdown', () => { if (!item) { this.inventoryCategory = slot.cat; this.switchTab('inventory'); } else { this.showUnequipModal(item, slot.key); } }); this.equippedTextContainer.add([slotBg, txt, valTxt]); startY += 35; }); }
