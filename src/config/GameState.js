@@ -32,7 +32,7 @@ export const initialState = {
     },
 
     materials: {
-        wood: { common: 12, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        wood: { common: 0, uncommon: 0, rare: 0, epic:   0, legendary: 0 },
         copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         hide: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -51,7 +51,7 @@ export const initialState = {
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        plank_wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
+        plank_wood: { common: 6, uncommon: 6, rare: 6, epic: 0, legendary: 0 },
         plank_cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         plank_ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cloth_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
