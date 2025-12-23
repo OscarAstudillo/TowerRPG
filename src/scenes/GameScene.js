@@ -29,15 +29,18 @@ export default class GameScene extends Phaser.Scene {
         this.biome = data.biome || 'forest';
         this.config = data.config || {}; 
         
-        this.currentLevelData = data.levelData || { id: 1, name: "Nivel Debug", startCoins: 500, difficulty: 1, path: [], towerSlots: [] };
+        this.currentLevelData = data.levelData || { id: 1, name: "Nivel Generado", startCoins: 500, difficulty: 1, path: [], towerSlots: [] };
         
+        // Generador de mapa básico (Línea recta) si no hay datos
         if (!this.currentLevelData.path || this.currentLevelData.path.length === 0) {
             this.currentLevelData.path = [{x: 0, y: 300}, {x: 1280, y: 300}]; 
-            this.currentLevelData.towerSlots = [{x: 300, y: 200}, {x: 600, y: 400}, {x: 900, y: 200}];
+            this.currentLevelData.towerSlots = [{x: 200, y: 200}, {x: 400, y: 400}, {x: 600, y: 200}, {x: 800, y: 400}, {x: 1000, y: 200}];
         }
 
-        this.theme = { background: (this.config.tier === 3 ? 0x220000 : 0x333333), path: 0x555555, accent: 0x00ffff };
-        
+        // --- CARGAR TEMA VISUAL DEL BIOMA ---
+        const biomeData = BIOMES[this.biome];
+        this.theme = biomeData ? biomeData.theme : { bg: 0x333333, path: 0x555555, accent: 0x00ffff, grid: 0x444444 };
+
         if (!gameState.playerStats) updatePlayerStats();
         const hero = getCurrentHero();
         this.lastHeroLevel = hero ? hero.level : 1;
@@ -69,7 +72,8 @@ export default class GameScene extends Phaser.Scene {
 
         this.TOP_MARGIN = 120;
         this.cameras.main.scrollY = -this.TOP_MARGIN;
-        this.cameras.main.setBackgroundColor(0x111111);
+        // COLOR DE FONDO SEGÚN BIOMA
+        this.cameras.main.setBackgroundColor(this.theme.bg);
 
         const w = this.scale.width;
         const h = this.scale.height;
@@ -89,19 +93,31 @@ export default class GameScene extends Phaser.Scene {
         this.bossLootLog = []; 
         gameState.baseHp = 20;
 
+        // DIBUJAR MAPA CON COLORES DEL BIOMA
         const graphics = this.add.graphics();
-        graphics.fillStyle(this.theme.background, 1);
-        graphics.fillRect(0, 0, w, h);
-        graphics.lineStyle(50 * Math.min(this.sx, this.sy), this.theme.path, 1);
+        
+        // Patrón de grilla sutil
+        graphics.lineStyle(2, this.theme.grid, 0.3);
+        for(let i=0; i<w; i+=100) { graphics.moveTo(i,0); graphics.lineTo(i,h); }
+        for(let j=0; j<h; j+=100) { graphics.moveTo(0,j); graphics.lineTo(w,j); }
+        graphics.strokePath();
+
+        // Camino Principal
+        graphics.lineStyle(60 * Math.min(this.sx, this.sy), this.theme.path, 1);
         graphics.beginPath();
         graphics.moveTo(this.pathPoints[0].x, this.pathPoints[0].y);
         for (let i = 1; i < this.pathPoints.length; i++) graphics.lineTo(this.pathPoints[i].x, this.pathPoints[i].y);
+        graphics.strokePath();
+        
+        // Bordes del camino
+        graphics.lineStyle(4, 0x000000, 0.5);
         graphics.strokePath();
 
         this.createBuildSlots();
         this.createSpawnIndicator();
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
+        // ... (RESTO DEL CÓDIGO IGUAL: Inputs, Colliders, UI) ...
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
 

@@ -13,6 +13,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.levelDifficulty = levelDifficulty;
 
         const levelId = (scene.currentLevelData && scene.currentLevelData.id) ? scene.currentLevelData.id : 1;
+        const biome = scene.biome || 'forest'; // Detectar Bioma
 
         // Configuración Base
         let color = 0xff0000;
@@ -24,44 +25,69 @@ export default class Enemy extends Phaser.GameObjects.Container {
         let goldDrop = 25; 
         let xpDrop = 15;
 
+        // --- LÓGICA DE BIOMAS ---
+        // Modificadores globales por bioma
+        let biomeHpMult = 1.0;
+        let biomeSpeedMult = 1.0;
+        let biomeArmorBonus = 0;
+
+        if (biome === 'mountain') {
+            biomeHpMult = 1.3;      // Más vida
+            biomeArmorBonus = 3;    // Más armadura base
+            biomeSpeedMult = 0.8;   // Más lentos
+        } else if (biome === 'volcano') {
+            biomeHpMult = 0.9;      // Menos vida
+            biomeSpeedMult = 1.2;   // Más rápidos
+            // (El daño se ajusta luego)
+        }
+
         // Variantes
+        // Variantes y Tipos
         if (type === 'normal') { 
             hpBase = 100; speedBase = 1.0; 
-            if (levelId === 2) { color = 0xDAA520; speedBase = 1.2; hpBase = 90; } 
-            else if (levelId === 3) { color = 0x8B0000; speedBase = 0.9; hpBase = 130; } 
+            // Colores por bioma
+            if (biome === 'forest') color = 0x008000; // Goblin
+            if (biome === 'mountain') color = 0x8b4513; // Kobold
+            if (biome === 'volcano') color = 0xff4500; // Imp
         }
         else if (type === 'tank') { 
-            hpBase = 250; speedBase = 0.6; armor = 5; color = 0x00008b; size = 26; goldDrop = 40; xpDrop = 30;
-            if (levelId === 3) { color = 0x2F4F4F; armor = 10; hpBase = 300; } 
+            hpBase = 250; speedBase = 0.6; armor = 5; size = 26;
+            if (biome === 'forest') color = 0x556b2f; // Ent
+            if (biome === 'mountain') { color = 0x708090; armor += 5; } // Golem (Muy duro)
+            if (biome === 'volcano') { color = 0x800000; hpBase = 300; } // Magma Golem
         }
         else if (type === 'speed') { 
-            hpBase = 60; speedBase = 1.4; color = 0xffff00; size = 16; goldDrop = 15; 
-        }
-        else if (type === 'healer') { 
-            hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; goldDrop = 30;
+            hpBase = 60; speedBase = 1.4; size = 16;
+            if (biome === 'forest') color = 0xa0522d; // Lobo
+            if (biome === 'mountain') color = 0xd3d3d3; // Águila/Gárgola
+            if (biome === 'volcano') color = 0xffa500; // Llama
         }
         else if (type.startsWith('boss')) {
             speedBase = 0.4; armor = 10; size = 50; castleDamage = 20; goldDrop = 500; xpDrop = 200;
-            if (type === 'boss_goblin') { hpBase = 2000; color = 0x006400; }
-            else if (type === 'boss_golem') { hpBase = 3500; armor = 25; color = 0x808080; size = 60; speedBase = 0.3; }
-            else if (type === 'boss_wizard') { hpBase = 1500; armor = 2; color = 0x4b0082; speedBase = 0.6; }
-            else { hpBase = 2000; color = 0x880000; } 
+            // Bosses específicos ya definidos en GameScene, aquí solo stats base
+            hpBase = 2000; 
+            if (biome === 'mountain') armor += 15;
         }
 
-        this.hp = Math.floor(hpBase * levelDifficulty);
+        // Cálculo Final de Stats
+        this.hp = Math.floor(hpBase * levelDifficulty * biomeHpMult);
         this.maxHp = this.hp;
-        this.baseSpeed = speedBase / 16000; 
-        this.armor = armor;
+        this.baseSpeed = (speedBase * biomeSpeedMult) / 16000; 
+        this.armor = armor + biomeArmorBonus;
         this.leakDamage = castleDamage;
         this.originalColor = color;
         this.coinReward = goldDrop;
         this.xpReward = xpDrop;
+        
+        // Daño extra en volcán
         this.damage = type.startsWith('boss') ? 50 : 15;
+        if (biome === 'volcano') this.damage += 5;
 
-        // Visual
-        this.bodyShape = scene.add.rectangle(0, 0, size, size, color);
+        // Diferenciación visual extra
+        if (biome === 'mountain') this.bodyShape.setStrokeStyle(2, 0x000000); // Borde duro
+        if (biome === 'volcano') this.bodyShape.setStrokeStyle(2, 0xffff00); // Borde brillante
+
         if (type.startsWith('boss')) this.bodyShape.setStrokeStyle(3, 0xffd700);
-        else this.bodyShape.setStrokeStyle(1, 0x000000);
         this.add(this.bodyShape);
         
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 10, 40, 6, 0x000000);
