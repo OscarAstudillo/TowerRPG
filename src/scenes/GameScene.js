@@ -61,7 +61,7 @@ export default class GameScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor(this.theme.bg);
         const w = this.scale.width;
         const h = this.scale.height;
-        this.physics.world.setBounds(0, 0, w, h); 
+        this.physics.world.setBounds(0, 120, w, h - 240); 
 
         this.coins = 500 + (this.level * 50); 
         this.currentWave = 0; 
