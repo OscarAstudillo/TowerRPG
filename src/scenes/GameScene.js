@@ -28,17 +28,13 @@ export default class GameScene extends Phaser.Scene {
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
         this.config = data.config || {}; 
-        
-        // Cargar datos del nivel (1920x1080)
         this.currentLevelData = getLevelData(this.biome, this.level);
         this.theme = BIOMES[this.biome] ? BIOMES[this.biome].theme : { bg: 0x333333, path: 0x555555, accent: 0x00ffff, grid: 0x444444 };
-        
         if (!gameState.playerStats) updatePlayerStats();
         const hero = getCurrentHero();
         this.lastHeroLevel = hero ? hero.level : 1;
         this.isSceneReady = false; 
         this.isPaused = false;
-        
         this.totalWaves = this.config.waves || 3;
         this.hpMultiplier = this.config.hpMult || 1;
         this.spawnMult = this.currentLevelData.spawnMultiplier || 1;
@@ -63,7 +59,6 @@ export default class GameScene extends Phaser.Scene {
         this.loots = this.physics.add.group({ classType: Loot });
 
         this.cameras.main.setBackgroundColor(this.theme.bg);
-        
         const w = this.scale.width;
         const h = this.scale.height;
         this.physics.world.setBounds(0, 0, w, h); 
@@ -75,7 +70,6 @@ export default class GameScene extends Phaser.Scene {
         this.bossLootLog = []; 
         gameState.baseHp = 20;
 
-        // DIBUJAR MAPA
         const graphics = this.add.graphics();
         if (this.theme.grid) {
             graphics.lineStyle(2, this.theme.grid, 0.3);
@@ -101,29 +95,39 @@ export default class GameScene extends Phaser.Scene {
 
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
 
-        // Interacción Ratón
+        // --- SISTEMA DE CLIC ROBUSTO ---
         this.input.on('gameobjectdown', (pointer, obj) => {
             if (this.isPaused) return; 
-            let target = obj;
-            if (obj.parentContainer instanceof Tower) target = obj.parentContainer;
-            if (target instanceof Tower) {
+            
+            // Buscar si el objeto o sus padres son una Torre
+            const tower = this.getTowerFromObject(obj);
+
+            if (tower) {
                 pointer.event.stopPropagation();
-                this.openUpgradeMenu(target);
+                this.openUpgradeMenu(tower);
             } 
         });
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
-            const clickedOnUI = currentlyOver.some(obj => obj === this.upgradeContainer || (obj.parentContainer && obj.parentContainer === this.upgradeContainer));
-            const clickedOnTower = currentlyOver.some(obj => obj instanceof Tower || (obj.parentContainer && obj.parentContainer instanceof Tower));
-            if (!clickedOnUI && !clickedOnTower) this.closeUpgradeMenu();
+            
+            // Verificar si clicamos UI o una Torre
+            const clickedOnUI = currentlyOver.some(obj => 
+                obj === this.upgradeContainer || 
+                (obj.parentContainer && obj.parentContainer === this.upgradeContainer)
+            );
+            
+            const clickedOnTower = currentlyOver.some(obj => this.getTowerFromObject(obj) !== null);
+
+            if (!clickedOnUI && !clickedOnTower) {
+                this.closeUpgradeMenu();
+            }
         });
 
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
@@ -134,20 +138,17 @@ export default class GameScene extends Phaser.Scene {
         });
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
 
-        // Inicializar UI
         this.createUI();
         this.createUpgradeUI();
         this.createPauseMenu();
 
-        // Iniciar
         this.startWaveTimer(20); 
-        this.updateUI(); // <-- Aquí llamamos a la función
+        this.updateUI();
         this.isSceneReady = true;
     }
 
     update(time, delta) {
-        if (this.isPaused) return;
-        if (!this.isSceneReady) return;
+        if (this.isPaused || !this.isSceneReady) return;
 
         if (this.player) this.player.update(time, delta);
         if (this.towers) { this.towers.children.iterate(t => { if (t && t.active) t.update(time, delta); }); }
@@ -164,30 +165,29 @@ export default class GameScene extends Phaser.Scene {
         
         if (this.isTimerRunning) {
             this.timeToNextWave -= delta;
-            if (this.timeToNextWave <= 0) {
-                this.startWave();
-            } else {
-                const seconds = Math.ceil(this.timeToNextWave / 1000);
-                if (this.waveTimerBtnText) this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
-            }
+            if (this.timeToNextWave <= 0) this.startWave();
+            else if (this.waveTimerBtnText) this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${Math.ceil(this.timeToNextWave/1000)}s\n(Clic para iniciar)`);
         }
-        
         this.checkWaveStatus();
     }
 
-    // --- FUNCIONES PRINCIPALES (Movidas arriba para evitar errores) ---
+    // Helper para encontrar la torre padre
+    getTowerFromObject(obj) {
+        if (obj instanceof Tower) return obj;
+        if (obj.parentContainer) return this.getTowerFromObject(obj.parentContainer);
+        return null;
+    }
 
+    // --- FUNCIONES UI Y LÓGICA ---
     updateUI() { 
         const currentTower = TOWER_TYPES[this.selectedTowerType]; 
         if (currentTower) {
             if(this.economyText) this.economyText.setText(`$${this.coins}`); 
             if(this.buildText) this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); 
         }
-        
         const pStats = gameState.playerStats; 
         if(this.livesText) this.livesText.setText(`❤️ HÉROE: ${Math.max(0, Math.floor(pStats.hp))}/${pStats.maxHp}`);
         if(this.castleText) this.castleText.setText(`🏰 CASTILLO: ${gameState.baseHp}`);
-        
         const hero = getCurrentHero();
         if (hero && this.xpBarFill && this.lvlText) {
             const xpPercent = Math.min(1, hero.xp / hero.maxXp);
@@ -195,14 +195,6 @@ export default class GameScene extends Phaser.Scene {
             this.lvlText.setText(`Lvl ${hero.level}`);
         }
     }
-
-    startWaveTimer(seconds) { 
-        this.isTimerRunning = true; 
-        this.timeToNextWave = seconds * 1000; 
-        if (this.waveTimerContainer) this.waveTimerContainer.setVisible(true); 
-    }
-
-    startNextWaveAction() { if (this.isTimerRunning) this.startWave(); }
 
     updateSkillUI() { 
         if (!this.player) return; 
@@ -218,181 +210,33 @@ export default class GameScene extends Phaser.Scene {
         } 
     }
 
-    startWave() {
-        this.isTimerRunning = false; 
-        if(this.waveTimerContainer) this.waveTimerContainer.setVisible(false);
-        this.waveActive = true;
-        this.currentWave++;
-        
-        this.isBossWave = (this.currentWave === this.totalWaves);
-        this.bossSpawned = false;
-
-        if(this.waveInfoText) {
-            this.waveInfoText.setText(this.isBossWave ? "¡JEFE FINAL!" : `OLEADA: ${this.currentWave}/${this.totalWaves}`);
-            if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
-        }
-        
-        let baseCount = 6 + (this.currentWave * 2);
-        let totalEnemies = Math.ceil(baseCount * this.spawnMult);
-        let spawnDelay = 2000 - (this.currentWave * 100);
-        if (spawnDelay < 500) spawnDelay = 500;
-
-        if (this.isBossWave) {
-            this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
-            totalEnemies = 4 * (this.currentLevelData.pathCount || 1); 
-        }
-
-        let spawned = 0;
-        this.spawnTimer = this.time.addEvent({
-            delay: spawnDelay,
-            repeat: totalEnemies - 1,
-            callback: () => {
-                this.spawnEnemy();
-                spawned++;
-                if (this.isBossWave && spawned === totalEnemies) {
-                    this.time.delayedCall(3000, () => this.spawnBoss());
-                }
-            }
-        });
-    }
-
-    // --- LOGICA DE JUEGO AUXILIAR ---
-
-    spawnEnemy(hpMult = 1, type = 'normal') {
-        const paths = this.currentLevelData.paths || [];
-        if(paths.length === 0) return;
-        const pathIndex = Math.floor(Math.random() * paths.length);
-        const path = paths[pathIndex];
-        
-        if(this.currentWave > 2 && Math.random() > 0.8) type = 'speed';
-        if(this.currentWave > 4 && Math.random() > 0.85) type = 'tank'; 
-        if(this.currentWave > 5 && Math.random() > 0.9) type = 'healer';
-
-        const enemy = new Enemy(this, path, this.hpMultiplier * hpMult, type);
-        this.enemies.add(enemy);
-    }
-
-    spawnBoss() {
-        this.bossSpawned = true; 
-        let bossType = 'boss_goblin';
-        if (this.biome === 'mountain') bossType = 'boss_golem';
-        if (this.biome === 'volcano') bossType = 'boss_wizard';
-        const paths = this.currentLevelData.paths || [];
-        if(paths.length === 0) return;
-        const path = paths[Math.floor(paths.length / 2)]; 
-        const boss = new Enemy(this, path, this.hpMultiplier * 2.5, bossType);
-        this.enemies.add(boss);
-        this.showFloatingText(boss.x, boss.y - 50, "¡EL JEFE HA LLEGADO!", "#ff0000");
-    }
-
-    checkWaveStatus() {
-        if (this.isBossWave && !this.bossSpawned) return;
-        if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) {
-            this.waveActive = false;
-            if (this.currentWave >= this.totalWaves) this.victory();
-            else this.startWaveTimer(20);
-        }
-    }
-
-    // --- CONSTRUCCIÓN DE LA INTERFAZ ---
-    createUI() { 
-        const w = this.scale.width; const h = this.scale.height; const uiDepth = 1000; const accent = this.theme.accent; 
-        
-        // Barras
-        this.add.rectangle(w/2, 60, w, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
-        this.add.rectangle(w/2, 120, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
-        
-        this.livesText = this.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.castleText = this.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1);
-        
-        // XP
-        this.xpContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(uiDepth + 1);
-        this.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.xpBarBg = this.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.xpBarFill = this.add.rectangle(330, 42, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
-        this.lvlText = this.add.text(540, 35, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
-        // Info Oleada
-        this.waveInfoText = this.add.text(w - 30, 40, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
-        // Botón Timer
-        this.waveTimerContainer = this.add.container(w/2, 60).setScrollFactor(0).setDepth(uiDepth + 2); 
-        this.waveTimerContainer.setSize(320, 60); this.waveTimerContainer.setInteractive({ useHandCursor: true }); 
-        const timerBg = this.add.rectangle(0, 0, 320, 60, 0x006400).setStrokeStyle(2, 0xffffff); 
-        this.waveTimerBtnText = this.add.text(0, 0, "INICIAR", { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', align: 'center', color: '#ffffff' }).setOrigin(0.5); 
-        this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]); 
-        this.waveTimerContainer.setVisible(false); 
-        this.waveTimerContainer.on('pointerdown', () => this.startNextWaveAction()); 
-        
-        // Panel Inferior
-        const barHeight = 120; const botY = h - (barHeight / 2); 
-        this.add.rectangle(w/2, botY, w, barHeight, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
-        this.add.rectangle(w/2, botY - (barHeight/2), w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
-        
-        const contentY = botY; 
-        this.add.text(40, contentY - 30, 'TESORO:', { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.economyText = this.add.text(40, contentY, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffffff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-3)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
-        const buildBg = this.add.rectangle(400, contentY + 10, 250, 60, 0x222222).setStrokeStyle(2, accent).setScrollFactor(0).setDepth(uiDepth);
-        this.buildText = this.add.text(400, contentY + 10, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
-        this.skillBtnContainer = this.add.container(w/2 + 200, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); 
-        const skillBg = this.add.rectangle(0, 0, 180, 50, 0x222222).setStrokeStyle(2, 0x555555); 
-        this.skillBar = this.add.rectangle(-90, 0, 0, 50, accent).setOrigin(0, 0.5); 
-        this.skillBtn = this.add.rectangle(0, 0, 180, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); 
-        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontFamily: 'Cinzel', fontSize: '14px', align: 'center', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5); 
-        this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]); 
-        this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill()); 
-        
-        const exitBtn = this.add.rectangle(w - 80, contentY, 120, 50, 0x8b0000).setInteractive({ useHandCursor: true }).setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff); 
-        this.add.text(w - 80, contentY, 'SALIR', { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
-        exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene')); 
-    }
-
     createUpgradeUI() {
         this.upgradeContainer = this.add.container(0, 0).setDepth(2000).setVisible(false);
-        const bg = this.add.rectangle(0, 0, 240, 200, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive();
-        this.upgradeText = this.add.text(0, -70, '', { fontSize: '14px', align: 'center', color: '#fff', wordWrap: {width: 220} }).setOrigin(0.5);
+        const bg = this.add.rectangle(0, 0, 240, 160, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive();
         
-        this.upgradeBtn = this.add.rectangle(0, -20, 200, 35, 0x00aa00).setInteractive({ useHandCursor: true });
-        this.upgradeBtnText = this.add.text(0, -20, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
+        this.upgradeText = this.add.text(0, -50, '', { fontSize: '14px', align: 'center', color: '#fff', wordWrap: {width: 220} }).setOrigin(0.5);
+        
+        this.upgradeBtn = this.add.rectangle(0, 0, 200, 35, 0x00aa00).setInteractive({ useHandCursor: true });
+        this.upgradeBtnText = this.add.text(0, 0, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
         this.upgradeBtn.on('pointerdown', () => this.tryUpgradeTower());
 
-        this.evoBtn1 = this.add.rectangle(-55, -20, 100, 35, 0x0000aa).setInteractive({ useHandCursor: true }).setVisible(false);
-        this.evoTxt1 = this.add.text(-55, -20, 'A', { fontSize: '12px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5).setVisible(false);
-        this.evoBtn1.on('pointerdown', () => this.tryEvolveTower('A'));
-
-        this.evoBtn2 = this.add.rectangle(55, -20, 100, 35, 0xaa00aa).setInteractive({ useHandCursor: true }).setVisible(false);
-        this.evoTxt2 = this.add.text(55, -20, 'B', { fontSize: '12px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5).setVisible(false);
-        this.evoBtn2.on('pointerdown', () => this.tryEvolveTower('B'));
-
-        this.sellBtn = this.add.rectangle(0, 40, 200, 35, 0xaa0000).setInteractive({ useHandCursor: true });
-        this.sellBtnText = this.add.text(0, 40, 'VENDER', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
+        this.sellBtn = this.add.rectangle(0, 50, 200, 35, 0xaa0000).setInteractive({ useHandCursor: true });
+        this.sellBtnText = this.add.text(0, 50, 'VENDER', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
         this.sellBtn.on('pointerdown', () => this.sellTower());
 
-        this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.evoBtn1, this.evoTxt1, this.evoBtn2, this.evoTxt2, this.sellBtn, this.sellBtnText]);
+        this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.sellBtn, this.sellBtnText]);
     }
 
     updateUpgradeMenuText() {
         if (!this.selectedTowerToUpgrade) return;
         const t = this.selectedTowerToUpgrade;
-        this.upgradeBtn.setVisible(false); this.upgradeBtnText.setVisible(false);
-        this.evoBtn1.setVisible(false); this.evoTxt1.setVisible(false);
-        this.evoBtn2.setVisible(false); this.evoTxt2.setVisible(false);
-
-        if (t.level === 3 && !t.evolution) {
-            this.upgradeText.setText(`¡EVOLUCIÓN DISPONIBLE!\nElige un camino:`);
-            let pathA = { id: 'sniper', label: 'Francotirador' };
-            let pathB = { id: 'ranger', label: 'Montaraz' };
-            if (t.type === 'mage') { pathA = { id:'pyro', label:'Piromante'}; pathB = {id:'ice', label:'Cronomante'}; }
-            if (t.type === 'cannon') { pathA = { id:'heavy', label:'Pesado'}; pathB = {id:'rapid', label:'Rápido'}; }
-            this.evoBtn1.setVisible(true); this.evoTxt1.setVisible(true); this.evoTxt1.setText(pathA.label); this.evoBtn1.setData('path', pathA.id);
-            this.evoBtn2.setVisible(true); this.evoTxt2.setVisible(true); this.evoTxt2.setText(pathB.label); this.evoBtn2.setData('path', pathB.id);
-        } else if (t.level >= t.maxLevel) {
+        if (t.level >= t.maxLevel) {
             this.upgradeText.setText(`${t.typeName} (MÁX)\nDaño: ${t.damage}`);
+            this.upgradeBtn.setVisible(false);
+            this.upgradeBtnText.setVisible(false);
         } else {
-            this.upgradeBtn.setVisible(true); this.upgradeBtnText.setVisible(true);
+            this.upgradeBtn.setVisible(true);
+            this.upgradeBtnText.setVisible(true);
             this.upgradeText.setText(`${t.typeName} Lv ${t.level}\nDaño: ${t.damage} -> ${Math.floor(t.damage * 1.3)}`);
             this.upgradeBtnText.setText(`MEJORAR ($${t.upgradeCost})`);
         }
@@ -400,25 +244,32 @@ export default class GameScene extends Phaser.Scene {
     }
 
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
-    tryEvolveTower(btnType) { const t = this.selectedTowerToUpgrade; if (!t) return; const path = btnType === 'A' ? this.evoBtn1.getData('path') : this.evoBtn2.getData('path'); const cost = 500; if (this.coins >= cost) { this.coins -= cost; t.evolve(path); this.updateUpgradeMenuText(); this.updateUI(); } else { this.showFloatingText(t.x, t.y, "¡Falta Oro! ($500)", "#ff0000"); } }
+    sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${t.totalInvestment}`, '#ffff00'); } }
     openUpgradeMenu(tower) { this.selectedTowerToUpgrade = tower; this.upgradeContainer.setPosition(tower.x, tower.y - 100); this.upgradeContainer.setVisible(true); tower.rangeCircle.setVisible(true); this.updateUpgradeMenuText(); }
     closeUpgradeMenu() { if (this.selectedTowerToUpgrade) this.selectedTowerToUpgrade.rangeCircle.setVisible(false); this.selectedTowerToUpgrade = null; this.upgradeContainer.setVisible(false); }
-    sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += t.totalInvestment; this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${t.totalInvestment}`, '#ffff00'); } }
+
+    // --- UTILS ---
+    startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; if (this.waveTimerContainer) this.waveTimerContainer.setVisible(true); }
+    startNextWaveAction() { if (this.isTimerRunning) this.startWave(); }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
     createSpawnIndicator(x, y) { const marker = this.add.circle(x, y, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(x, y - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
     createBuildSlots() { const slots = this.currentLevelData.towerSlots || []; slots.forEach(slot => { const site = new BuildSite(this, slot.x, slot.y); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
     tryBuildTower(site) { if (site.isOccupied) return; const stats = TOWER_TYPES[this.selectedTowerType]; if (this.coins >= stats.baseCost) { this.coins -= stats.baseCost; const tower = new Tower(this, site.x, site.y, this.selectedTowerType, this.enemies, this.projectiles, site, stats.baseCost); this.towers.add(tower); site.occupy(); this.updateUI(); this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); } else { this.cameras.main.shake(100, 0.005); } }
+    startWave() { this.isTimerRunning = false; if(this.waveTimerContainer) this.waveTimerContainer.setVisible(false); this.waveActive = true; this.currentWave++; this.isBossWave = (this.currentWave === this.totalWaves); this.bossSpawned = false; if(this.waveInfoText) { this.waveInfoText.setText(this.isBossWave ? "¡JEFE FINAL!" : `OLEADA: ${this.currentWave}/${this.totalWaves}`); if(this.isBossWave) this.waveInfoText.setColor('#ff0000'); } let baseCount = 6 + (this.currentWave * 2); let totalEnemies = Math.ceil(baseCount * this.spawnMult); let spawnDelay = 2000 - (this.currentWave * 100); if (spawnDelay < 500) spawnDelay = 500; if (this.isBossWave) { this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000); totalEnemies = 4 * (this.currentLevelData.pathCount || 1); } let spawned = 0; this.spawnTimer = this.time.addEvent({ delay: spawnDelay, repeat: totalEnemies - 1, callback: () => { this.spawnEnemy(); spawned++; if (this.isBossWave && spawned === totalEnemies) { this.time.delayedCall(3000, () => this.spawnBoss()); } } }); }
+    spawnEnemy(hpMult = 1, type = 'normal') { const paths = this.currentLevelData.paths || []; if(paths.length === 0) return; const pathIndex = Math.floor(Math.random() * paths.length); const path = paths[pathIndex]; if(this.currentWave > 2 && Math.random() > 0.8) type = 'speed'; if(this.currentWave > 4 && Math.random() > 0.85) type = 'tank'; if(this.currentWave > 5 && Math.random() > 0.9) type = 'healer'; const enemy = new Enemy(this, path, this.hpMultiplier * hpMult, type); this.enemies.add(enemy); }
+    spawnBoss() { this.bossSpawned = true; let bossType = 'boss_goblin'; if (this.biome === 'mountain') bossType = 'boss_golem'; if (this.biome === 'volcano') bossType = 'boss_wizard'; const paths = this.currentLevelData.paths || []; if(paths.length === 0) return; const path = paths[Math.floor(paths.length / 2)]; const boss = new Enemy(this, path, this.hpMultiplier * 2.5, bossType); this.enemies.add(boss); this.showFloatingText(boss.x, boss.y - 50, "¡EL JEFE HA LLEGADO!", "#ff0000"); }
+    checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
     victory() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); if (this.level >= (gameState.maxLevel || 1)) { gameState.maxLevel = this.level + 1; SaveSystem.save(); } const rewardGold = 100 + (this.level * 50); this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); this.time.delayedCall(2000, () => { this.scene.start('ChestScene', { biome: this.biome, level: this.level, winData: { gold: rewardGold, xp: 100 * this.level, baseHp: gameState.baseHp, enemyLoot: this.sessionLoot } }); }); }
     onEnemyLeaks(damage) { gameState.baseHp -= damage; this.cameras.main.flash(200, 255, 0, 0); this.updateUI(); if (gameState.baseHp <= 0) this.gameOver(); }
     gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); }
-    spawnMinion(parentBoss) { if (!parentBoss || !parentBoss.active) return; const minion = new Enemy(this, this.currentLevelData.paths[0], 0.3, 'speed'); minion.follower.t = Math.max(0, parentBoss.follower.t - 0.02); minion.setScale(0); this.tweens.add({ targets: minion, scale: 1, duration: 300 }); this.enemies.add(minion); }
     onEnemyKilled(enemy) { try { this.coins += (enemy.coinReward || 10); if (RPGSystem && RPGSystem.gainHeroXP) { RPGSystem.gainHeroXP(enemy.xpReward || 10); } RPGSystem.updateQuestProgress('kill', 'any', 1); if (enemy.type.startsWith('boss')) { this.generateBossLoot(enemy); RPGSystem.updateQuestProgress('boss', 'any', 1); } else { this.spawnLoot(enemy.x, enemy.y); } this.createExplosion(enemy.x, enemy.y, enemy.colorVal); this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); this.updateUI(); } catch (err) { console.warn("Error", err); } }
     generateBossLoot(boss) { const mats = ['wood', 'copper', 'scraps', 'hide']; const matType = mats[Math.floor(Math.random() * mats.length)]; const qty = Phaser.Math.Between(2, 5); if(!gameState.materials[matType]) gameState.materials[matType] = {common:0}; gameState.materials[matType]['common'] += qty; this.bossLootLog.push({ text: `${qty}x ${matType.toUpperCase()}`, color: '#ffffff' }); this.showFloatingText(boss.x, boss.y, "¡BONUS!", "#ffd700"); }
-    createExplosion(x, y, color) { const circle = this.add.circle(x, y, 5, color); this.tweens.add({ targets: circle, scale: 4, alpha: 0, duration: 300, onComplete: () => circle.destroy() }); for(let i=0; i<4; i++) { const spark = this.add.rectangle(x, y, 4, 4, color); const angle = Phaser.Math.DegToRad(Math.random() * 360); const dist = 30; this.tweens.add({ targets: spark, x: x + Math.cos(angle) * dist, y: y + Math.sin(angle) * dist, alpha: 0, duration: 400, onComplete: () => spark.destroy() }); } }
+    createExplosion(x, y, color) { const circle = this.add.circle(x, y, 5, color); this.tweens.add({ targets: circle, scale: 4, alpha: 0, duration: 300, onComplete: () => circle.destroy() }); }
     spawnLoot(x, y) { if (Math.random() > 0.30) return; let type = 'wood'; let rarity = 'common'; const roll = Math.random(); if (roll < 0.15) type = 'potion_hp'; else if (roll < 0.25) type = 'coin_bag'; else { const m = Math.random(); if(m<0.25) type='wood'; else type='copper'; } const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
     collectLoot(lootItem) { if (lootItem.isConsumable) { if (lootItem.typeKey === 'potion_hp') { const heal = Math.floor(gameState.playerStats.maxHp * 0.25); gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); } else if (lootItem.typeKey === 'coin_bag') { const gold = Phaser.Math.Between(30, 60); this.coins += gold; this.updateUI(); this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); } } else { if(gameState.materials[lootItem.typeKey]) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; RPGSystem.updateQuestProgress('collect', lootItem.typeKey, 1); if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); } } lootItem.destroy(); }
     showFloatingText(x, y, message, color = '#fff', duration = 800) { const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, duration: duration, onComplete: () => text.destroy() }); }
     showLevelUpEffect() { const txt = this.add.text(this.scale.width/2, this.scale.height/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, yoyo: true, onComplete: () => txt.destroy() }); gameState.playerStats.hp = gameState.playerStats.maxHp; }
     createPauseMenu() { this.pauseContainer = this.add.container(640, 480).setDepth(20000).setVisible(false).setScrollFactor(0); const w = this.scale.width; const h = this.scale.height; this.pauseContainer.setPosition(w/2, h/2); const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.8).setInteractive(); const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700); const title = this.add.text(0, -100, "PAUSA", { fontFamily: 'Cinzel', fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5); const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true }); const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); resumeBtn.on('pointerdown', () => this.togglePause()); const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true }); const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); exitBtn.on('pointerdown', () => { this.isPaused = false; this.physics.resume(); this.scene.start('MainMenuScene'); }); this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); }
     togglePause() { this.isPaused = !this.isPaused; if (this.isPaused) { this.physics.pause(); this.tweens.pauseAll(); this.pauseContainer.setVisible(true); this.children.bringToTop(this.pauseContainer); } else { this.physics.resume(); this.tweens.resumeAll(); this.pauseContainer.setVisible(false); } }
+    createUI() { const w = this.scale.width; const h = this.scale.height; const uiDepth = 1000; const accent = this.theme.accent; this.add.rectangle(w/2, 60, w, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); this.add.rectangle(w/2, 120, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); this.livesText = this.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setScrollFactor(0).setDepth(uiDepth + 1); this.xpContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(uiDepth + 1); this.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); this.xpBarBg = this.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); this.xpBarFill = this.add.rectangle(330, 42, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); this.lvlText = this.add.text(540, 35, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); this.castleText = this.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); this.waveInfoText = this.add.text(w - 30, 40, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); this.waveTimerContainer = this.add.container(w/2, 60).setScrollFactor(0).setDepth(uiDepth + 2); this.waveTimerContainer.setSize(320, 60); this.waveTimerContainer.setInteractive({ useHandCursor: true }); const timerBg = this.add.rectangle(0, 0, 320, 60, 0x006400).setStrokeStyle(2, 0xffffff); this.waveTimerBtnText = this.add.text(0, 0, "INICIAR", { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', align: 'center', color: '#ffffff' }).setOrigin(0.5); this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]); this.waveTimerContainer.setVisible(false); this.waveTimerContainer.on('pointerdown', () => this.startNextWaveAction()); const barHeight = 120; const botY = h - (barHeight / 2); this.add.rectangle(w/2, botY, w, barHeight, 0x111111).setScrollFactor(0).setDepth(uiDepth); this.add.rectangle(w/2, botY - (barHeight/2), w, 4, accent).setScrollFactor(0).setDepth(uiDepth); const contentY = botY; this.add.text(40, contentY - 30, 'TESORO:', { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); this.economyText = this.add.text(40, contentY, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffffff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-3)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); const buildBg = this.add.rectangle(400, contentY + 10, 250, 60, 0x222222).setStrokeStyle(2, accent).setScrollFactor(0).setDepth(uiDepth); this.buildText = this.add.text(400, contentY + 10, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); this.skillBtnContainer = this.add.container(w/2 + 200, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); const skillBg = this.add.rectangle(0, 0, 180, 50, 0x222222).setStrokeStyle(2, 0x555555); this.skillBar = this.add.rectangle(-90, 0, 0, 50, accent).setOrigin(0, 0.5); this.skillBtn = this.add.rectangle(0, 0, 180, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontFamily: 'Cinzel', fontSize: '14px', align: 'center', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5); this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]); this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill()); const exitBtn = this.add.rectangle(w - 80, contentY, 120, 50, 0x8b0000).setInteractive({ useHandCursor: true }).setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff); this.add.text(w - 80, contentY, 'SALIR', { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene')); }
 }
