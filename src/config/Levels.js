@@ -37,7 +37,7 @@ export const LEVEL_CONFIG = {
 // Helper para curvas Bezier
 function createCurve(startX, startY, endX, endY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y) {
     const points = [];
-    for (let t = 0; t <= 1.01; t += 0.01) {
+    for (let t = 0; t <= 1.01; t += 0.005) { // Mayor resolución (0.005) para cálculos más precisos
         const x = Math.pow(1 - t, 3) * startX + 3 * Math.pow(1 - t, 2) * t * ctrl1X + 3 * (1 - t) * Math.pow(t, 2) * ctrl2X + Math.pow(t, 3) * endX;
         const y = Math.pow(1 - t, 3) * startY + 3 * Math.pow(1 - t, 2) * t * ctrl1Y + 3 * (1 - t) * Math.pow(t, 2) * ctrl2Y + Math.pow(t, 3) * endY;
         points.push({ x, y });
@@ -46,7 +46,6 @@ function createCurve(startX, startY, endX, endY, ctrl1X, ctrl1Y, ctrl2X, ctrl2Y)
 }
 
 export function getLevelData(biomeKey, levelId) {
-    // --- CORRECCIÓN DE RESOLUCIÓN ---
     const w = 1920;
     const h = 1080;
     
@@ -60,54 +59,85 @@ export function getLevelData(biomeKey, levelId) {
     else if (levelId <= 8) pathCount = 3;
     else pathCount = 4;
 
-    // --- DISEÑO DE NIVELES ---
+    const biomeSeed = biomeKey.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const baseSeed = (levelId * 100) + biomeSeed;
+
+    // --- 1. GENERAR CAMINOS ---
+    for (let i = 0; i < pathCount; i++) {
+        const startY = (h / (pathCount + 1)) * (i + 1);
+        const seed = baseSeed + (i * 50);
+        const random1 = Math.sin(seed) * 150; 
+        const random2 = Math.cos(seed) * 150;
+
+        const p0 = { x: -50, y: startY }; 
+        const p1 = { x: w * 0.3, y: startY + random1 }; 
+        const p2 = { x: w * 0.7, y: startY - random2 }; 
+        const p3 = { x: w + 50, y: h / 2 + (i * 20) }; 
+
+        paths.push(createCurve(p0.x, p0.y, p3.x, p3.y, p1.x, p1.y, p2.x, p2.y));
+    }
+
+    // --- 2. GENERAR SLOTS (LÓGICA MEJORADA DE PERPENDICULARIDAD) ---
+    // Calculamos la distancia ideal: Radio Camino (30) + Radio Torre (20) + Margen (20) = ~70px
+    const placementDist = 75; 
+    const maxSlots = 6 + Math.ceil(levelId * 0.8) + (pathCount * 2);
     
-    // Nivel 1: Curva simple central
-    if (levelId === 1) {
-        paths.push(createCurve(-50, h/2, w+50, h/2, w*0.3, 200, w*0.7, h-200));
-        towerSlots.push({x: w*0.2, y: h*0.4}, {x: w*0.4, y: h*0.6}, {x: w*0.6, y: h*0.4}, {x: w*0.8, y: h*0.6}, {x: w*0.5, y: h*0.3});
-    }
-    // Nivel 2: "S" Invertida grande
-    else if (levelId === 2) {
-        paths.push(createCurve(-50, 200, w+50, h-200, w*0.5, h, w*0.5, 0));
-        towerSlots.push({x: w*0.2, y: 250}, {x: w*0.3, y: 500}, {x: w*0.5, y: 500}, {x: w*0.7, y: 500}, {x: w*0.8, y: 750});
-    }
-    // Nivel 3-5: 2 Caminos
-    else if (levelId >= 3 && levelId <= 5) {
-        const offset = (levelId === 4) ? 200 : 0; // Variación para nivel 4
-        // Camino Arriba
-        paths.push(createCurve(-50, 300, w+50, h/2, w*0.3, 100 + offset, w*0.7, h/2)); 
-        // Camino Abajo
-        paths.push(createCurve(-50, h-300, w+50, h/2, w*0.3, h-100 - offset, w*0.7, h/2)); 
+    let attempts = 0;
+    
+    while (towerSlots.length < maxSlots && attempts < 2000) {
+        attempts++;
         
-        towerSlots.push(
-            {x: w*0.2, y: 200}, {x: w*0.5, y: 200}, {x: w*0.8, y: h/2 - 100},
-            {x: w*0.2, y: h-200}, {x: w*0.5, y: h-200}, {x: w*0.8, y: h/2 + 100},
-            {x: w*0.4, y: h/2} // Central
-        );
-    }
-    // Nivel 6-8: 3 Caminos
-    else if (levelId >= 6 && levelId <= 8) {
-        // Arriba, Centro, Abajo
-        paths.push(createCurve(-50, 200, w+50, h/2, w*0.4, 200, w*0.7, h/2));
-        paths.push(createCurve(-50, h/2, w+50, h/2, w*0.4, h/2, w*0.7, h/2));
-        paths.push(createCurve(-50, h-200, w+50, h/2, w*0.4, h-200, w*0.7, h/2));
+        // A. Elegir un camino al azar
+        const pathIdx = Math.floor(Math.random() * paths.length);
+        const path = paths[pathIdx];
         
-        towerSlots.push(
-            {x: w*0.15, y: 150}, {x: w*0.15, y: h/2 - 80}, {x: w*0.15, y: h-150},
-            {x: w*0.5, y: 250}, {x: w*0.5, y: h-250},
-            {x: w*0.8, y: h/2 - 100}, {x: w*0.8, y: h/2 + 100}
-        );
-    }
-    // Nivel 9-10: 4 Caminos (Caos)
-    else {
-        for(let i=0; i<4; i++) {
-            let sy = 150 + (i * 250);
-            let ey = h/2 + ((i-1.5) * 50); // Convergen
-            paths.push(createCurve(-50, sy, w+50, ey, w*0.3, sy + (i%2==0?150:-150), w*0.7, ey));
-            towerSlots.push({x: w*0.2, y: sy}, {x: w*0.6, y: sy});
+        // B. Elegir un punto en el camino (evitando los extremos muy cercanos a bordes)
+        // Usamos un margen de seguridad de índices para no salirnos del array
+        const pointIdx = Math.floor(Math.random() * (path.length - 40)) + 20;
+        const currentPoint = path[pointIdx];
+        const nextPoint = path[pointIdx + 5]; // Miramos unos pixeles adelante para ver la dirección
+
+        if (!currentPoint || !nextPoint) continue;
+
+        // C. Calcular el ángulo del camino en este punto
+        const dx = nextPoint.x - currentPoint.x;
+        const dy = nextPoint.y - currentPoint.y;
+        const pathAngle = Math.atan2(dy, dx);
+
+        // D. Calcular posición PERPENDICULAR (+90 o -90 grados)
+        // Esto asegura que la torre esté a un lado, no adelante ni atrás
+        const side = (attempts % 2 === 0) ? 1 : -1;
+        const anglePerpendicular = pathAngle + (side * Math.PI / 2);
+
+        // E. Proyectar la nueva posición
+        const slotX = currentPoint.x + Math.cos(anglePerpendicular) * placementDist;
+        const slotY = currentPoint.y + Math.sin(anglePerpendicular) * placementDist;
+
+        // F. Validaciones
+        
+        // 1. Dentro de pantalla (con margen)
+        if (slotX < 50 || slotX > w - 50 || slotY < 100 || slotY > h - 100) continue;
+
+        // 2. Distancia con otros slots (No encimarse)
+        const overlapSlot = towerSlots.some(s => Math.hypot(s.x - slotX, s.y - slotY) < 70);
+        if (overlapSlot) continue;
+
+        // 3. Distancia con CUALQUIER camino (Crucial para no quedar en medio de una curva cerrada u otro camino)
+        let overlapPath = false;
+        // Revisamos todos los caminos para asegurarnos que no caemos encima de ninguno
+        for (let p = 0; p < paths.length; p++) {
+            for (let k = 0; k < paths[p].length; k += 10) { // Salto de 10 para rendimiento
+                if (Math.hypot(paths[p][k].x - slotX, paths[p][k].y - slotY) < 55) {
+                    overlapPath = true;
+                    break;
+                }
+            }
+            if (overlapPath) break;
         }
-        towerSlots.push({x: w*0.8, y: h/2 - 100}, {x: w*0.8, y: h/2 + 100});
+        if (overlapPath) continue;
+
+        // Si pasa todas las pruebas, agregamos el slot
+        towerSlots.push({ x: slotX, y: slotY });
     }
 
     const spawnMultiplier = 1 + ((pathCount - 1) * 0.5);
