@@ -3,13 +3,12 @@ import Phaser from 'phaser';
 
 export default class Enemy extends Phaser.GameObjects.Container {
     constructor(scene, path, levelDifficulty, type = 'normal') {
-        // Validación de path
         if (!path || path.length === 0) {
-            console.error("Enemy: Path inválido", path);
             super(scene, 0, 0);
             return;
         }
 
+        // Posición inicial basada en el camino recibido (ya escalado en GameScene)
         super(scene, path[0].x, path[0].y);
         scene.add.existing(this);
         scene.physics.add.existing(this);
@@ -19,7 +18,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.type = type;
         this.levelDifficulty = levelDifficulty;
 
-        // Detectar Bioma (con fallback seguro)
         const biome = scene.biome || 'forest'; 
 
         // Configuración Base
@@ -32,7 +30,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         let goldDrop = 25; 
         let xpDrop = 15;
 
-        // --- LÓGICA DE BIOMAS ---
+        // Biomas
         let biomeHpMult = 1.0;
         let biomeSpeedMult = 1.0;
         let biomeArmorBonus = 0;
@@ -63,7 +61,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             hpBase = 60; speedBase = 1.4; size = 16;
             if (biome === 'forest') color = 0xa0522d;
             if (biome === 'mountain') color = 0xd3d3d3;
-            if (biome === 'volcano') color = 0xffa500;
+            if (biome === 'volcano') color = 0xffa500;  
         }
         else if (type === 'healer') { 
             hpBase = 120; speedBase = 0.9; color = 0xff69b4; size = 22; goldDrop = 30;
@@ -80,6 +78,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         // Stats Finales
         this.hp = Math.floor(hpBase * levelDifficulty * biomeHpMult);
         this.maxHp = this.hp;
+        // Ajuste de velocidad para recorrer el camino correctamente
         this.baseSpeed = (speedBase * biomeSpeedMult) / 16000; 
         this.armor = armor + biomeArmorBonus;
         this.leakDamage = castleDamage;
@@ -88,10 +87,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.xpReward = xpDrop;
         this.damage = type.startsWith('boss') ? 50 : 15;
 
-        // Visual (CREACIÓN SEGURA)
-        // Aseguramos que color sea un número válido
+        // Visual
         if (isNaN(color)) color = 0xff0000;
-        
         this.bodyShape = scene.add.rectangle(0, 0, size, size, color);
         
         if (this.bodyShape) {
@@ -101,8 +98,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
             else if (biome !== 'mountain' && biome !== 'volcano') this.bodyShape.setStrokeStyle(1, 0x000000);
             
             this.add(this.bodyShape);
-        } else {
-            console.error("Error crítico: No se pudo crear bodyShape para Enemy");
         }
         
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 10, 40, 6, 0x000000);
@@ -126,8 +121,47 @@ export default class Enemy extends Phaser.GameObjects.Container {
         };
     }
 
-    // ... (El resto de métodos update, etc. son idénticos a la versión anterior que te envié)
-    update(time, delta) { if (!this.scene) return; this.updateDebuffs(delta); if (!this.isShielded && !this.debuffs.stun.active) { let speedMod = 1.0; if (this.debuffs.freeze.active) speedMod *= (1 - this.debuffs.freeze.factor); if (speedMod < 0.1) speedMod = 0.1; this.follower.t += (this.baseSpeed * speedMod) * delta; } if (this.follower.t >= 1) { this.die(false); return; } const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))]; const p2 = this.path[Math.ceil(this.follower.t * (this.path.length - 1))]; if (p1 && p2) { const segmentT = (this.follower.t * (this.path.length - 1)) % 1; this.x = Phaser.Math.Linear(p1.x, p2.x, segmentT); this.y = Phaser.Math.Linear(p1.y, p2.y, segmentT); } const hpPercent = Math.max(0, this.hp / this.maxHp); this.hpBar.width = 38 * hpPercent; this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00); if (this.type.startsWith('boss')) { this.skillTimer += delta; if (this.skillTimer > 5000) { this.useBossSkill(); this.skillTimer = 0; } } if (this.type === 'healer') { this.skillTimer += delta; if (this.skillTimer > 2000) { this.performHeal(); this.skillTimer = 0; } } this.checkAttackPlayer(time); }
+    update(time, delta) {
+        if (!this.scene) return;
+        this.updateDebuffs(delta);
+        
+        if (!this.isShielded && !this.debuffs.stun.active) {
+            let speedMod = 1.0;
+            if (this.debuffs.freeze.active) speedMod *= (1 - this.debuffs.freeze.factor);
+            if (speedMod < 0.1) speedMod = 0.1;
+            this.follower.t += (this.baseSpeed * speedMod) * delta;
+        }
+        
+        if (this.follower.t >= 1) {
+            this.die(false);
+            return;
+        }
+
+        // Interpolación lineal entre puntos del camino
+        const p1 = this.path[Math.floor(this.follower.t * (this.path.length - 1))];
+        const p2 = this.path[Math.ceil(this.follower.t * (this.path.length - 1))];
+
+        if (p1 && p2) {
+            const segmentT = (this.follower.t * (this.path.length - 1)) % 1;
+            this.x = Phaser.Math.Linear(p1.x, p2.x, segmentT);
+            this.y = Phaser.Math.Linear(p1.y, p2.y, segmentT);
+        }
+
+        const hpPercent = Math.max(0, this.hp / this.maxHp);
+        this.hpBar.width = 38 * hpPercent;
+        this.hpBar.setFillStyle(hpPercent < 0.3 ? 0xff0000 : 0x00ff00);
+
+        if (this.type.startsWith('boss')) {
+            this.skillTimer += delta;
+            if (this.skillTimer > 5000) { this.useBossSkill(); this.skillTimer = 0; }
+        }
+        if (this.type === 'healer') {
+            this.skillTimer += delta;
+            if (this.skillTimer > 2000) { this.performHeal(); this.skillTimer = 0; }
+        }
+        this.checkAttackPlayer(time);
+    }
+
     updateDebuffs(delta) { if (this.debuffs.burn.active) { this.debuffs.burn.timer -= delta; this.debuffs.burn.tickTimer += delta; if (this.debuffs.burn.tickTimer >= 500) { this.takeTrueDamage(this.debuffs.burn.damage, '#ff4500'); this.debuffs.burn.tickTimer = 0; } if (this.debuffs.burn.timer <= 0) { this.debuffs.burn.active = false; this.clearTint(); } } if (this.debuffs.poison.active) { this.debuffs.poison.timer -= delta; this.debuffs.poison.tickTimer += delta; if (this.debuffs.poison.tickTimer >= 1000) { this.takeTrueDamage(this.debuffs.poison.damage, '#00ff00'); this.debuffs.poison.tickTimer = 0; } if (this.debuffs.poison.timer <= 0) { this.debuffs.poison.active = false; this.clearTint(); } } if (this.debuffs.freeze.active) { this.debuffs.freeze.timer -= delta; if (this.debuffs.freeze.timer <= 0) { this.debuffs.freeze.active = false; this.clearTint(); } } if (this.debuffs.stun.active) { this.debuffs.stun.timer -= delta; if (this.debuffs.stun.timer <= 0) { this.debuffs.stun.active = false; this.clearTint(); } } }
     applyStatusEffect(effect) { if (!effect || !this.active || this.isShielded) return; if (effect.type === 'burn') { this.debuffs.burn.active = true; this.debuffs.burn.damage = Math.max(this.debuffs.burn.damage, effect.val); this.debuffs.burn.timer = effect.duration; this.bodyShape.setFillStyle(0xff4500); } else if (effect.type === 'poison') { this.debuffs.poison.active = true; this.debuffs.poison.damage = Math.max(this.debuffs.poison.damage, effect.val); this.debuffs.poison.timer = effect.duration; this.bodyShape.setFillStyle(0x00ff00); } else if (effect.type === 'freeze') { this.debuffs.freeze.active = true; this.debuffs.freeze.factor = effect.val; this.debuffs.freeze.timer = effect.duration; this.bodyShape.setFillStyle(0x00ffff); } else if (effect.type === 'stun' && !this.type.startsWith('boss')) { this.debuffs.stun.active = true; this.debuffs.stun.timer = effect.duration; this.bodyShape.setFillStyle(0xffff00); this.scene.showFloatingText(this.x, this.y - 40, "¡STUN!", "#ffff00"); } }
     clearTint() { if (this.active && this.bodyShape) { if (!this.debuffs.burn.active && !this.debuffs.poison.active && !this.debuffs.freeze.active && !this.debuffs.stun.active) { this.bodyShape.setFillStyle(this.originalColor); } } }
