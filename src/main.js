@@ -7,6 +7,7 @@ import ResultScene from './scenes/ResultScene';
 import HeroSelectScene from './scenes/HeroSelectScene';
 import ChestScene from './scenes/ChestScene.js';
 
+
 const config = {
     type: Phaser.AUTO,
     width: 1920,
