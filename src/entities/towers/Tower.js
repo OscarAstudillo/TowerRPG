@@ -17,13 +17,12 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.baseCost = baseCost;
         this.totalInvestment = baseCost; 
 
-        // Recuperar stats
         const stats = TOWER_TYPES[typeKey] || TOWER_TYPES['archer']; 
         this.stats = JSON.parse(JSON.stringify(stats)); 
         this.typeName = stats.name;
         this.baseColor = stats.color;
         
-        // --- VISUALES (NO INTERACTIVOS, SOLO EL CONTENEDOR LO ES) ---
+        // Visuales
         this.base = scene.add.rectangle(0, 0, 40, 40, 0x808080);
         this.base.setStrokeStyle(2, 0x000000);
         
@@ -33,7 +32,6 @@ export default class Tower extends Phaser.GameObjects.Container {
 
         this.add([this.base, this.turretGroup]);
         
-        // --- INTERACTIVIDAD EN EL CONTENEDOR PRINCIPAL ---
         this.setSize(40, 40);
         this.setInteractive({ useHandCursor: true });
 
@@ -87,7 +85,14 @@ export default class Tower extends Phaser.GameObjects.Container {
     fire(target) {
         const fireProjectile = () => {
             let effect = null;
-            if (this.typeKey === 'mage') effect = { type: 'freeze', val: 0.3, duration: 1500 };
+            let aoe = 0;
+
+            // Configuración específica por tipo
+            if (this.typeKey === 'mage') {
+                effect = { type: 'freeze', val: 0.3, duration: 1500 };
+            } else if (this.typeKey === 'cannon') {
+                aoe = 100 + (this.level * 10); // El área crece con el nivel
+            }
 
             const p = new Projectile(this.scene, this.x, this.y);
             if (this.projectiles) this.projectiles.add(p);
@@ -95,16 +100,19 @@ export default class Tower extends Phaser.GameObjects.Container {
             p.fire(target, {
                 damage: this.damage,
                 type: this.typeKey,
-                effect: effect
+                effect: effect,
+                aoe: aoe
             });
         };
 
         fireProjectile();
         
+        // Doble ataque (Chance de items)
         if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance) {
             this.scene.time.delayedCall(150, fireProjectile); 
         }
         
+        // Animación disparo
         this.scene.tweens.add({ targets: this.turretGroup, y: 5, yoyo: true, duration: 50 });
     }
 
