@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
 import { getTowerBonuses } from '../../config/GameState.js';
 import Projectile from '../projectiles/Projectile.js';
+import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -170,6 +171,20 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.upgradeCost = currentStats.upgradeCost || 0;
             this.currentEffect = currentStats.effect || null;
             this.currentAoE = currentStats.aoe || 0;
+            // Bonos de Equipo
+            const equipBonuses = getTowerBonuses(this.typeKey);
+            
+            // Bonos de Talentos (NUEVO)
+            const talentBonuses = getTalentBonuses();
+
+            // Aplicar ambos
+            this.damage += equipBonuses.damage + (talentBonuses.towerDamage || 0);
+            this.range += equipBonuses.range + (talentBonuses.towerRange || 0);
+            
+            // Descuento en mejoras (Opcional)
+            if (talentBonuses.towerCost > 0) {
+                this.upgradeCost = Math.floor(this.upgradeCost * (1 - (talentBonuses.towerCost / 100)));
+            }
 
             // Bonos Globales
             const bonuses = getTowerBonuses(this.typeKey);

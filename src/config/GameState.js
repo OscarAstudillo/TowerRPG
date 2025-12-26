@@ -110,6 +110,15 @@ export function updatePlayerStats() {
     stats.attackSpeed = classBase.attackSpeed;
     stats.range = classBase.range || 100;
 
+    const talentBonuses = getTalentBonuses();
+    // Sumar daño porcentual o plano
+    stats.damage += talentBonuses.heroDamage; 
+    stats.maxHp += talentBonuses.heroHealth;
+
+    if (talentBonuses.heroSpeed > 0) {
+        stats.attackSpeed = Math.floor(stats.attackSpeed * (1 - (talentBonuses.heroSpeed / 100)));
+    }
+
     if (hero && hero.baseAttributes) {
         stats.damage += (hero.baseAttributes.damage || 0);
         stats.maxHp += (hero.baseAttributes.maxHp || 0);
@@ -192,5 +201,44 @@ export function getTowerBonuses(type) {
             }
         });
     }
+    return bonuses;
+}
+
+export function getTalentBonuses() {
+    const bonuses = {
+        heroDamage: 0,
+        heroSpeed: 0,
+        heroHealth: 0,
+        towerDamage: 0,
+        towerRange: 0,
+        towerCost: 0, // Descuento
+        goldGain: 0,
+        xpGain: 0
+    };
+
+    const hero = getCurrentHero();
+    if (!hero || !hero.talents) return bonuses;
+
+    // Recorremos los IDs de talentos aprendidos
+    hero.talents.forEach(talentId => {
+        // Lógica manual basada en tus IDs de Talentos (ajusta según src/config/Talents.js)
+        
+        // --- GUERRERO ---
+        if (talentId === 'war_str_1') bonuses.heroDamage += 5;
+        if (talentId === 'war_def_1') bonuses.heroHealth += 20;
+        
+        // --- ARQUERO ---
+        if (talentId === 'arch_spd_1') bonuses.heroSpeed += 5; // %
+        if (talentId === 'arch_crit_1') bonuses.heroDamage += 10;
+
+        // --- MAGO ---
+        if (talentId === 'mage_int_1') bonuses.heroDamage += 8;
+        if (talentId === 'mage_cdr_1') bonuses.heroSpeed += 5; // CDR interpretado como velocidad
+
+        // --- GENERALES / TORRES (Si existen en tu árbol) ---
+        if (talentId === 'eco_gold_1') bonuses.goldGain += 10; // 10% más oro
+        if (talentId === 'tow_dmg_1') bonuses.towerDamage += 5;
+    });
+
     return bonuses;
 }

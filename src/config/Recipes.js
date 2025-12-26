@@ -3,7 +3,7 @@
 export const RECIPES = [
     // --- TIER 0 (Iniciales - Madera/Básico) ---
     { id: 'sword_wood', name: 'Espada de Entrenamiento', type: 'weapon', subType: 'sword', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, baseStats: { damage: 3, attackSpeed: 1200 } },
-    { id: 'bow_training', name: 'Arco Simple', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 2, range: 120, attackSpeed: 1100 } },
+    { id: 'bow_training', name: 'Arco Simple', type: 'weapon', subType: 'bow', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 20, range: 120, attackSpeed: 1100 } },
     { id: 'staff_wood', name: 'Vara de Madera', type: 'weapon', subType: 'staff', prof: 'weaponsmith', mat: 'plank_wood', cost: 50, tier: 0, twoHanded: true, baseStats: { damage: 4, attackSpeed: 1100 } },
     { id: 'armor_wood', name: 'Escudo de Leña', type: 'offhand', subType: 'shield', prof: 'armorsmith', mat: 'plank_wood', cost: 40, tier: 0, baseStats: { defense: 2, blockChance: 5 } },
 
