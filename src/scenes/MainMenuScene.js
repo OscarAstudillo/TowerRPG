@@ -101,6 +101,39 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const resetBtn = this.add.text(w - 50, botY, 'BORRAR DATOS', { ...this.fontBtn, color: '#ff5555' }).setInteractive({ useHandCursor: true }).setOrigin(1, 0.5);
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
+        
+        // BOTÓN DE TRUCO (CHEAT) - Opcional, mantenido por si lo usas
+        const cheatBtn = this.add.text(w - 50, 50, "¡LEVEL UP!", { 
+            fontSize: '20px', fontStyle: 'bold', color: '#00ff00' 
+        }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+
+        cheatBtn.on('pointerdown', () => {
+            const hero = getCurrentHero();
+            if (hero) {
+                RPGSystem.gainHeroXP(5000); 
+                SaveSystem.save();
+                this.refreshHero();
+                this.refreshTalents();
+                this.showCentralAlert("¡TRUCO ACTIVADO: XP GANADA!", "#00ff00");
+            }
+        });
+    }
+
+    createMenuButton(x, y, text, callback) {
+        const btn = this.add.container(x, y);
+        const bg = this.add.rectangle(0, 0, 180, 40, 0x000000).setStrokeStyle(2, 0xffd700);
+        const label = this.add.text(0, 0, text, {
+            fontFamily: 'Cinzel', fontSize: '16px', color: '#ffffff'
+        }).setOrigin(0.5);
+
+        bg.setInteractive({ useHandCursor: true })
+            .on('pointerover', () => { bg.setFillStyle(0x333333); this.tweens.add({ targets: btn, scale: 1.1, duration: 100 }); })
+            .on('pointerout', () => { bg.setFillStyle(0x000000); this.tweens.add({ targets: btn, scale: 1.0, duration: 100 }); })
+            .on('pointerdown', callback);
+
+        btn.add([bg, label]);
+        this.add.existing(btn);
+        return btn;
     }
 
     // --- MISIONES UI ---
@@ -279,20 +312,74 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     refreshInventory() { 
-        let matContent = ""; 
-        if (this.inventoryCategory === 'mats') { 
-            matContent += "--- RECURSOS ---\n";
-            for(let k in gameState.materials) {
-                const mat = gameState.materials[k];
-                let hasAny = false;
-                let line = `${(RAW_MATERIALS[k] || REFINED_MATERIALS[k] || {name:k}).name}: `;
-                Object.keys(RARITY).forEach(r => { if(mat[r] > 0) { hasAny=true; line+=`[${RARITY[r].name.substr(0,1)}:${mat[r]}] `; } });
-                if(hasAny) matContent += line + "\n";
-            }
-        } 
-        this.invMatsText.setText(matContent); 
+        this.invMatsText.setText(""); 
         this.invItemsContainer.removeAll(true); 
         
+        // --- VISTA MEJORADA PARA MATERIALES ---
+        if (this.inventoryCategory === 'mats') { 
+            let col = 0; 
+            let row = 0; 
+            const cardWidth = 170;
+            const cardHeight = 80;
+            const gapX = 10;
+            const gapY = 10;
+
+            for(let k in gameState.materials) {
+                const matCounts = gameState.materials[k];
+                const total = Object.values(matCounts).reduce((a, b) => a + b, 0);
+                if (total === 0) continue;
+
+                const matName = (RAW_MATERIALS[k] || REFINED_MATERIALS[k] || {name:k}).name;
+                
+                // Contenedor de la Tarjeta
+                const card = this.add.container(col * (cardWidth + gapX), row * (cardHeight + gapY));
+                
+                // Fondo
+                const bg = this.add.rectangle(cardWidth/2, cardHeight/2, cardWidth, cardHeight, 0x222222).setStrokeStyle(1, 0x555555);
+                card.add(bg);
+
+                // Título
+                const title = this.add.text(10, 8, matName.toUpperCase(), { 
+                    fontFamily: 'Cinzel', fontSize: '12px', color: '#ffd700', fontStyle: 'bold' 
+                });
+                card.add(title);
+
+                // Lista de Rarezas en 2 columnas
+                let yPos = 28;
+                const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+                let xOffset = 10;
+                let countIdx = 0;
+
+                rarities.forEach(r => {
+                    const count = matCounts[r];
+                    if (count > 0) {
+                        const rData = RARITY[r];
+                        // CAMBIO: Color de texto FORZADO A BLANCO para legibilidad
+                        const txt = this.add.text(xOffset, yPos, `${count} ${rData.name}`, { 
+                            fontFamily: 'Roboto', fontSize: '10px', color: '#ffffff' 
+                        });
+                        card.add(txt);
+                        
+                        countIdx++;
+                        if (countIdx % 2 === 0) {
+                            xOffset = 10;
+                            yPos += 14;
+                        } else {
+                            xOffset = 90; 
+                        }
+                    }
+                });
+
+                this.invItemsContainer.add(card);
+
+                col++; 
+                if (col >= 3) { col = 0; row++; }
+            }
+            this.goldText.setText(`ORO: ${gameState.gold}`); 
+            return; 
+        } 
+        
+        // --- VISTA NORMAL PARA EQUIPO ---
         const filteredItems = gameState.inventory.filter(i => { 
             if (!i) return false; 
             if (this.inventoryCategory === 'mats') return false; 
@@ -415,7 +502,6 @@ export default class MainMenuScene extends Phaser.Scene {
     createForgeView(w, h, cx, cy) {
         this.profText = this.add.text(cx, h * 0.15, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
-        // this.forgeMsg eliminado, ahora se usan alertas
         
         const catY = h * 0.22;
         this.createForgeCatBtn(w * 0.2, catY, "ARMAS", 'weapon');
