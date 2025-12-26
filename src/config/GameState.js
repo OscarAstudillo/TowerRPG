@@ -94,7 +94,7 @@ export const RARITY = {
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
 };
 
-export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }
+export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 100, xp: 0, maxXp: 100, statPoints: 200, talentPoints: 10, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }
 export function getCurrentHero() { if (!gameState.selectedClass) return null; if (!gameState.heroes[gameState.selectedClass]) { return initHero(gameState.selectedClass); } return gameState.heroes[gameState.selectedClass]; }
 
 export function getTalentBonuses() {
