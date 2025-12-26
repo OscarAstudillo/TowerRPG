@@ -12,11 +12,11 @@ export const TOWER_TYPES = {
         type: 'archer',
         // Niveles de mejora
         levels: [
-            { damage: 15, range: 150, fireRate: 800, upgradeCost: 150 },
-            { damage: 25, range: 160, fireRate: 700, upgradeCost: 250 },
-            { damage: 40, range: 170, fireRate: 600, upgradeCost: 400 },
-            { damage: 60, range: 180, fireRate: 500, upgradeCost: 600 },
-            { damage: 100, range: 200, fireRate: 400, upgradeCost: 0 }
+            { damage: 15, range: 200, fireRate: 800, upgradeCost: 150 },
+            { damage: 25, range: 220, fireRate: 700, upgradeCost: 250 },
+            { damage: 40, range: 240, fireRate: 600, upgradeCost: 400 },
+            { damage: 60, range: 260, fireRate: 500, upgradeCost: 600 },
+            { damage: 100, range: 280, fireRate: 400, upgradeCost: 0 }
         ]
     },
     cannon: {
@@ -30,11 +30,11 @@ export const TOWER_TYPES = {
         type: 'cannon',
         aoeRadius: 80, // Radio de explosión en pixeles
         levels: [
-            { damage: 30, range: 120, fireRate: 2000, upgradeCost: 250, aoe: 80 },
-            { damage: 50, range: 130, fireRate: 1900, upgradeCost: 350, aoe: 90 },
-            { damage: 80, range: 140, fireRate: 1800, upgradeCost: 550, aoe: 100 },
-            { damage: 120, range: 150, fireRate: 1700, upgradeCost: 800, aoe: 110 },
-            { damage: 200, range: 160, fireRate: 1500, upgradeCost: 0, aoe: 130 }
+            { damage: 30, range: 350, fireRate: 2000, upgradeCost: 250, aoe: 110 },
+            { damage: 50, range: 370, fireRate: 1900, upgradeCost: 350, aoe: 130 },
+            { damage: 80, range: 390, fireRate: 1800, upgradeCost: 550, aoe: 150 },
+            { damage: 120, range: 410, fireRate: 1700, upgradeCost: 800, aoe: 170 },
+            { damage: 200, range: 450, fireRate: 1500, upgradeCost: 0, aoe: 200 }
         ]
     },
     mage: {
