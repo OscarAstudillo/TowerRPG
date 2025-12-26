@@ -16,7 +16,7 @@ export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
         this.selectedTowerType = 'archer';
-        this.coins = 0; 
+        this.coins = 5000; 
         this.selectedTowerToUpgrade = null; 
         this.timeToNextWave = 0; 
         this.isTimerRunning = false;
@@ -210,37 +210,70 @@ export default class GameScene extends Phaser.Scene {
         } 
     }
 
+    // --- UI EVOLUCIÓN MEJORADA ---
     createUpgradeUI() {
         this.upgradeContainer = this.add.container(0, 0).setDepth(2000).setVisible(false);
-        const bg = this.add.rectangle(0, 0, 240, 160, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive();
+        // Panel más grande para las opciones
+        const bg = this.add.rectangle(0, 0, 300, 220, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive();
         
-        this.upgradeText = this.add.text(0, -50, '', { fontSize: '14px', align: 'center', color: '#fff', wordWrap: {width: 220} }).setOrigin(0.5);
+        this.upgradeText = this.add.text(0, -80, '', { fontSize: '14px', align: 'center', color: '#fff', wordWrap: {width: 280} }).setOrigin(0.5);
         
-        this.upgradeBtn = this.add.rectangle(0, 0, 200, 35, 0x00aa00).setInteractive({ useHandCursor: true });
-        this.upgradeBtnText = this.add.text(0, 0, 'MEJORAR', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
+        // Botón Normal
+        this.upgradeBtn = this.add.rectangle(0, -20, 250, 40, 0x00aa00).setInteractive({ useHandCursor: true });
+        this.upgradeBtnText = this.add.text(0, -20, 'MEJORAR', { fontSize: '16px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
         this.upgradeBtn.on('pointerdown', () => this.tryUpgradeTower());
 
-        this.sellBtn = this.add.rectangle(0, 50, 200, 35, 0xaa0000).setInteractive({ useHandCursor: true });
-        this.sellBtnText = this.add.text(0, 50, 'VENDER', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
+        // Botones Evolución (A y B)
+        this.evoBtnA = this.add.rectangle(-70, -10, 130, 60, 0x444444).setInteractive({ useHandCursor: true }).setVisible(false);
+        this.evoTxtA = this.add.text(-70, -10, '', { fontSize: '12px', align: 'center', wordWrap:{width:120} }).setOrigin(0.5).setVisible(false);
+        this.evoBtnA.on('pointerdown', () => this.tryEvolveTower('pathA'));
+
+        this.evoBtnB = this.add.rectangle(70, -10, 130, 60, 0x444444).setInteractive({ useHandCursor: true }).setVisible(false);
+        this.evoTxtB = this.add.text(70, -10, '', { fontSize: '12px', align: 'center', wordWrap:{width:120} }).setOrigin(0.5).setVisible(false);
+        this.evoBtnB.on('pointerdown', () => this.tryEvolveTower('pathB'));
+
+        this.sellBtn = this.add.rectangle(0, 70, 250, 30, 0xaa0000).setInteractive({ useHandCursor: true });
+        this.sellBtnText = this.add.text(0, 70, 'VENDER', { fontSize: '14px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5);
         this.sellBtn.on('pointerdown', () => this.sellTower());
 
-        this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.sellBtn, this.sellBtnText]);
+        this.upgradeContainer.add([bg, this.upgradeText, this.upgradeBtn, this.upgradeBtnText, this.evoBtnA, this.evoTxtA, this.evoBtnB, this.evoTxtB, this.sellBtn, this.sellBtnText]);
     }
 
     updateUpgradeMenuText() {
         if (!this.selectedTowerToUpgrade) return;
         const t = this.selectedTowerToUpgrade;
-        if (t.level >= t.maxLevel) {
+        const stats = TOWER_TYPES[t.typeKey];
+
+        // Ocultar todo primero
+        this.upgradeBtn.setVisible(false); this.upgradeBtnText.setVisible(false);
+        this.evoBtnA.setVisible(false); this.evoTxtA.setVisible(false);
+        this.evoBtnB.setVisible(false); this.evoTxtB.setVisible(false);
+
+        if (t.isEvolved) {
+            // Ya evolucionada
             this.upgradeText.setText(`${t.typeName} (MÁX)\nDaño: ${t.damage}`);
-            this.upgradeBtn.setVisible(false);
-            this.upgradeBtnText.setVisible(false);
-        } else {
-            this.upgradeBtn.setVisible(true);
-            this.upgradeBtnText.setVisible(true);
-            this.upgradeText.setText(`${t.typeName} Lv ${t.level}\nDaño: ${t.damage} -> ${Math.floor(t.damage * 1.3)}`);
+        }
+        else if (t.level >= t.maxLevel) {
+            // Lista para evolucionar
+            this.upgradeText.setText(`¡EVOLUCIÓN DISPONIBLE!\nElige un destino:`);
+            
+            // Mostrar opciones A y B
+            const evoA = stats.evolutions.pathA;
+            const evoB = stats.evolutions.pathB;
+
+            this.evoBtnA.setVisible(true); this.evoBtnA.setFillStyle(evoA.color);
+            this.evoTxtA.setVisible(true); this.evoTxtA.setText(`${evoA.name}\n$${evoA.cost}`);
+            
+            this.evoBtnB.setVisible(true); this.evoBtnB.setFillStyle(evoB.color);
+            this.evoTxtB.setVisible(true); this.evoTxtB.setText(`${evoB.name}\n$${evoB.cost}`);
+        } 
+        else {
+            // Mejora normal
+            this.upgradeBtn.setVisible(true); this.upgradeBtnText.setVisible(true);
+            this.upgradeText.setText(`${t.typeName} Nvl ${t.level}\nDaño: ${t.damage}`);
             this.upgradeBtnText.setText(`MEJORAR ($${t.upgradeCost})`);
         }
-        this.sellBtnText.setText(`VENDER (+$${t.totalInvestment})`);
+        this.sellBtnText.setText(`VENDER (+$${Math.floor(t.totalInvestment * 0.7)})`);
     }
 
     tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
