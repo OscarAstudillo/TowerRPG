@@ -49,10 +49,21 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         const speed = this.stats.moveSpeed; 
         if (this.cursors.left.isDown) this.body.setVelocityX(-speed); else if (this.cursors.right.isDown) this.body.setVelocityX(speed);
         if (this.cursors.up.isDown) this.body.setVelocityY(-speed); else if (this.cursors.down.isDown) this.body.setVelocityY(speed);
+        
         if (this.skillCooldown > 0) this.skillCooldown -= delta;
-        let currentAttackSpeed = this.stats.attackSpeed;
+        
+        // --- PROTECCIÓN CONTRA CUELGUE ---
+        // Aseguramos que el delay nunca sea menor a 100ms (10 ataques/seg)
+        let baseSpeed = Math.max(100, this.stats.attackSpeed);
+        
+        let currentAttackSpeed = baseSpeed;
         if (this.isBuffed && gameState.selectedClass === 'arquero') currentAttackSpeed /= 3; 
+        
+        // Segunda capa de seguridad
+        if (currentAttackSpeed < 50) currentAttackSpeed = 50; 
+
         if (time > this.lastAttackTime + currentAttackSpeed) { this.findTargetAndAttack(time); }
+        
         this.regenTimer += delta;
         if (this.regenTimer >= 5000) { 
             this.regenTimer = 0;
@@ -77,29 +88,45 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     }
 
     findTargetAndAttack(time) {
-        const target = this.findClosestEnemy(this.stats.range);
+        // Limitar rango visualmente para no disparar a enemigos fuera de pantalla
+        const maxRange = Math.min(this.stats.range, 1200); 
+        const target = this.findClosestEnemy(maxRange);
+        
         if (target) {
             let hits = 1;
+            // Tu lógica de doble golpe es segura (iterativa, no recursiva)
             if (this.passives.doubleStrike > 0 && Math.random() * 100 < this.passives.doubleStrike) { hits = 2; this.scene.showFloatingText(this.x, this.y - 40, "¡DOBLE!", "#ff0000"); }
+            
             for(let i=0; i<hits; i++) {
                 this.scene.time.delayedCall(i * 100, () => {
+                    // Verificación extra de seguridad
+                    if (!this.scene || !this.projectilesGroup) return;
+                    
                     const projectile = this.projectilesGroup.get(this.x, this.y);
                     if (projectile) {
                         let dmg = this.stats.damage;
                         if (this.passives.pierce > 0) dmg += 5; 
                         
-                        // EFECTOS POR CLASE
                         let effect = null;
                         if (gameState.selectedClass === 'mago') {
-                            // Mago base congela un poco, con talento congela más
                             effect = { type: 'freeze', val: 0.2, duration: 1500 }; 
                             if(this.passives.frostHit > 0) effect.val = 0.5;
                         } else if (gameState.selectedClass === 'asesino') {
-                            // Asesino envenena
                             effect = { type: 'poison', val: Math.max(2, Math.floor(dmg * 0.2)), duration: 3000 };
                         }
 
+                        // Calcular crítico aquí para mostrar texto flotante
+                        let isCrit = false;
+                        if (this.stats.critChance > 0 && Math.random() * 100 < this.stats.critChance) {
+                            dmg = Math.floor(dmg * (this.stats.critDamage / 100));
+                            isCrit = true;
+                        }
+
                         projectile.fire(target, { damage: dmg, type: 'hero', aoeRadius: 0, effect: effect });
+                        
+                        if (isCrit && this.scene.showFloatingText) {
+                            this.scene.showFloatingText(target.x, target.y - 30, "¡CRIT!", "#ff0000");
+                        }
                         
                         if (this.stats.lifesteal > 0) {
                             const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
@@ -126,11 +153,11 @@ export default class Player extends Phaser.GameObjects.Rectangle {
 
     findClosestEnemy(range) { let closest = null; let minDist = Infinity; this.enemiesGroup.children.iterate(enemy => { if (enemy.active) { const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y); if (dist < range && dist < minDist) { minDist = dist; closest = enemy; } } }); return closest; }
     
-    // FIX DE CRASH: Usar getChildren para iterar
     createAOE(radius, damage, color) { 
         const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); 
         this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); 
         
+        // USAR GETCHILDREN PARA EVITAR ERRORES DE MODIFICACIÓN DURANTE ITERACIÓN
         const enemies = this.enemiesGroup.getChildren(); 
         enemies.forEach(enemy => { 
             if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { 

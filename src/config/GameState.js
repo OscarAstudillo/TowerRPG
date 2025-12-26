@@ -1,6 +1,6 @@
 // src/config/GameState.js
-import { ITEM_SETS } from './ItemSets.js';
-import { TALENTS } from './Talents.js'; // Importamos los talentos para leer sus stats
+import { ITEM_SETS } from './ItemSets.js'; 
+import { TALENTS } from './Talents.js';
 
 // Definimos stats base por clase
 const CLASS_BASE_STATS = {
@@ -79,7 +79,7 @@ export const initialState = {
     heroes: {}, 
     talents: [],
     completedLevels: {}, 
-    unlockedRecipes: [], 
+    unlockedRecipes: [], // NUEVO: Para guardar recetas especiales ganadas
     activeSets: [],
     maxLevel: 1,
     baseHp: 20
@@ -95,7 +95,7 @@ export const RARITY = {
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
 };
 
-export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }
+export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 100, xp: 0, maxXp: 100, statPoints: 200, talentPoints: 10, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }
 export function getCurrentHero() { if (!gameState.selectedClass) return null; if (!gameState.heroes[gameState.selectedClass]) { return initHero(gameState.selectedClass); } return gameState.heroes[gameState.selectedClass]; }
 
 // Función que lee los talentos activos y suma sus estadísticas
@@ -261,12 +261,21 @@ export function updatePlayerStats() {
         }
     }
 
-    // Límites de seguridad
-    if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
-    if (stats.range < 50) stats.range = 50;
+    // --- CORRECCIÓN DE SEGURIDAD (SANITY CHECKS) ---
+    // Asegurar que la velocidad de ataque nunca sea 0 o negativa (10 ataques por segundo máx)
+    if (stats.attackSpeed < 100) stats.attackSpeed = 100; 
+    
+    // Limitar rango para que no rompa el mapa (máximo visual razonable)
+    if (stats.range > 1500) stats.range = 1500;
 
-    // Asignar y curar si subió la vida máxima
-    stats.hp = stats.maxHp; // Curación completa al actualizar stats (simplificación)
+    // Actualizar vida si aumentó el máximo
+    if (gameState.playerStats.hp > stats.maxHp) gameState.playerStats.hp = stats.maxHp;
+    
+    // Si la vida actual estaba llena, mantenerla llena al subir maxHp (opcional, buena UX)
+    if (gameState.playerStats.hp === gameState.playerStats.maxHp) {
+        gameState.playerStats.hp = stats.maxHp;
+    }
+
     Object.assign(gameState.playerStats, stats);
 }
 

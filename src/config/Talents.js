@@ -1,8 +1,7 @@
 // src/config/Talents.js
 
-// Helper para crear talentos rápido
 const t = (id, tier, name, desc, stats = {}, effect = null, val = 0) => ({ 
-    id, tier, name, desc, stats, effect, val, cost: 1 // Costo siempre 1 punto
+    id, tier, name, desc, stats, effect, val, cost: 1 
 });
 
 export const TALENTS = {
@@ -15,13 +14,13 @@ export const TALENTS = {
         t('pal_30_b', 30, 'Retribución', '+20 Daño Espinas', { thorns: 20 }),
         t('pal_40_a', 40, 'Vitalidad I', '+500 HP', { maxHp: 500 }),
         t('pal_40_b', 40, 'Fuerza I', '+30 Daño', { damage: 30 }),
-        t('pal_50_a', 50, 'Muro de Hierro', '+15% Bloqueo (Total 25%)', {}, 'block_chance', 25),
+        t('pal_50_a', 50, 'Muro de Hierro', '+15% Bloqueo', {}, 'block_chance', 15),
         t('pal_50_b', 50, 'Aura Sagrada', '+30 Regen HP', { regenHp: 30 }),
         t('pal_60_a', 60, 'Piel de Diamante', '+20 Defensa', { defense: 20 }),
         t('pal_60_b', 60, 'Castigo', '+50% Daño Crítico', { critDamage: 50 }),
         t('pal_70_a', 70, 'Vitalidad II', '+1000 HP', { maxHp: 1000 }),
         t('pal_70_b', 70, 'Fuerza II', '+60 Daño', { damage: 60 }),
-        t('pal_80_a', 80, 'Bastión', '+20% Bloqueo (Total 45% si sumado)', {}, 'block_chance', 20),
+        t('pal_80_a', 80, 'Bastión', '+20% Bloqueo', {}, 'block_chance', 20),
         t('pal_80_b', 80, 'Luz Eterna', '+100 Regen HP', { regenHp: 100 }),
         t('pal_90_a', 90, 'Tanque Supremo', '+40% Vida', { maxHpMult: 0.4 }),
         t('pal_90_b', 90, 'Cruzado', '+40% Daño', { damageMult: 0.4 }),
@@ -53,7 +52,7 @@ export const TALENTS = {
     arquero: [
         t('arc_10_a', 10, 'Ojo de Halcón', '+20% Rango', { rangeMult: 0.2 }),
         t('arc_10_b', 10, 'Flechas Ligeras', '+150 Vel. Ataque', { attackSpeed: 150 }),
-        t('arc_20_a', 20, 'Punta Perforante', 'Ignora Defensas (Pierce)', {}, 'pierce', 1),
+        t('arc_20_a', 20, 'Punta Perforante', 'Ignora Defensas', {}, 'pierce', 1),
         t('arc_20_b', 20, 'Cazador', '+10% Crítico', { critChance: 10 }),
         t('arc_30_a', 30, 'Tiro Certero', '+25 Daño', { damage: 25 }),
         t('arc_30_b', 30, 'Evasión', '+10 Defensa', { defense: 10 }),
@@ -69,8 +68,8 @@ export const TALENTS = {
         t('arc_80_b', 80, 'Intocable', '+30 Defensa', { defense: 30 }),
         t('arc_90_a', 90, 'Maestro del Arco', '+150 Daño', { damage: 150 }),
         t('arc_90_b', 90, 'Lluvia de Flechas', '+30% Daño Total', { damageMult: 0.3 }),
-        t('arc_100_a', 100, 'LEGOLAS', '+500% Rango', { rangeMult: 5.0 }),
-        t('arc_100_b', 100, 'AMETRALLADORA', '+1500 Vel. Ataque', { attackSpeed: 1500 })
+        t('arc_100_a', 100, 'LEGOLAS', '+150% Rango (Max Visión)', { rangeMult: 1.5 }), 
+        t('arc_100_b', 100, 'AMETRALLADORA', '+600 Vel. Ataque', { attackSpeed: 600 }) 
     ],
     mago: [
         t('mag_10_a', 10, 'Sabiduría', '+20% Daño Hechizo', { skillDamage: 20 }),
@@ -91,8 +90,8 @@ export const TALENTS = {
         t('mag_80_b', 80, 'Crono', '-25% Cooldown', { cdr: 25 }),
         t('mag_90_a', 90, 'Apocalipsis', '+300 Daño', { damage: 300 }),
         t('mag_90_b', 90, 'Omnipotencia', '+50% Vida', { maxHpMult: 0.5 }),
-        t('mag_100_a', 100, 'DIOS DE LA MAGIA', '+1000% Daño Hechizo', { skillDamage: 1000 }),
-        t('mag_100_b', 100, 'TIEMPO CERO', '-80% Cooldown (Casi instantáneo)', { cdr: 80 })
+        t('mag_100_a', 100, 'DIOS DE LA MAGIA', '+500% Daño Hechizo', { skillDamage: 500 }),
+        t('mag_100_b', 100, 'TIEMPO CERO', '-70% Cooldown', { cdr: 70 })
     ],
     asesino: [
         t('asn_10_a', 10, 'Sombra', '+20% Movimiento', { moveSpeedMult: 0.2 }),
@@ -113,7 +112,7 @@ export const TALENTS = {
         t('asn_80_b', 80, 'Maestro Sombra', '30% Chance Doble Ataque', {}, 'double_strike', 30),
         t('asn_90_a', 90, 'Fantasma', '+50% Daño', { damageMult: 0.5 }),
         t('asn_90_b', 90, 'Intocable', '+2000 HP', { maxHp: 2000 }),
-        t('asn_100_a', 100, 'MUERTE SILENCIOSA', '+1000% Daño Crítico', { critDamage: 1000 }),
-        t('asn_100_b', 100, 'NINJA', '100% Doble Ataque (Golpes x2 siempre)', {}, 'double_strike', 100 )
+        t('asn_100_a', 100, 'MUERTE SILENCIOSA', '+500% Daño Crítico', { critDamage: 500 }),
+        t('asn_100_b', 100, 'NINJA', '80% Doble Ataque', {}, 'double_strike', 80 ) 
     ]
 };
