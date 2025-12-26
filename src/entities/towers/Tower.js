@@ -1,9 +1,8 @@
 // src/entities/towers/Tower.js
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
-import { getTowerBonuses } from '../../config/GameState.js';
-import Projectile from '../projectiles/Projectile.js';
 import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
+import Projectile from '../projectiles/Projectile.js';
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -39,10 +38,11 @@ export default class Tower extends Phaser.GameObjects.Container {
 
         // --- ESTADO ---
         this.level = 1; 
-        this.maxLevel = 3; // Nivel base máximo antes de evolucionar
+        this.maxLevel = 3; 
         this.isEvolved = false;
-        this.evolutionKey = null; // 'sniper', 'ranger', etc.
+        this.evolutionKey = null; 
         this.lastAttackTime = 0; 
+        this.upgradeCost = 0;
         
         // Cargar stats iniciales
         this.updateStats(); 
@@ -52,7 +52,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         if (time > this.lastAttackTime + this.attackSpeed) { 
             this.findTargetAndFire(time); 
         }
-        // Animación idle especial para magos
         if (this.typeKey === 'mage' || this.evolutionKey === 'ice' || this.evolutionKey === 'fire') {
             this.turretGroup.angle += 1; 
         }
@@ -75,7 +74,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         });
 
         if (target) {
-            // Rotar (excepto si es mago o gatling que dispara muy rápido)
             if (this.typeKey !== 'mage') { 
                 const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
                 this.turretGroup.rotation = angle + (Math.PI / 2);
@@ -87,39 +85,34 @@ export default class Tower extends Phaser.GameObjects.Container {
 
     fire(target) {
         const fireProjectile = () => {
-            // Configurar proyectil según evolución
             let projectileType = this.typeKey;
-            
-            // Gatling dispara recto, no parabólico
+            // Gatling dispara recto
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
-            // Crear y disparar
             const p = new Projectile(this.scene, this.x, this.y);
             if (this.projectiles) this.projectiles.add(p);
             
-            // Aplicar Crítico (Francotirador)
             let finalDamage = this.damage;
+            // Crítico Francotirador
             if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
-                finalDamage *= 2; // 50% chance de crítico doble
+                finalDamage *= 2; 
                 if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
             }
 
             p.fire(target, {
                 damage: finalDamage,
                 type: projectileType,
-                effect: this.currentEffect, // slow, burn, freeze
+                effect: this.currentEffect,
                 aoe: this.currentAoE || 0
             });
         };
 
         fireProjectile();
         
-        // Doble ataque por equipo
         if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance) {
             this.scene.time.delayedCall(100, fireProjectile); 
         }
         
-        // Animación retroceso
         this.scene.tweens.add({ targets: this.turretGroup, y: (this.evolutionKey==='gatling'?2:5), yoyo: true, duration: 50 });
     }
 
@@ -131,7 +124,7 @@ export default class Tower extends Phaser.GameObjects.Container {
         }
     }
 
-    evolve(pathKey) { // 'pathA' o 'pathB'
+    evolve(pathKey) { 
         const typeData = TOWER_TYPES[this.typeKey];
         const evoData = typeData.evolutions[pathKey];
         
@@ -141,25 +134,26 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.typeName = evoData.name;
             this.totalInvestment += evoData.cost;
             
-            // Cambiar visual
             this.turretBody.setFillStyle(evoData.color);
-            this.base.setStrokeStyle(3, 0xffd700); // Borde dorado indica evolución
+            this.base.setStrokeStyle(3, 0xffd700); 
             
-            // Aplicar stats nuevos
+            // Aplicar stats base de evolución
             this.damage = evoData.stats.damage;
             this.range = evoData.stats.range;
             this.attackSpeed = evoData.stats.fireRate;
             this.currentEffect = evoData.stats.effect || null;
             this.currentAoE = evoData.stats.aoe || 0;
             
-            // Feedback
+            // Re-aplicar bonos (equipo y talentos)
+            this.applyGlobalBonuses();
+
             this.showLevelUpEffect();
             this.rangeCircle.setRadius(this.range);
         }
     }
 
     updateStats() {
-        if (this.isEvolved) return; // Si evolucionó, los stats son fijos o manejan otra lógica
+        if (this.isEvolved) return; 
 
         const typeData = TOWER_TYPES[this.typeKey];
         const currentStats = typeData.levels[this.level - 1];
@@ -171,29 +165,32 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.upgradeCost = currentStats.upgradeCost || 0;
             this.currentEffect = currentStats.effect || null;
             this.currentAoE = currentStats.aoe || 0;
-            // Bonos de Equipo
-            const equipBonuses = getTowerBonuses(this.typeKey);
-            
-            // Bonos de Talentos (NUEVO)
-            const talentBonuses = getTalentBonuses();
 
-            // Aplicar ambos
-            this.damage += equipBonuses.damage + (talentBonuses.towerDamage || 0);
-            this.range += equipBonuses.range + (talentBonuses.towerRange || 0);
-            
-            // Descuento en mejoras (Opcional)
-            if (talentBonuses.towerCost > 0) {
-                this.upgradeCost = Math.floor(this.upgradeCost * (1 - (talentBonuses.towerCost / 100)));
-            }
-
-            // Bonos Globales
-            const bonuses = getTowerBonuses(this.typeKey);
-            this.damage += bonuses.damage;
-            this.range += bonuses.range;
-            this.attackSpeed = Math.max(100, this.attackSpeed - bonuses.attackSpeed);
-            this.doubleAttackChance = bonuses.doubleAttack || 0;
+            this.applyGlobalBonuses();
 
             if (this.rangeCircle) this.rangeCircle.setRadius(this.range);
+        }
+    }
+
+    applyGlobalBonuses() {
+        // 1. Bonos de Equipo
+        const equipBonuses = getTowerBonuses(this.typeKey);
+        
+        // 2. Bonos de Talentos (Se calculan en GameState)
+        const talentBonuses = getTalentBonuses();
+
+        this.damage += equipBonuses.damage + (talentBonuses.towerDamage || 0);
+        this.range += equipBonuses.range + (talentBonuses.towerRange || 0);
+        
+        // Velocidad (reduce delay)
+        const speedReduction = equipBonuses.attackSpeed; 
+        this.attackSpeed = Math.max(100, this.attackSpeed - speedReduction);
+        
+        this.doubleAttackChance = equipBonuses.doubleAttack || 0;
+
+        // Descuento
+        if (talentBonuses.towerCost > 0 && !this.isEvolved) {
+            this.upgradeCost = Math.floor(this.upgradeCost * (1 - (talentBonuses.towerCost / 100)));
         }
     }
 

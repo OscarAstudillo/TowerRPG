@@ -1,5 +1,6 @@
 // src/config/GameState.js
-import { ITEM_SETS } from './ItemSets.js'; // <--- ESTO FALTABA Y CAUSABA EL ERROR
+import { ITEM_SETS } from './ItemSets.js';
+import { TALENTS } from './Talents.js'; // Importamos los talentos para leer sus stats
 
 // Definimos stats base por clase
 const CLASS_BASE_STATS = {
@@ -19,7 +20,8 @@ export const initialState = {
         attackSpeed: 1000, moveSpeed: 160, range: 120,
         critChance: 5, critDamage: 150,
         lifesteal: 0, regenHp: 0,
-        cdr: 0, doubleAttack: 0, thorns: 0
+        cdr: 0, doubleAttack: 0, thorns: 0,
+        blockChance: 0
     },
 
     inventory: [],
@@ -77,7 +79,7 @@ export const initialState = {
     heroes: {}, 
     talents: [],
     completedLevels: {}, 
-    unlockedRecipes: [], // NUEVO: Para guardar recetas especiales ganadas
+    unlockedRecipes: [], 
     activeSets: [],
     maxLevel: 1,
     baseHp: 20
@@ -96,36 +98,114 @@ export const RARITY = {
 export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }
 export function getCurrentHero() { if (!gameState.selectedClass) return null; if (!gameState.heroes[gameState.selectedClass]) { return initHero(gameState.selectedClass); } return gameState.heroes[gameState.selectedClass]; }
 
+// Función que lee los talentos activos y suma sus estadísticas
+export function getTalentBonuses() {
+    const bonuses = {
+        // Stats Héroe
+        damage: 0, damageMult: 0,
+        maxHp: 0, maxHpMult: 0,
+        defense: 0,
+        attackSpeed: 0, // Flat reduction (ms)
+        critChance: 0, critDamage: 0,
+        lifesteal: 0, regenHp: 0, thorns: 0,
+        rangeMult: 0, moveSpeedMult: 0,
+        cdr: 0,
+        block_chance: 0, double_strike: 0, pierce: 0, skillDamage: 0,
+        
+        // Stats Torres (si los añades en el futuro)
+        towerDamage: 0, towerRange: 0, towerCost: 0
+    };
+
+    const hero = getCurrentHero();
+    if (!hero || !hero.talents || hero.talents.length === 0) return bonuses;
+
+    const cls = gameState.selectedClass;
+    const availableTalents = TALENTS[cls] || [];
+
+    // Recorremos los IDs de talentos aprendidos por el jugador
+    hero.talents.forEach(talentId => {
+        // Buscamos la definición del talento en TALENTS.js
+        const talentDef = availableTalents.find(t => t.id === talentId);
+        
+        if (talentDef && talentDef.stats) {
+            // Sumamos cada estadística que otorgue el talento
+            for (let key in talentDef.stats) {
+                if (bonuses[key] !== undefined) {
+                    bonuses[key] += talentDef.stats[key];
+                }
+            }
+        }
+        
+        // Manejo de efectos especiales (ej: 'block_chance')
+        if (talentDef && talentDef.effect && bonuses[talentDef.effect] !== undefined) {
+             bonuses[talentDef.effect] += (talentDef.val || 0);
+        }
+    });
+
+    return bonuses;
+}
+
 export function updatePlayerStats() {
     if (!gameState.selectedClass) return;
 
     const hero = getCurrentHero();
     const classBase = CLASS_BASE_STATS[gameState.selectedClass] || { hp: 100, damage: 10, defense: 0, attackSpeed: 1000, range: 100 };
     
-    const stats = { ...gameState.playerStats };
+    // 1. Stats Base de Clase + Nivel
+    const levelBonus = (hero ? hero.level - 1 : 0);
     
-    stats.maxHp = classBase.hp;
-    stats.damage = classBase.damage;
-    stats.defense = classBase.defense;
-    stats.attackSpeed = classBase.attackSpeed;
-    stats.range = classBase.range || 100;
+    let stats = {
+        maxHp: classBase.hp + (levelBonus * 10),
+        damage: classBase.damage + (levelBonus * 2),
+        defense: classBase.defense + (levelBonus * 1),
+        attackSpeed: classBase.attackSpeed,
+        range: classBase.range || 100,
+        
+        // Secundarios
+        critChance: 5, 
+        critDamage: 150,
+        lifesteal: 0, 
+        regenHp: 0,
+        doubleAttack: 0, 
+        thorns: 0,
+        cdr: 0,
+        blockChance: 0
+    };
 
-    const talentBonuses = getTalentBonuses();
-    // Sumar daño porcentual o plano
-    stats.damage += talentBonuses.heroDamage; 
-    stats.maxHp += talentBonuses.heroHealth;
-
-    if (talentBonuses.heroSpeed > 0) {
-        stats.attackSpeed = Math.floor(stats.attackSpeed * (1 - (talentBonuses.heroSpeed / 100)));
-    }
-
+    // 2. Aplicar Puntos de Stat (Invertidos manualmente por el jugador)
     if (hero && hero.baseAttributes) {
         stats.damage += (hero.baseAttributes.damage || 0);
         stats.maxHp += (hero.baseAttributes.maxHp || 0);
         stats.defense += (hero.baseAttributes.defense || 0);
+        // La velocidad invertida reduce el delay
         stats.attackSpeed -= (hero.baseAttributes.attackSpeed || 0);
     }
 
+    // 3. Aplicar TALENTOS (Árbol de habilidades)
+    const talentBonuses = getTalentBonuses();
+    
+    // Sumas planas
+    stats.maxHp += talentBonuses.maxHp;
+    stats.damage += talentBonuses.damage;
+    stats.defense += talentBonuses.defense;
+    stats.regenHp += talentBonuses.regenHp;
+    stats.lifesteal += talentBonuses.lifesteal;
+    stats.critChance += talentBonuses.critChance;
+    stats.critDamage += talentBonuses.critDamage;
+    stats.attackSpeed -= talentBonuses.attackSpeed; // Reducción de delay plana
+    stats.thorns += talentBonuses.thorns;
+    stats.cdr += talentBonuses.cdr;
+    
+    // Efectos especiales de talentos mapeados a stats
+    stats.doubleAttack += talentBonuses.double_strike;
+    stats.blockChance += talentBonuses.block_chance;
+
+    // Multiplicadores de Talentos
+    if (talentBonuses.maxHpMult > 0) stats.maxHp = Math.floor(stats.maxHp * (1 + talentBonuses.maxHpMult));
+    if (talentBonuses.damageMult > 0) stats.damage = Math.floor(stats.damage * (1 + talentBonuses.damageMult));
+    if (talentBonuses.rangeMult > 0) stats.range = Math.floor(stats.range * (1 + talentBonuses.rangeMult));
+
+    // 4. Aplicar EQUIPAMIENTO
     const equipment = [
         gameState.equipment.mainHand,
         gameState.equipment.offHand,
@@ -136,6 +216,7 @@ export function updatePlayerStats() {
     const setCount = {};
     equipment.forEach(item => {
         if (item) {
+            // Sumar stats del item
             if (item.stats) {
                 for (let key in item.stats) {
                     if (stats[key] !== undefined) {
@@ -144,20 +225,19 @@ export function updatePlayerStats() {
                     }
                 }
             }
-            
-            // Ahora ITEM_SETS está definido gracias al import
-            if (ITEM_SETS) {
+            // Contar Sets
+            if (ITEM_SETS && item.recipeId) { 
                 for (let setKey in ITEM_SETS) {
                     const set = ITEM_SETS[setKey];
                     if (set.items.includes(item.recipeId)) {
-                        if (!setCount[setKey]) setCount[setKey] = 0;
-                        setCount[setKey]++;
+                        setCount[setKey] = (setCount[setKey] || 0) + 1;
                     }
                 }
             }
         }
     });
 
+    // 5. Aplicar Bonos de Set
     gameState.activeSets = [];
     if (ITEM_SETS) {
         for (let setKey in setCount) {
@@ -181,11 +261,13 @@ export function updatePlayerStats() {
         }
     }
 
+    // Límites de seguridad
     if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
     if (stats.range < 50) stats.range = 50;
 
+    // Asignar y curar si subió la vida máxima
+    stats.hp = stats.maxHp; // Curación completa al actualizar stats (simplificación)
     Object.assign(gameState.playerStats, stats);
-    if (gameState.playerStats.hp > gameState.playerStats.maxHp) gameState.playerStats.hp = gameState.playerStats.maxHp;
 }
 
 export function getTowerBonuses(type) {
@@ -201,44 +283,5 @@ export function getTowerBonuses(type) {
             }
         });
     }
-    return bonuses;
-}
-
-export function getTalentBonuses() {
-    const bonuses = {
-        heroDamage: 0,
-        heroSpeed: 0,
-        heroHealth: 0,
-        towerDamage: 0,
-        towerRange: 0,
-        towerCost: 0, // Descuento
-        goldGain: 0,
-        xpGain: 0
-    };
-
-    const hero = getCurrentHero();
-    if (!hero || !hero.talents) return bonuses;
-
-    // Recorremos los IDs de talentos aprendidos
-    hero.talents.forEach(talentId => {
-        // Lógica manual basada en tus IDs de Talentos (ajusta según src/config/Talents.js)
-        
-        // --- GUERRERO ---
-        if (talentId === 'war_str_1') bonuses.heroDamage += 5;
-        if (talentId === 'war_def_1') bonuses.heroHealth += 20;
-        
-        // --- ARQUERO ---
-        if (talentId === 'arch_spd_1') bonuses.heroSpeed += 5; // %
-        if (talentId === 'arch_crit_1') bonuses.heroDamage += 10;
-
-        // --- MAGO ---
-        if (talentId === 'mage_int_1') bonuses.heroDamage += 8;
-        if (talentId === 'mage_cdr_1') bonuses.heroSpeed += 5; // CDR interpretado como velocidad
-
-        // --- GENERALES / TORRES (Si existen en tu árbol) ---
-        if (talentId === 'eco_gold_1') bonuses.goldGain += 10; // 10% más oro
-        if (talentId === 'tow_dmg_1') bonuses.towerDamage += 5;
-    });
-
     return bonuses;
 }
