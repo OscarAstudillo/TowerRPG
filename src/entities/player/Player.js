@@ -52,15 +52,17 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         
         if (this.skillCooldown > 0) this.skillCooldown -= delta;
         
-        // --- PROTECCIÓN CONTRA CUELGUE ---
-        // Aseguramos que el delay nunca sea menor a 100ms (10 ataques/seg)
-        let baseSpeed = Math.max(100, this.stats.attackSpeed);
-        
+        // --- SEGURIDAD ANTI-CRASH ---
+        // Aseguramos un mínimo de 200ms de delay base
+        let baseSpeed = Math.max(200, this.stats.attackSpeed);
         let currentAttackSpeed = baseSpeed;
-        if (this.isBuffed && gameState.selectedClass === 'arquero') currentAttackSpeed /= 3; 
         
-        // Segunda capa de seguridad
-        if (currentAttackSpeed < 50) currentAttackSpeed = 50; 
+        if (this.isBuffed && gameState.selectedClass === 'arquero') {
+            currentAttackSpeed /= 2; // Nerfeado de /3 a /2 para seguridad
+        }
+        
+        // Mínimo absoluto de 100ms (10 disparos/segundo)
+        if (currentAttackSpeed < 100) currentAttackSpeed = 100; 
 
         if (time > this.lastAttackTime + currentAttackSpeed) { this.findTargetAndAttack(time); }
         
@@ -88,20 +90,16 @@ export default class Player extends Phaser.GameObjects.Rectangle {
     }
 
     findTargetAndAttack(time) {
-        // Limitar rango visualmente para no disparar a enemigos fuera de pantalla
-        const maxRange = Math.min(this.stats.range, 1200); 
-        const target = this.findClosestEnemy(maxRange);
-        
+        const target = this.findClosestEnemy(this.stats.range);
         if (target) {
             let hits = 1;
-            // Tu lógica de doble golpe es segura (iterativa, no recursiva)
             if (this.passives.doubleStrike > 0 && Math.random() * 100 < this.passives.doubleStrike) { hits = 2; this.scene.showFloatingText(this.x, this.y - 40, "¡DOBLE!", "#ff0000"); }
             
             for(let i=0; i<hits; i++) {
                 this.scene.time.delayedCall(i * 100, () => {
-                    // Verificación extra de seguridad
+                    // Verificación de seguridad: ¿La escena sigue activa?
                     if (!this.scene || !this.projectilesGroup) return;
-                    
+
                     const projectile = this.projectilesGroup.get(this.x, this.y);
                     if (projectile) {
                         let dmg = this.stats.damage;
@@ -115,7 +113,7 @@ export default class Player extends Phaser.GameObjects.Rectangle {
                             effect = { type: 'poison', val: Math.max(2, Math.floor(dmg * 0.2)), duration: 3000 };
                         }
 
-                        // Calcular crítico aquí para mostrar texto flotante
+                        // Calcular crítico
                         let isCrit = false;
                         if (this.stats.critChance > 0 && Math.random() * 100 < this.stats.critChance) {
                             dmg = Math.floor(dmg * (this.stats.critDamage / 100));
@@ -157,7 +155,6 @@ export default class Player extends Phaser.GameObjects.Rectangle {
         const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); 
         this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); 
         
-        // USAR GETCHILDREN PARA EVITAR ERRORES DE MODIFICACIÓN DURANTE ITERACIÓN
         const enemies = this.enemiesGroup.getChildren(); 
         enemies.forEach(enemy => { 
             if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { 
