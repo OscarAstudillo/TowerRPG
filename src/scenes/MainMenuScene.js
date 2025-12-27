@@ -928,7 +928,7 @@ export default class MainMenuScene extends Phaser.Scene {
         const startX = this.heroStatsText.x; 
         const equipY = this.heroStatsText.y + 280; // Bajamos un poco más para dar espacio a stats
 
-        this.equippedTextContainer.add(this.add.text(startX, equipY, "-- EQUIPAMIENTO --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); 
+        this.equippedTextContainer.add(this.add.text(startX, equipY, "-- EQUIPAMIENTO --", { ...this.fontBody, color: '#ffffffff', fontStyle: 'italic'})); 
         
         let slotY = equipY + 30; 
         const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; 

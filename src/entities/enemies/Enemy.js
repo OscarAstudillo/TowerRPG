@@ -16,18 +16,20 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.levelDifficulty = levelDifficulty;
 
         const data = ENEMY_DB[typeKey] || ENEMY_DB['slime'];
-        
+
         this.name = data.name;
         this.hp = Math.floor(data.hp * levelDifficulty);
         this.maxHp = this.hp;
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
-        this.armor = data.armor || 0;
+        this.baseArmor = data.armor || 0;
+        this.armor = this.baseArmor;
+        
         this.isFlying = data.flying || false; 
         this.isHealer = data.healer || false;
         
         this.drops = data.drops || [];
-        this.coinReward = Math.floor(15 * levelDifficulty);
+        this.coinReward = Math.floor(15 * levelDifficulty); 
         this.xpReward = Math.floor(10 * levelDifficulty);
         this.leakDamage = (data.hp > 2000) ? 5 : 1; 
 
@@ -60,11 +62,14 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.skillTimer = 0; 
         this.isShielded = false;
 
+        // --- SISTEMA DE ESTADOS EXPANDIDO ---
         this.statusEffects = {
             slow: { active: false, factor: 0, timer: 0 },
             burn: { active: false, damage: 0, timer: 0, tickTimer: 0 },
+            poison: { active: false, damage: 0, timer: 0, tickTimer: 0 }, // NUEVO
             freeze: { active: false, factor: 0, timer: 0 },
-            stun: { active: false, timer: 0 }
+            stun: { active: false, timer: 0 },
+            armorBreak: { active: false, val: 0, timer: 0 } // NUEVO
         };
     }
 
@@ -125,6 +130,19 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.burn.timer = effect.duration;
             this.bodyShape.setFillStyle(0xff4500); 
         } 
+        else if (effect.type === 'poison') { // LOGICA VENENO
+            this.statusEffects.poison.active = true;
+            this.statusEffects.poison.damage = Math.max(this.statusEffects.poison.damage, effect.val);
+            this.statusEffects.poison.timer = effect.duration;
+            this.bodyShape.setFillStyle(0x00ff00); // Verde brillante
+        }
+        else if (effect.type === 'armor_break') { // LOGICA ACID
+            this.statusEffects.armorBreak.active = true;
+            this.statusEffects.armorBreak.val = effect.val;
+            this.statusEffects.armorBreak.timer = effect.duration;
+            this.armor = Math.max(0, this.baseArmor - effect.val);
+            if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡ROTO!", "#aaaaaa");
+        }
         else if (effect.type === 'freeze' || effect.type === 'slow') {
             this.statusEffects.freeze.active = true;
             this.statusEffects.freeze.factor = effect.val;
@@ -139,6 +157,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     updateDebuffs(delta) {
+        // Quemadura
         if (this.statusEffects.burn.active) {
             this.statusEffects.burn.timer -= delta;
             this.statusEffects.burn.tickTimer += delta;
@@ -151,6 +170,28 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
+        // Veneno
+        if (this.statusEffects.poison.active) {
+            this.statusEffects.poison.timer -= delta;
+            this.statusEffects.poison.tickTimer += delta;
+            if (this.statusEffects.poison.tickTimer >= 800) { // Tick más lento que fuego
+                this.takeTrueDamage(this.statusEffects.poison.damage, '#00ff00');
+                this.statusEffects.poison.tickTimer = 0;
+            }
+            if (this.statusEffects.poison.timer <= 0) {
+                this.statusEffects.poison.active = false;
+                this.clearTint();
+            }
+        }
+        // Armor Break (Restaurar)
+        if (this.statusEffects.armorBreak.active) {
+            this.statusEffects.armorBreak.timer -= delta;
+            if (this.statusEffects.armorBreak.timer <= 0) {
+                this.statusEffects.armorBreak.active = false;
+                this.armor = this.baseArmor;
+            }
+        }
+        // CC
         if (this.statusEffects.freeze.active) {
             this.statusEffects.freeze.timer -= delta;
             if (this.statusEffects.freeze.timer <= 0) {
@@ -176,6 +217,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
             if (this.isFlying) color = 0x00ffff;
             if (this.isHealer) color = 0xff69b4;
             if (this.typeKey.includes('boss')) color = 0x4b0082;
+            
+            // Prioridad de color de estado
+            if (this.statusEffects.burn.active) color = 0xff4500;
+            else if (this.statusEffects.poison.active) color = 0x00ff00;
+            else if (this.statusEffects.freeze.active) color = 0x00ffff;
             
             this.bodyShape.setFillStyle(color);
         }
@@ -209,7 +255,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     useBossSkill() {
         if (this.typeKey.includes('boss')) {
-             // Lógica genérica o específica si añades más bosses
              this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "#ff0000");
         }
     }
@@ -254,7 +299,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
             if (this.drops && this.drops.length > 0) {
                 this.drops.forEach(dropDef => {
                     const [matKey, chance, min, max] = dropDef;
-                    // Probabilidad individual del enemigo (0.2 en la mayoría)
                     if (Math.random() < chance) {
                         const qty = Phaser.Math.Between(min, max);
                         scene.generateLoot(this.x, this.y, matKey, qty);

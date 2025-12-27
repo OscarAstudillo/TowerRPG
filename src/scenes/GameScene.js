@@ -112,6 +112,10 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
+        // NUEVAS TECLAS
+        this.input.keyboard.on('keydown-FOUR', () => { if(!this.isPaused) { this.selectedTowerType = 'tesla'; this.updateUI(); }});
+        this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
+        this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
 
         // Click en Torres
         this.input.on('gameobjectdown', (pointer, obj) => {
