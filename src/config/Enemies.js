@@ -6,12 +6,12 @@
 export const ENEMY_DB = {
     // === BOSQUE (Forest) ===
     slime: { name: "Slime", hp: 60, speed: 0.8, armor: 0, flying: false, drops: [['scraps', 0.2, 1, 2]] },
-    goblin: { name: "Goblin", hp: 80, speed: 1.0, armor: 1, flying: false, drops: [['scraps', 0.2, 1, 2], ['copper', 0.1, 1, 1]] }, // 20% scraps, 10% extra cobre
+    goblin: { name: "Goblin", hp: 80, speed: 1.0, armor: 1, flying: false, drops: [['scraps', 0.19, 1, 2], ['copper', 0.01, 1, 1]] }, // 20% scraps, 10% extra cobre
     wolf: { name: "Lobo", hp: 120, speed: 1.4, armor: 2, flying: false, drops: [['hide', 0.2, 1, 2]] },
-    boar: { name: "Jabalí", hp: 200, speed: 0.7, armor: 5, flying: false, drops: [['hide', 0.2, 2, 3], ['leather', 0.05, 1, 1]] },
+    boar: { name: "Jabalí", hp: 200, speed: 0.7, armor: 5, flying: false, drops: [['hide', 0.15, 1, 2], ['leather', 0.05, 1, 1]] },
     eagle: { name: "Águila Gigante", hp: 100, speed: 1.3, armor: 0, flying: true, drops: [['hide', 0.2, 1, 2]] }, 
-    ent: { name: "Ent Joven", hp: 350, speed: 0.5, armor: 10, flying: false, drops: [['wood', 0.2, 2, 4], ['cedar', 0.1, 1, 2]] },
-    shaman: { name: "Chamán Goblin", hp: 150, speed: 0.8, armor: 2, flying: false, healer: true, drops: [['cloth_simple', 0.2, 1, 1], ['scraps', 0.2, 2, 3]] },
+    ent: { name: "Ent Joven", hp: 350, speed: 0.5, armor: 10, flying: false, drops: [['wood', 0.2, 1, 3], ['cedar', 0.1, 1, 2]] },
+    shaman: { name: "Chamán Goblin", hp: 150, speed: 0.8, armor: 2, flying: false, healer: true, drops: [['cloth_simple', 0.1, 1, 1], ['scraps', 0.1, 1, 3]] },
     
     // Mini-Bosses Bosque (Drops asegurados o altos)
     alpha_wolf: { name: "Lobo Alfa", hp: 1200, speed: 1.6, armor: 5, drops: [['leather', 1.0, 2, 4], ['ruby_uncut', 0.3, 1, 1]] },
