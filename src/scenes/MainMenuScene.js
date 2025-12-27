@@ -26,7 +26,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.craftSelection = { type: null, recipe: null, rarity: null };
         this.hasLoaded = false;
 
-        // ESTILOS: Texto Principal Blanco
+        // ESTILOS
         this.fontTitle = { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000000', strokeThickness: 4 };
         this.fontHeader = { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
         this.fontBody = { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 }; 
@@ -101,22 +101,6 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const resetBtn = this.add.text(w - 50, botY, 'BORRAR DATOS', { ...this.fontBtn, color: '#ff5555' }).setInteractive({ useHandCursor: true }).setOrigin(1, 0.5);
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
-        
-        // BOTÓN DE TRUCO (CHEAT) - Opcional, mantenido por si lo usas
-        const cheatBtn = this.add.text(w - 50, 50, "¡LEVEL UP!", { 
-            fontSize: '20px', fontStyle: 'bold', color: '#00ff00' 
-        }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
-
-        cheatBtn.on('pointerdown', () => {
-            const hero = getCurrentHero();
-            if (hero) {
-                RPGSystem.gainHeroXP(5000); 
-                SaveSystem.save();
-                this.refreshHero();
-                this.refreshTalents();
-                this.showCentralAlert("¡TRUCO ACTIVADO: XP GANADA!", "#00ff00");
-            }
-        });
     }
 
     createMenuButton(x, y, text, callback) {
@@ -262,6 +246,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.createFusionModals(cx, cy);
     }
     
+    // --- UI FUSIÓN CORREGIDA ---
     createFusionModals(cx, cy) {
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         
@@ -275,27 +260,36 @@ export default class MainMenuScene extends Phaser.Scene {
         this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
         const fcBg = this.add.rectangle(0, 0, 900, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
         const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { ...this.fontTitle, fontSize:'32px' }).setOrigin(0.5);
-        const fcInfo = this.add.text(0, -220, "El resultado heredará los stats de UNO de los dos (50/50).\nEl nivel de encantamiento subirá +1.", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5);
+        
+        // Texto más grande y legible
+        const fcInfo = this.add.text(0, -220, "El resultado heredará los stats de UNO de los dos (50/50).\nEl nivel de encantamiento subirá +1.", { ...this.fontBody, fontSize: '18px', color: '#eeeeee', align: 'center' }).setOrigin(0.5);
 
-        const panelY = 0;
-        const leftBg = this.add.rectangle(-220, panelY, 350, 400, 0x000000).setStrokeStyle(2, 0x00ffff);
-        const leftTitle = this.add.text(-220, panelY - 180, "ITEM BASE", { ...this.fontHeader, color: '#00ffff' }).setOrigin(0.5);
-        this.fusionItem1Info = this.add.text(-220, panelY, "", { ...this.fontBody, align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
+        const panelY = 20; // Ajustado para centrar mejor
+        
+        // IZQUIERDA
+        const leftBg = this.add.rectangle(-220, panelY, 350, 350, 0x000000).setStrokeStyle(2, 0x00ffff);
+        this.fusionLeftBg = leftBg; // Guardamos referencia para cambiar color borde
+        const leftTitle = this.add.text(-220, panelY - 150, "ITEM BASE", { ...this.fontHeader, fontSize: '22px', color: '#00ffff' }).setOrigin(0.5);
+        this.fusionItem1Info = this.add.text(-220, panelY, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
 
-        const rightBg = this.add.rectangle(220, panelY, 350, 400, 0x000000).setStrokeStyle(2, 0xff00ff);
-        const rightTitle = this.add.text(220, panelY - 180, "SACRIFICIO", { ...this.fontHeader, color: '#xff00ff' }).setOrigin(0.5);
-        this.fusionItem2Info = this.add.text(220, panelY, "", { ...this.fontBody, align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
+        // DERECHA
+        const rightBg = this.add.rectangle(220, panelY, 350, 350, 0x000000).setStrokeStyle(2, 0xff00ff);
+        this.fusionRightBg = rightBg; // Guardamos referencia
+        const rightTitle = this.add.text(220, panelY - 150, "SACRIFICIO", { ...this.fontHeader, fontSize: '22px', color: '#ff00ff' }).setOrigin(0.5);
+        this.fusionItem2Info = this.add.text(220, panelY, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
 
-        const arrow = this.add.text(0, panelY, "➡", { fontSize: '64px', color: '#fff' }).setOrigin(0.5);
+        // Símbolo +
+        const plusSign = this.add.text(0, panelY, "+", { fontSize: '80px', fontFamily: 'Cinzel', color: '#ffffff' }).setOrigin(0.5);
 
-        const confirmBtn = this.add.rectangle(0, 250, 300, 60, 0x006400).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
-        const confirmTxt = this.add.text(0, 250, "¡FUSIONAR!", this.fontBtn).setOrigin(0.5);
+        const confirmBtn = this.add.rectangle(0, 240, 250, 60, 0x006400).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
+        const confirmTxt = this.add.text(0, 240, "¡FUSIONAR!", { ...this.fontBtn, fontSize: '20px' }).setOrigin(0.5);
         confirmBtn.on('pointerdown', () => this.executeFusion());
         
-        const backBtn = this.add.text(0, 310, "Volver", { ...this.fontBody, color: '#888' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        // Botón Volver (Abajo Derecha)
+        const backBtn = this.add.text(380, 260, "VOLVER", { ...this.fontBtn, fontSize: '18px', color: '#ff5555' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         backBtn.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
 
-        this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftBg, leftTitle, this.fusionItem1Info, rightBg, rightTitle, this.fusionItem2Info, arrow, confirmBtn, confirmTxt, backBtn]);
+        this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftBg, leftTitle, this.fusionItem1Info, rightBg, rightTitle, this.fusionItem2Info, plusSign, confirmBtn, confirmTxt, backBtn]);
     }
 
     createInvCategoryBtn(x, y, label, cat) { 
@@ -315,71 +309,65 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invMatsText.setText(""); 
         this.invItemsContainer.removeAll(true); 
         
-        // --- VISTA MEJORADA PARA MATERIALES ---
+        // VISTA MATERIALES (Tarjetas + Color)
         if (this.inventoryCategory === 'mats') { 
             let col = 0; 
             let row = 0; 
             const cardWidth = 170;
-            const cardHeight = 80;
-            const gapX = 10;
-            const gapY = 10;
+            const cardHeight = 100;
+            const gapX = 15;
+            const gapY = 15;
 
-            for(let k in gameState.materials) {
+            const allMatKeys = Object.keys(gameState.materials);
+            
+            allMatKeys.sort((a, b) => {
+                const isRawA = !!RAW_MATERIALS[a];
+                const isRawB = !!RAW_MATERIALS[b];
+                if (isRawA && !isRawB) return -1;
+                if (!isRawA && isRawB) return 1;
+                return a.localeCompare(b);
+            });
+
+            for(const k of allMatKeys) {
                 const matCounts = gameState.materials[k];
                 const total = Object.values(matCounts).reduce((a, b) => a + b, 0);
                 if (total === 0) continue;
 
                 const matName = (RAW_MATERIALS[k] || REFINED_MATERIALS[k] || {name:k}).name;
                 
-                // Contenedor de la Tarjeta
                 const card = this.add.container(col * (cardWidth + gapX), row * (cardHeight + gapY));
-                
-                // Fondo
                 const bg = this.add.rectangle(cardWidth/2, cardHeight/2, cardWidth, cardHeight, 0x222222).setStrokeStyle(1, 0x555555);
                 card.add(bg);
 
-                // Título
                 const title = this.add.text(10, 8, matName.toUpperCase(), { 
-                    fontFamily: 'Cinzel', fontSize: '12px', color: '#ffd700', fontStyle: 'bold' 
+                    fontFamily: 'Cinzel', fontSize: '13px', color: '#ffd700', fontStyle: 'bold' 
                 });
                 card.add(title);
 
-                // Lista de Rarezas en 2 columnas
-                let yPos = 28;
+                let yPos = 30;
                 const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
-                let xOffset = 10;
-                let countIdx = 0;
-
+                
                 rarities.forEach(r => {
                     const count = matCounts[r];
                     if (count > 0) {
                         const rData = RARITY[r];
-                        // CAMBIO: Color de texto FORZADO A BLANCO para legibilidad
-                        const txt = this.add.text(xOffset, yPos, `${count} ${rData.name}`, { 
-                            fontFamily: 'Roboto', fontSize: '10px', color: '#ffffff' 
+                        const dot = this.add.circle(15, yPos + 6, 4, rData.color);
+                        // TEXTO BLANCO SIEMPRE
+                        const txt = this.add.text(25, yPos, `${count} ${rData.name}`, { 
+                            fontFamily: 'Roboto', fontSize: '11px', color: '#ffffff' 
                         });
-                        card.add(txt);
-                        
-                        countIdx++;
-                        if (countIdx % 2 === 0) {
-                            xOffset = 10;
-                            yPos += 14;
-                        } else {
-                            xOffset = 90; 
-                        }
+                        card.add([dot, txt]);
+                        yPos += 16;
                     }
                 });
-
                 this.invItemsContainer.add(card);
-
-                col++; 
-                if (col >= 3) { col = 0; row++; }
+                col++; if (col >= 3) { col = 0; row++; }
             }
             this.goldText.setText(`ORO: ${gameState.gold}`); 
             return; 
         } 
         
-        // --- VISTA NORMAL PARA EQUIPO ---
+        // VISTA EQUIPO
         const filteredItems = gameState.inventory.filter(i => { 
             if (!i) return false; 
             if (this.inventoryCategory === 'mats') return false; 
@@ -408,7 +396,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.itemDetailContainer.setVisible(true); 
 
         const itemColor = item.color || 0xffffff; 
-        const colorHex = '#' + itemColor.toString(16).padStart(6, '0'); 
         
         const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats"; 
         let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`; 
@@ -435,7 +422,7 @@ export default class MainMenuScene extends Phaser.Scene {
         } 
         
         let currentY = 0;
-        const title = this.add.text(0, currentY, item.name, { ...this.fontHeader, fontSize: '18px', color: colorHex, align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const title = this.add.text(0, currentY, item.name, { ...this.fontHeader, fontSize: '18px', color: '#' + itemColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += title.height + 20;
 
         const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
@@ -484,21 +471,50 @@ export default class MainMenuScene extends Phaser.Scene {
     swapping(slot, newItem) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; }
     forceUnequip(slot) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
     initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
-    populateFusionList() { this.fusionList.removeAll(true); const candidates = gameState.inventory.filter(i => String(i.id) !== String(this.itemToFuse1.id) && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5)); return; } let y = 0; candidates.forEach(item => { const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); const txt = this.add.text(0, y, `${item.name}`, { ...this.fontBody }).setOrigin(0.5); btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); this.fusionList.add([btn, txt]); y += 50; }); }
-    selectSecondItemForFusion(item2) { this.itemToFuse2 = item2; this.fusionListModal.setVisible(false); this.fusionConfirmModal.setVisible(true); 
+    
+    populateFusionList() { 
+        this.fusionList.removeAll(true); 
+        const candidates = gameState.inventory.filter(i => String(i.id) !== String(this.itemToFuse1.id) && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); 
+        if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5)); return; } 
+        let y = 0; 
+        candidates.forEach(item => { 
+            const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); 
+            const txt = this.add.text(0, y, `${item.name}`, { ...this.fontBody }).setOrigin(0.5); 
+            btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); 
+            this.fusionList.add([btn, txt]); 
+            y += 50; 
+        }); 
+    }
+    
+    selectSecondItemForFusion(item2) { 
+        this.itemToFuse2 = item2; 
+        this.fusionListModal.setVisible(false); 
+        this.fusionConfirmModal.setVisible(true); 
+        
         const getInfo = (item) => {
-            let s = `** ${item.name} **\n`;
-            s += `Nivel: +${item.enchant} | ${RARITY[item.rarity].name}\n`;
+            let s = `\n${item.name}\n`; 
+            s += `${RARITY[item.rarity].name.toUpperCase()} | +${item.enchant}\n`;
             s += `----------------\n`;
-            for (let k in item.stats) { s += `${k}: ${item.stats[k]}\n`; }
+            for (let k in item.stats) { 
+                const val = item.stats[k];
+                const label = k.charAt(0).toUpperCase() + k.slice(1);
+                s += `${label}: ${val}\n`; 
+            }
             return s;
         };
-        this.fusionItem1Info.setText(getInfo(this.itemToFuse1)); this.fusionItem1Info.setColor('#' + (this.itemToFuse1.color || 0xffffff).toString(16).padStart(6,'0'));
-        this.fusionItem2Info.setText(getInfo(this.itemToFuse2)); this.fusionItem2Info.setColor('#' + (this.itemToFuse2.color || 0xffffff).toString(16).padStart(6,'0'));
+        
+        // MOSTRAR DATOS EN BLANCO, BORDES DE COLOR RAREZA
+        this.fusionItem1Info.setText(getInfo(this.itemToFuse1)); 
+        this.fusionItem1Info.setColor('#ffffff');
+        if(this.fusionLeftBg) this.fusionLeftBg.setStrokeStyle(2, this.itemToFuse1.color || 0xffffff);
+
+        this.fusionItem2Info.setText(getInfo(this.itemToFuse2)); 
+        this.fusionItem2Info.setColor('#ffffff');
+        if(this.fusionRightBg) this.fusionRightBg.setStrokeStyle(2, this.itemToFuse2.color || 0xffffff);
     }
+    
     executeFusion() { const item1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id); const item2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id); if (!item1 || !item2) return; const result = RPGSystem.fuseSpecificItems(item1, item2); if (result.success) { gameState.inventory = gameState.inventory.filter(i => i.id !== item1.id && i.id !== item2.id); this.safeAddItemToInventory(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); this.showCentralAlert(`FUSIÓN EXITOSA: ${result.item.name}`, '#00ff00'); } }
 
-    // --- VISTA FORJA ORGANIZADA (CORREGIDA) ---
     createForgeView(w, h, cx, cy) {
         this.profText = this.add.text(cx, h * 0.15, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
@@ -515,9 +531,8 @@ export default class MainMenuScene extends Phaser.Scene {
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
         
-        // Contenedor para el detalle (se reconstruirá)
         const detailX = w * 0.78; 
-        const detailY = h * 0.35; // --- CAMBIO: AJUSTADO MÁS ARRIBA ---
+        const detailY = h * 0.35;
         this.recipeDetailContainer = this.add.container(detailX, detailY); 
         this.recipeDetailContainer.setVisible(false);
         this.forgeContainer.add(this.recipeDetailContainer); 
@@ -641,7 +656,6 @@ export default class MainMenuScene extends Phaser.Scene {
 
     handleCraftButton() { const sel = this.craftSelection; if (!sel.type) return; this.executeCraftItem(sel.recipe, sel.rarity); }
     
-    // --- CAMBIO: USAR ALERTAS EN LUGAR DE TEXTO ABAJO ---
     executeCraftItem(recipe, rarityKey) {
         const rarity = RARITY[rarityKey]; const cost = Math.floor(recipe.cost * rarity.mult);
         if (gameState.gold < cost) { 
@@ -657,7 +671,6 @@ export default class MainMenuScene extends Phaser.Scene {
         } 
     }
     
-    // --- VISTA TALENTOS (SCROLLABLE) ---
     createTalentsView(w, h, cx, cy) {
         this.talentPointsText = this.add.text(cx, h * 0.18, "PUNTOS: 0", { ...this.fontTitle, fontSize: '24px' }).setOrigin(0.5);
         this.talentsContainer.add(this.talentPointsText);
@@ -714,7 +727,6 @@ export default class MainMenuScene extends Phaser.Scene {
     }
     learnTalent(talent) { if (RPGSystem.spendTalentPoint(talent.id, 1)) { updatePlayerStats(); SaveSystem.save(); this.refreshTalents(); this.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); } }
 
-    // --- VISTA REFINACIÓN ---
     createRefiningView(w, h, cx, cy) {
         this.refiningTitle = this.add.text(cx, h * 0.15, "REFINACIÓN", this.fontTitle).setOrigin(0.5);
         this.refiningContainer.add(this.refiningTitle);
@@ -776,7 +788,6 @@ export default class MainMenuScene extends Phaser.Scene {
     }
     executeRefine(id) { const res = RPGSystem.refineMaterial(id); if(res.success) { SaveSystem.save(); this.refreshRefining(); this.showCentralAlert("REFINADO OK", '#00ff00'); } }
 
-    // --- VISTAS HEROE Y TORRES ---
     createHeroView(w, h, cx, cy) { this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); this.heroContainer.add(this.heroLevelText); const leftX = w * 0.3; const contentY = h * 0.3; const panelWidth = 450; const panelHeight = 550; const statsBg = this.add.rectangle(leftX, cy + 20, panelWidth, panelHeight, 0x000000, 0.8).setStrokeStyle(2, 0x555555); this.heroContainer.add(statsBg); const textStartX = leftX - (panelWidth / 2) + 20; const textStartY = (cy + 20) - (panelHeight / 2) + 20; this.heroStatsText = this.add.text(textStartX, textStartY, '', { ...this.fontBody, fontSize: '15px', lineHeight: 22 }); this.heroContainer.add(this.heroStatsText); this.equippedTextContainer = this.add.container(0, 0); this.heroContainer.add(this.equippedTextContainer); const rightX = w * 0.75; let upgradeY = h * 0.3; this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5); this.heroContainer.add(this.pointsText); upgradeY += 60; const statsToUpgrade = [ { label: "Daño (+1)", key: 'damage' }, { label: "Vida (+10)", key: 'hp' }, { label: "Vel. Atq (+10ms)", key: 'speed' }, { label: "Defensa (+1)", key: 'defense' } ]; statsToUpgrade.forEach((s, i) => { this.createStatButton(rightX, upgradeY + (i * 60), s.label, s.key); }); }
     createStatButton(x, y, label, statKey) { const btn = this.add.rectangle(x, y, 220, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00); const txt = this.add.text(x, y, label, this.fontBtn).setOrigin(0.5); btn.on('pointerdown', () => { if (RPGSystem.spendStatPoint(statKey)) { this.refreshHero(); SaveSystem.save(); } }); this.heroContainer.add([btn, txt]); }
     refreshHero() { updatePlayerStats(); const s = gameState.playerStats; const eq = gameState.equipment; const hero = getCurrentHero(); const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); let setsText = ""; if (gameState.activeSets && gameState.activeSets.length > 0) { setsText = "\n\n-- SETS ACTIVOS --\n"; gameState.activeSets.forEach(set => { setsText += `[${set.name}]\n`; set.bonuses.forEach(b => setsText += `  ${b}\n`); }); } const details = `Crítico: ${s.critChance}% (x${s.critDamage}%) \nRobo Vida: ${s.lifesteal}%  |  Regen HP: ${s.regenHp}/5s \nDoble Ataque: ${s.doubleAttack}%  |  Espinas: ${s.thorns} \nCooldown: -${s.cdr}%${setsText}`; this.heroStatsText.setText(`CLASE: [ ${clsName} ]\n\n-- ATRIBUTOS BASE --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}\n⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}\n⚡ Delay Atq: ${s.attackSpeed}ms\n📏 Rango: ${s.range}\n\n-- EXTRAS --\n${details}`); this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); this.equippedTextContainer.removeAll(true); const startX = this.heroStatsText.x; let startY = this.heroStatsText.y + 300; this.equippedTextContainer.add(this.add.text(startX, startY, "-- EQUIPAMIENTO (Clic gestiona) --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); startY += 30; const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; slots.forEach(slot => { const item = eq[slot.key]; const slotBg = this.add.rectangle(startX + 180, startY + 10, 360, 30, 0x222222).setOrigin(0.5).setInteractive({useHandCursor: true}); slotBg.setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); const name = item ? `${item.name} (+${item.enchant})` : '- VACÍO (Ir a Mochila) -'; const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888'; const txt = this.add.text(startX, startY, `${slot.label}:`, this.fontBody); const valTxt = this.add.text(startX + 80, startY, name, { ...this.fontBody, color: color, fontStyle: 'bold' }); slotBg.on('pointerdown', () => { if (!item) { this.inventoryCategory = slot.cat; this.switchTab('inventory'); } else { this.showUnequipModal(item, slot.key); } }); this.equippedTextContainer.add([slotBg, txt, valTxt]); startY += 35; }); }
