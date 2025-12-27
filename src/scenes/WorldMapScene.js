@@ -8,7 +8,7 @@ export default class WorldMapScene extends Phaser.Scene {
 
     create() {
         this.add.rectangle(0, 0, this.scale.width, this.scale.height, 0x000000).setOrigin(0);
-        this.add.text(this.scale.width / 2, 50, "MAPA DEL MUNDO", { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700' }).setOrigin(0.5);
+        this.add.text(this.scale.width / 2, 50, "MAPA DEL MUNDO", { fontFamily: 'Cinzel', fontSize: '35px', color: '#ffd700' }).setOrigin(0.5);
 
         this.container = this.add.container(0, 0);
         
@@ -16,7 +16,7 @@ export default class WorldMapScene extends Phaser.Scene {
         this.showBiomes();
 
         // Botón volver
-        const backBtn = this.add.text(50, this.scale.height - 50, "VOLVER", { fontSize: '20px', color: '#fff' }).setInteractive({ useHandCursor: true });
+        const backBtn = this.add.text(50, this.scale.height - 50, "VOLVER", { fontSize: '30px', color: '#ffffffff' }).setInteractive({ useHandCursor: true });
         backBtn.on('pointerdown', () => {
             if (this.currentView === 'levels') {
                 this.showBiomes();
@@ -37,8 +37,8 @@ export default class WorldMapScene extends Phaser.Scene {
             const btn = this.add.rectangle(this.scale.width / 2, y, 400, 80, biome.bg).setInteractive({ useHandCursor: true });
             btn.setStrokeStyle(2, 0xffffff);
             
-            const title = this.add.text(this.scale.width / 2, y - 20, biome.name, { fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
-            const desc = this.add.text(this.scale.width / 2, y + 20, biome.desc, { fontSize: '14px' }).setOrigin(0.5);
+            const title = this.add.text(this.scale.width / 2, y - 20, biome.name, { fontSize: '30px', fontStyle: 'bold' }).setOrigin(0.5);
+            const desc = this.add.text(this.scale.width / 2, y + 20, biome.desc, { fontSize: '19px' }).setOrigin(0.5);
             
             btn.on('pointerdown', () => this.showLevels(key));
             
@@ -84,7 +84,7 @@ export default class WorldMapScene extends Phaser.Scene {
             const color = isLocked ? 0x333333 : 0x006400;
             const stroke = isLocked ? 0x555555 : 0xffffff;
             
-            const btn = this.add.rectangle(x, y, 80, 80, color).setInteractive({ useHandCursor: !isLocked });
+            const btn = this.add.rectangle(x, y, 100, 100, color).setInteractive({ useHandCursor: !isLocked });
             btn.setStrokeStyle(2, stroke);
             
             if (isLocked) {
@@ -93,8 +93,8 @@ export default class WorldMapScene extends Phaser.Scene {
                 this.container.add([btn, lock]);
             } else {
                 // Nivel desbloqueado
-                const txt = this.add.text(x, y, `${i}`, { fontSize: '28px', fontStyle: 'bold' }).setOrigin(0.5);
-                const info = this.add.text(x, y + 50, `Tier ${config.tier}`, { fontSize: '12px', color: '#aaa' }).setOrigin(0.5);
+                const txt = this.add.text(x, y, `${i}`, { fontSize: '32px', fontStyle: 'bold' }).setOrigin(0.5);
+                const info = this.add.text(x, y + 70, `Nivel ${config.tier}`, { fontSize: '24px', color: '#ffffffff' }).setOrigin(0.5);
                 
                 // Dibujar Estrellas obtenidas
                 let starStr = "";
