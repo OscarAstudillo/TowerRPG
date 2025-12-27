@@ -14,7 +14,7 @@ export const ENEMY_DB = {
     shaman: { name: "Chamán Goblin", hp: 150, speed: 0.8, armor: 2, flying: false, healer: true, drops: [['cloth_simple', 0.1, 1, 1], ['scraps', 0.1, 1, 3]] },
     
     // Mini-Bosses Bosque (Drops asegurados o altos)
-    alpha_wolf: { name: "Lobo Alfa", hp: 1200, speed: 1.6, armor: 5, drops: [['leather', 1.0, 2, 4], ['ruby_uncut', 0.3, 1, 1]] },
+    alpha_wolf: { name: "Lobo Alfa", hp: 1200, speed: 1.2, armor: 5, drops: [['leather', 1.0, 2, 4], ['ruby_uncut', 0.3, 1, 1]] },
     treant_guardian: { name: "Guardián Treant", hp: 3000, speed: 0.4, armor: 25, drops: [['cedar', 1.0, 5, 10], ['wood', 1.0, 10, 20]] },
     
     // Bosses Nombrados Bosque (Nivel 5 y 10)

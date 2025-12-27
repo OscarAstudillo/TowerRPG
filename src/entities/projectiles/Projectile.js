@@ -183,7 +183,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.aoeRadius = this.aoeRadius || 60; // Radio por defecto si falta
             
             // Cambio visual a charco
-            this.bodyShape.clear(); // Borrar círculo anterior
+            // FIX: Usamos destroy() en lugar de clear() porque es un Arc
+            if (this.bodyShape) this.bodyShape.destroy(); 
+            
             this.bodyShape = this.scene.add.ellipse(0, 0, this.aoeRadius * 2, this.aoeRadius, 0x00ff00, 0.4);
             this.add(this.bodyShape);
             
@@ -202,7 +204,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 if (enemy && enemy.active) {
                     const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                     if (dist <= this.aoeRadius) {
-                        enemy.takeDamage(this.damage);
+                        let dmg = (this.type === 'poison') ? this.damage : this.damage * 0.5;
+                        enemy.takeDamage(dmg);
                         if (this.effect) enemy.applyStatus(this.effect);
                     }
                 }
