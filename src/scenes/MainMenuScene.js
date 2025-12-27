@@ -103,7 +103,7 @@ export default class MainMenuScene extends Phaser.Scene {
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
 
         // BOTÓN DE TRUCO (CHEAT)
-        const cheatBtn = this.add.text(w - 50, 50, "¡LEVEL UP!", { 
+        const cheatBtn = this.add.text(w - 20, 90, "¡LEVEL UP PARA PRUEBAS!", { 
             fontSize: '20px', fontStyle: 'bold', color: '#00ff00' 
         }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
 
@@ -521,7 +521,7 @@ export default class MainMenuScene extends Phaser.Scene {
     executeFusion() { const item1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id); const item2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id); if (!item1 || !item2) return; const result = RPGSystem.fuseSpecificItems(item1, item2); if (result.success) { gameState.inventory = gameState.inventory.filter(i => i.id !== item1.id && i.id !== item2.id); this.safeAddItemToInventory(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); this.showCentralAlert(`FUSIÓN EXITOSA: ${result.item.name}`, '#00ff00'); } }
 
     createForgeView(w, h, cx, cy) {
-        this.profText = this.add.text(cx, h * 0.15, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
+        this.profText = this.add.text(cx, h * 0.17, '', { ...this.fontBody, fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
         
         const catY = h * 0.22;
@@ -544,7 +544,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     createForgeCatBtn(x, y, label, cat) { 
-        const btn = this.add.text(x, y, label, { ...this.fontHeader, color: '#888' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
+        const btn = this.add.text(x, y, label, { ...this.fontHeader, color: '#ffffffff' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
         btn.on('pointerdown', () => { 
             this.forgeCategory = cat; 
             this.forgeSubFilter = 'all'; 
@@ -566,7 +566,7 @@ export default class MainMenuScene extends Phaser.Scene {
         
         let subX = this.scale.width * 0.2;
         subs.forEach(s => {
-            const btn = this.add.text(subX, this.scale.height * 0.28, s[0], { ...this.fontSmall, fontSize: '16px', color: this.forgeSubFilter === s[1] ? '#fff' : '#666' })
+            const btn = this.add.text(subX, this.scale.height * 0.28, s[0], { ...this.fontSmall, fontSize: '20px', color: this.forgeSubFilter === s[1] ? '#fff' : '#666' })
                 .setInteractive({useHandCursor:true}).setOrigin(0.5);
             btn.on('pointerdown', () => { this.forgeSubFilter = s[1]; this.refreshForge(); });
             this.forgeSubFilterContainer.add(btn);
@@ -606,7 +606,7 @@ export default class MainMenuScene extends Phaser.Scene {
             const strokeColor = isSpecial ? 0x00ffff : 0xffffff;
 
             const btn = this.add.rectangle(startX + (col * 250), startY, 220, 45, 0x222222).setInteractive({useHandCursor:true}).setStrokeStyle(isSpecial ? 2 : 1, strokeColor);
-            const txt = this.add.text(startX + (col * 250), startY, recipe.name, { ...this.fontBody, color: isSpecial ? '#00ffff' : '#fff'}).setOrigin(0.5);
+            const txt = this.add.text(startX + (col * 250), startY, recipe.name, { ...this.fontBody, fontSize: '18px', color: isSpecial ? '#00ffff' : '#fff'}).setOrigin(0.5);
             btn.on('pointerdown', () => { this.expandedRecipeId = (this.expandedRecipeId === recipe.id) ? null : recipe.id; this.refreshForge(); });
             this.recipesContainer.add([btn, txt]); startY += 55;
             
@@ -614,7 +614,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 ['common', 'uncommon', 'rare'].forEach(rarity => { 
                     const rData = RARITY[rarity]; 
                     const rBtn = this.add.rectangle(startX + (col * 250) + 20, startY, 180, 35, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rData.color); 
-                    const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'12px' }).setOrigin(0.5).setColor('#' + rData.color.toString(16).padStart(6,'0'));
+                    const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'20px' }).setOrigin(0.5).setColor('#' + rData.color.toString(16).padStart(6,'0'));
                     rBtn.on('pointerdown', () => this.selectNormalRecipe(recipe, rarity)); 
                     this.recipesContainer.add([rBtn, rTxt]); 
                     startY += 40;
@@ -644,10 +644,10 @@ export default class MainMenuScene extends Phaser.Scene {
         infoText += setInfo ? `\n${setInfo}` : "";
         
         let currentY = 0;
-        const title = this.add.text(0, currentY, recipe.name, { ...this.fontHeader, fontSize: '18px', color: hexColor, align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const title = this.add.text(0, currentY, recipe.name, { ...this.fontHeader, fontSize: '20px', color: hexColor, align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += title.height + 20;
 
-        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '16px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += stats.height + 30;
 
         const craftBtn = this.createActionButton(0, currentY, "FORJAR", () => this.handleCraftButton());
@@ -733,9 +733,9 @@ export default class MainMenuScene extends Phaser.Scene {
     learnTalent(talent) { if (RPGSystem.spendTalentPoint(talent.id, 1)) { updatePlayerStats(); SaveSystem.save(); this.refreshTalents(); this.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); } }
 
     createRefiningView(w, h, cx, cy) {
-        this.refiningTitle = this.add.text(cx, h * 0.15, "REFINACIÓN", this.fontTitle).setOrigin(0.5);
+        this.refiningTitle = this.add.text(cx, h * 0.17, "REFINACIÓN", { ...this.fontTitle}).setOrigin(0.5);
         this.refiningContainer.add(this.refiningTitle);
-        this.refiningProfText = this.add.text(cx, h * 0.2, "", { ...this.fontBody, color: '#00ff00' }).setOrigin(0.5);
+        this.refiningProfText = this.add.text(cx, h * 0.2, "", { ...this.fontBody, fontSize: '24px' , color: '#00ff00' }).setOrigin(0.5);
         this.refiningContainer.add(this.refiningProfText);
         
         const cats = ['wood', 'ore', 'cloth', 'leather'];
@@ -910,8 +910,8 @@ export default class MainMenuScene extends Phaser.Scene {
         this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); 
     }
 
-    showUnequipModal(item, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { gameState.equipment[slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.heroContainer.add(modal); }
-    createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
+    showUnequipModal(item, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#ffffffff' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { gameState.equipment[slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.heroContainer.add(modal); }
+    createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, fontSize: '20px', color: '#ffffffff', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xaaaaaa).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '18px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
     refreshTowersView() { const types = ['archer', 'cannon', 'mage']; types.forEach(type => { const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } }); const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`); if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); } for (let s = 1; s <= 2; s++) { const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`); if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } } } }); }
     showTowerUnequipModal(item, towerType, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) { gameState.towerEquipment[towerType][slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); this.refreshTowersView(); modal.destroy(); this.showCentralAlert("Mejora desequipada", "#ffff00"); } else { this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.towersContainer.add(modal); }
 }
