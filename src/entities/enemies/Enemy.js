@@ -15,17 +15,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.typeKey = typeKey;
         this.levelDifficulty = levelDifficulty;
 
-        // --- CARGAR DATOS DESDE LA BASE DE DATOS (Enemies.js) ---
-        // Esto reemplaza los if/else gigantes de antes
         const data = ENEMY_DB[typeKey] || ENEMY_DB['slime'];
-
-        // 1. Estadísticas Base (desde DB)
-        this.name = data.name;
-        // La vida escala con la dificultad del nivel
-        this.hp = Math.floor(data.hp * levelDifficulty); 
-        this.maxHp = this.hp;
         
-        // Velocidad ajustada para el path follower
+        this.name = data.name;
+        this.hp = Math.floor(data.hp * levelDifficulty);
+        this.maxHp = this.hp;
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
         this.armor = data.armor || 0;
@@ -33,47 +27,39 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.isHealer = data.healer || false;
         
         this.drops = data.drops || [];
-        this.coinReward = Math.floor(15 * levelDifficulty); // Oro base calculado
+        this.coinReward = Math.floor(15 * levelDifficulty);
         this.xpReward = Math.floor(10 * levelDifficulty);
-        this.leakDamage = (data.hp > 2000) ? 5 : 1; // Bosses hacen más daño al castillo
+        this.leakDamage = (data.hp > 2000) ? 5 : 1; 
 
-        // 2. Visuales (Colores por Bioma o Tipo Especial)
+        // Visual
         let color = 0xff0000;
-        
-        // Colores por defecto según bioma
-        if (scene.biome === 'forest') color = 0x008000;   // Verde
-        if (scene.biome === 'mountain') color = 0x8b4513; // Marrón
-        if (scene.biome === 'volcano') color = 0xff4500;  // Rojo Fuego
+        if (scene.biome === 'forest') color = 0x008000;   
+        if (scene.biome === 'mountain') color = 0x8b4513; 
+        if (scene.biome === 'volcano') color = 0xff4500;  
 
-        // Colores especiales (Sobrescriben bioma)
-        if (this.isFlying) color = 0x00ffff; // Cyan (Volador)
-        if (this.isHealer) color = 0xff69b4; // Rosa (Healer)
-        if (typeKey.includes('boss')) color = 0x4b0082; // Índigo (Boss genérico)
+        if (this.isFlying) color = 0x00ffff; 
+        if (this.isHealer) color = 0xff69b4; 
+        if (typeKey.includes('boss')) color = 0x4b0082; 
 
-        const size = (this.maxHp > 2000) ? 40 : 20; // Los bosses son más grandes
+        const size = (this.maxHp > 2000) ? 40 : 20;
 
         this.bodyShape = scene.add.rectangle(0, 0, size, size, color);
-        
-        // Estilo de borde
-        if (this.isFlying) this.bodyShape.setStrokeStyle(2, 0xffffff); // Borde blanco
-        else if (typeKey.includes('boss')) this.bodyShape.setStrokeStyle(3, 0xffd700); // Borde dorado
-        else this.bodyShape.setStrokeStyle(1, 0x000000); // Borde negro
+        if (this.isFlying) this.bodyShape.setStrokeStyle(2, 0xffffff); 
+        else if (typeKey.includes('boss')) this.bodyShape.setStrokeStyle(3, 0xffd700); 
+        else this.bodyShape.setStrokeStyle(1, 0x000000); 
         
         this.add(this.bodyShape);
 
-        // Barra de Vida
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 8, size + 10, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -size/2 - 8, size + 8, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
         
         this.setSize(size, size);
 
-        // --- LÓGICA INTERNA ---
         this.lastAttackTime = 0;
         this.skillTimer = 0; 
         this.isShielded = false;
 
-        // Sistema de Estados (Debuffs)
         this.statusEffects = {
             slow: { active: false, factor: 0, timer: 0 },
             burn: { active: false, damage: 0, timer: 0, tickTimer: 0 },
@@ -87,13 +73,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         this.updateDebuffs(delta);
         
-        // Movimiento
         if (!this.isShielded && !this.statusEffects.stun.active) {
             let speedMod = 1.0;
-            
             if (this.statusEffects.slow.active) speedMod *= (1 - this.statusEffects.slow.factor);
             if (this.statusEffects.freeze.active) speedMod *= (1 - this.statusEffects.freeze.factor);
-            
             if (speedMod < 0.1) speedMod = 0.1;
             
             this.follower.t += (this.baseSpeed * speedMod) * delta;
@@ -104,7 +87,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
             return;
         }
 
-        // Interpolación lineal del camino
         const pathLen = this.path.length;
         const idx = this.follower.t * (pathLen - 1);
         const p1Idx = Math.floor(idx);
@@ -118,12 +100,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.y = Phaser.Math.Linear(p1.y, p2.y, segT);
         }
 
-        // Barra de vida
         const hpPct = Math.max(0, this.hp / this.maxHp);
-        this.hpBar.width = (this.width + 8) * hpPct; // Ajustar al tamaño del enemigo
+        this.hpBar.width = (this.width + 8) * hpPct; 
         this.hpBar.setFillStyle(hpPct < 0.3 ? 0xff0000 : 0x00ff00);
 
-        // Habilidades
         if (this.typeKey.includes('boss')) {
             this.skillTimer += delta;
             if (this.skillTimer > 5000) { this.useBossSkill(); this.skillTimer = 0; }
@@ -189,7 +169,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     clearTint() {
         if (this.active && this.bodyShape) {
-            // Restaurar color original aproximado según bioma/tipo
             let color = 0xff0000;
             if (this.scene.biome === 'forest') color = 0x008000;
             if (this.scene.biome === 'mountain') color = 0x8b4513;
@@ -215,15 +194,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
             if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
             return;
         }
-        
         let dmg = Math.max(1, amount - this.armor);
         this.hp -= dmg;
-        
         if (this.scene && this.scene.showFloatingText) {
-            const isCrit = Math.random() > 0.8; // Visual
-            this.scene.showFloatingText(this.x, this.y - 30, `-${Math.floor(dmg)}`, isCrit ? '#ffaa00' : '#ffffff');
+            const isCrit = Math.random() > 0.8; 
+            this.scene.showFloatingText(this.x, this.y - 30, `-${Math.floor(dmg)}`, isCrit ? '#ffaa00' : '#ffffff', 800);
         }
-        
         if (this.hp <= 0) {
             this.die(true);
         } else {
@@ -232,23 +208,9 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     useBossSkill() {
-        if (this.typeKey.includes('goblin')) {
-            if (this.scene && this.scene.spawnEnemy) { // Spawn minion simplificado
-                this.scene.showFloatingText(this.x, this.y - 50, "¡AYUDA!", "#00ff00");
-                // Llama al spawner de la escena para crear un enemigo pequeño
-                // Nota: Usamos la función spawnEnemy existente en GameScene
-                this.scene.spawnEnemy(0.5); 
-            }
-        } else if (this.typeKey.includes('golem')) {
-            this.isShielded = true;
-            this.scene.showFloatingText(this.x, this.y - 50, "¡ESCUDO!", "#aaaaaa");
-            const shield = this.scene.add.circle(0, 0, 40, 0xaaaaaa, 0.3);
-            shield.setStrokeStyle(2, 0xffffff);
-            this.add(shield);
-            this.scene.time.delayedCall(3000, () => {
-                this.isShielded = false;
-                if(shield.active) shield.destroy();
-            });
+        if (this.typeKey.includes('boss')) {
+             // Lógica genérica o específica si añades más bosses
+             this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "#ff0000");
         }
     }
 
@@ -256,7 +218,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (!this.scene || !this.scene.enemies) return;
         const healRange = 150;
         let healed = false;
-        
         this.scene.enemies.children.iterate(e => {
             if (e !== this && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < healRange) {
                 if (e.hp < e.maxHp) {
@@ -265,7 +226,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 }
             }
         });
-        
         if (healed && this.scene.showFloatingText) 
             this.scene.showFloatingText(this.x, this.y, "CURAR", "#ff69b4");
     }
@@ -274,12 +234,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (!this.scene || !this.scene.player) return;
         const player = this.scene.player;
         if (!player.active || player.isDead) return;
-        
         const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
-        
         if (dist < 50) {
             if (time > this.lastAttackTime + 1000) {
-                player.takeDamage(this.leakDamage * 2); // Daño directo al héroe
+                player.takeDamage(this.leakDamage * 2); 
                 this.lastAttackTime = time;
                 this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 });
             }
@@ -293,10 +251,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (killedByPlayer) {
             if (scene.onEnemyKilled) scene.onEnemyKilled(this);
             
-            // --- DROP SYSTEM: Usar la lista de drops específica de este enemigo ---
             if (this.drops && this.drops.length > 0) {
                 this.drops.forEach(dropDef => {
                     const [matKey, chance, min, max] = dropDef;
+                    // Probabilidad individual del enemigo (0.2 en la mayoría)
                     if (Math.random() < chance) {
                         const qty = Phaser.Math.Between(min, max);
                         scene.generateLoot(this.x, this.y, matKey, qty);

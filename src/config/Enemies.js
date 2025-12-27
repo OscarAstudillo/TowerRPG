@@ -1,17 +1,19 @@
 // src/config/Enemies.js
 
 // DROP FORMATO: [materialKey, probabilidad (0-1), min, max]
+// NOTA: Probabilidad ajustada a 0.2 (20%) para mobs normales según requerimiento.
+
 export const ENEMY_DB = {
     // === BOSQUE (Forest) ===
-    slime: { name: "Slime", hp: 60, speed: 0.8, armor: 0, flying: false, drops: [['scraps', 0.3, 1, 2]] },
-    goblin: { name: "Goblin", hp: 80, speed: 1.0, armor: 1, flying: false, drops: [['scraps', 0.4, 1, 2], ['copper', 0.1, 1, 1]] },
-    wolf: { name: "Lobo", hp: 120, speed: 1.4, armor: 2, flying: false, drops: [['hide', 0.6, 1, 2]] },
-    boar: { name: "Jabalí", hp: 200, speed: 0.7, armor: 5, flying: false, drops: [['hide', 0.5, 2, 3], ['leather', 0.1, 1, 1]] },
-    eagle: { name: "Águila Gigante", hp: 100, speed: 1.3, armor: 0, flying: true, drops: [['hide', 0.4, 1, 2]] }, 
-    ent: { name: "Ent Joven", hp: 350, speed: 0.5, armor: 10, flying: false, drops: [['wood', 0.8, 2, 4], ['cedar', 0.2, 1, 2]] },
-    shaman: { name: "Chamán Goblin", hp: 150, speed: 0.8, armor: 2, flying: false, healer: true, drops: [['cloth_simple', 0.3, 1, 1], ['scraps', 0.5, 2, 3]] },
+    slime: { name: "Slime", hp: 60, speed: 0.8, armor: 0, flying: false, drops: [['scraps', 0.2, 1, 2]] },
+    goblin: { name: "Goblin", hp: 80, speed: 1.0, armor: 1, flying: false, drops: [['scraps', 0.2, 1, 2], ['copper', 0.1, 1, 1]] }, // 20% scraps, 10% extra cobre
+    wolf: { name: "Lobo", hp: 120, speed: 1.4, armor: 2, flying: false, drops: [['hide', 0.2, 1, 2]] },
+    boar: { name: "Jabalí", hp: 200, speed: 0.7, armor: 5, flying: false, drops: [['hide', 0.2, 2, 3], ['leather', 0.05, 1, 1]] },
+    eagle: { name: "Águila Gigante", hp: 100, speed: 1.3, armor: 0, flying: true, drops: [['hide', 0.2, 1, 2]] }, 
+    ent: { name: "Ent Joven", hp: 350, speed: 0.5, armor: 10, flying: false, drops: [['wood', 0.2, 2, 4], ['cedar', 0.1, 1, 2]] },
+    shaman: { name: "Chamán Goblin", hp: 150, speed: 0.8, armor: 2, flying: false, healer: true, drops: [['cloth_simple', 0.2, 1, 1], ['scraps', 0.2, 2, 3]] },
     
-    // Mini-Bosses Bosque
+    // Mini-Bosses Bosque (Drops asegurados o altos)
     alpha_wolf: { name: "Lobo Alfa", hp: 1200, speed: 1.6, armor: 5, drops: [['leather', 1.0, 2, 4], ['ruby_uncut', 0.3, 1, 1]] },
     treant_guardian: { name: "Guardián Treant", hp: 3000, speed: 0.4, armor: 25, drops: [['cedar', 1.0, 5, 10], ['wood', 1.0, 10, 20]] },
     
@@ -20,11 +22,11 @@ export const ENEMY_DB = {
     boss_queen_spider: { name: "Reina Arácnida", hp: 15000, speed: 0.9, armor: 30, drops: [['silk', 1.0, 5, 10], ['sapphire_uncut', 0.6, 1, 2]] },
 
     // === MONTAÑA (Mountain) ===
-    bandit: { name: "Bandido", hp: 150, speed: 1.0, armor: 3, drops: [['scraps', 0.4, 1, 3], ['copper', 0.3, 1, 2]] },
-    rock_elemental: { name: "Elem. Roca", hp: 450, speed: 0.5, armor: 25, drops: [['iron', 0.5, 1, 3], ['coal', 0.5, 2, 4]] },
-    harpy: { name: "Arpía", hp: 220, speed: 1.4, armor: 2, flying: true, drops: [['scraps', 0.3, 1, 2], ['silver', 0.2, 1, 1]] },
-    miner_dwarf: { name: "Minero Corrupto", hp: 280, speed: 0.8, armor: 12, drops: [['iron', 0.6, 2, 4], ['gold_ore', 0.1, 1, 1]] },
-    golem_copper: { name: "Golem de Cobre", hp: 700, speed: 0.4, armor: 35, drops: [['copper', 1.0, 3, 6]] },
+    bandit: { name: "Bandido", hp: 150, speed: 1.0, armor: 3, drops: [['scraps', 0.2, 1, 3], ['copper', 0.1, 1, 2]] },
+    rock_elemental: { name: "Elem. Roca", hp: 450, speed: 0.5, armor: 25, drops: [['iron', 0.2, 1, 3], ['coal', 0.2, 2, 4]] },
+    harpy: { name: "Arpía", hp: 220, speed: 1.4, armor: 2, flying: true, drops: [['scraps', 0.2, 1, 2], ['silver', 0.1, 1, 1]] },
+    miner_dwarf: { name: "Minero Corrupto", hp: 280, speed: 0.8, armor: 12, drops: [['iron', 0.2, 2, 4], ['gold_ore', 0.05, 1, 1]] },
+    golem_copper: { name: "Golem de Cobre", hp: 700, speed: 0.4, armor: 35, drops: [['copper', 0.3, 3, 6]] }, // Golems sueltan más
     
     // Mini-Bosses Montaña
     bandit_leader: { name: "Jefe Bandido", hp: 3500, speed: 1.1, armor: 15, drops: [['silver', 1.0, 2, 5], ['cloth_fine', 0.5, 1, 2]] },
@@ -35,10 +37,10 @@ export const ENEMY_DB = {
     boss_titan: { name: "Titán de Piedra", hp: 40000, speed: 0.3, armor: 100, drops: [['diamond_uncut', 0.3, 1, 1], ['mithril', 1.0, 5, 10]] },
 
     // === VOLCÁN (Volcano) ===
-    fire_imp: { name: "Diablillo", hp: 350, speed: 1.6, armor: 5, drops: [['coal', 0.5, 1, 3]] },
-    magma_cube: { name: "Cubo Magma", hp: 900, speed: 0.5, armor: 25, drops: [['iron', 0.4, 1, 3], ['coal', 0.6, 2, 5]] },
-    succubus: { name: "Súcubo", hp: 550, speed: 1.2, armor: 10, flying: true, drops: [['silk', 0.4, 1, 2], ['ruby_uncut', 0.1, 1, 1]] },
-    fire_elemental: { name: "Elem. Fuego", hp: 1200, speed: 0.8, armor: 20, drops: [['coal', 0.8, 3, 6], ['gold_ore', 0.2, 1, 2]] },
+    fire_imp: { name: "Diablillo", hp: 350, speed: 1.6, armor: 5, drops: [['coal', 0.2, 1, 3]] },
+    magma_cube: { name: "Cubo Magma", hp: 900, speed: 0.5, armor: 25, drops: [['iron', 0.2, 1, 3], ['coal', 0.2, 2, 5]] },
+    succubus: { name: "Súcubo", hp: 550, speed: 1.2, armor: 10, flying: true, drops: [['silk', 0.2, 1, 2], ['ruby_uncut', 0.05, 1, 1]] },
+    fire_elemental: { name: "Elem. Fuego", hp: 1200, speed: 0.8, armor: 20, drops: [['coal', 0.3, 3, 6], ['gold_ore', 0.1, 1, 2]] },
     
     // Mini-Bosses Volcán
     demon_guard: { name: "Guardia Demonio", hp: 10000, speed: 0.9, armor: 50, drops: [['mithril', 0.5, 1, 3], ['leather_dragon', 0.2, 1, 1]] },

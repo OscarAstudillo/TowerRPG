@@ -12,7 +12,61 @@ class RPGSystem {
         return "ITEM_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
     }
 
-    // --- NUEVO: SISTEMA DE REFINACIÓN ---
+    // --- NUEVO: CÁLCULO DE RAREZA DE DROP POR NIVEL ---
+    // Nivel 1: 95% Common, 5% Uncommon
+    // Nivel 10: 35% Common, 20% Unc, 15% Rare, 12% Epic, 9% Leg, 9% Mythic (aprox)
+    getDynamicRarity(level) {
+        // Asegurar límites
+        const lvl = Math.max(1, Math.min(level, 10));
+        
+        // Probabilidades base (acumuladas para el check) en Nivel 1
+        // Común es el resto. Aquí definimos umbrales para NO COMUNES.
+        // Ejemplo Nivel 1: >95 es Uncommon.
+        
+        // Definimos los pesos para Nivel 1 y Nivel 10
+        const p1 =  { common: 95, uncommon: 5, rare: 0, epic: 0, legendary: 0 };
+        const p10 = { common: 35, uncommon: 20, rare: 15, epic: 12, legendary: 18 }; // 18% para Leg+Mythic (9+6+3)
+        
+        // Interpolación lineal
+        const t = (lvl - 1) / 9; // 0 en lvl 1, 1 en lvl 10
+        
+        const getChance = (key) => Math.floor(p1[key] + (p10[key] - p1[key]) * t);
+        
+        const chances = {
+            common: getChance('common'),
+            uncommon: getChance('uncommon'),
+            rare: getChance('rare'),
+            epic: getChance('epic'),
+            legendary: getChance('legendary')
+        };
+
+        const roll = Math.random() * 100;
+        let cumulative = 0;
+
+        // Comprobamos de menor a mayor probabilidad (Legendario primero para priorizar si toca)
+        // O mejor: sistema de pesos acumulados estándar
+        
+        // Orden: Common -> Uncommon -> Rare -> Epic -> Legendary
+        // 0..35 -> Common
+        // 35..55 -> Uncommon (35+20)
+        // etc.
+        
+        cumulative += chances.common;
+        if (roll < cumulative) return 'common';
+        
+        cumulative += chances.uncommon;
+        if (roll < cumulative) return 'uncommon';
+        
+        cumulative += chances.rare;
+        if (roll < cumulative) return 'rare';
+        
+        cumulative += chances.epic;
+        if (roll < cumulative) return 'epic';
+        
+        return 'legendary'; // Si pasa todo, es legendario
+    }
+
+    // --- REFINACIÓN ---
     refineMaterial(recipeId) {
         const recipe = REFINING_RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta inválida" };
@@ -43,7 +97,7 @@ class RPGSystem {
         return { success: true, item: recipe.output, rarity: outputRarity };
     }
 
-    // --- DROP INTELIGENTE POR BIOMA Y NIVEL ---
+    // --- DROP INTELIGENTE ---
     getDropForLevel(biomeKey, levelId) {
         const biome = BIOMES[biomeKey];
         const config = LEVEL_CONFIG[levelId];
@@ -54,37 +108,21 @@ class RPGSystem {
         const possibleMaterials = biome.materials[tier] || biome.materials[1];
         const matKey = possibleMaterials[Math.floor(Math.random() * possibleMaterials.length)];
         
-        const rand = Math.random() * 100;
-        let rarity = 'common';
-        let cumulative = 0;
-        
-        for (let r in config.dropChances) {
-            cumulative += config.dropChances[r];
-            if (rand <= cumulative) {
-                rarity = r;
-                break;
-            }
-        }
+        // USAR LA NUEVA LÓGICA DE RAREZA
+        const rarity = this.getDynamicRarity(levelId);
 
         return { key: matKey, rarity: rarity, amount: 1 };
     }
 
-    // --- BALANCEO DE STATS EN GENERACIÓN ---
     applyEnchantStats(statsObj, levels) { 
         for (let i = 0; i < levels; i++) { 
             for (let key in statsObj) { 
                 const current = statsObj[key]; 
-                
-                // BALANCEO DE VELOCIDAD DE ATAQUE (DELAY)
                 if (key === 'attackSpeed' || key === 'cdr') {
                       let reduction = Math.floor(current * 0.03); 
                       if (reduction < 5) reduction = 5; 
-                      
-                      // FIX: Hard cap para evitar 0 o negativos
                       statsObj[key] = Math.max(200, current - reduction); 
-                } 
-                // DAÑO Y DEFENSA
-                else {
+                } else {
                       const boost = Math.ceil(current * 0.10) + 1; 
                       statsObj[key] = current + boost; 
                 }
@@ -93,14 +131,12 @@ class RPGSystem {
         return statsObj; 
     }
 
-    // --- FIX DEL LOOP INFINITO DE NIVEL ---
     gainHeroXP(amount) {
         if (!gameState.selectedClass) return;
         
         const hero = getCurrentHero();
         const MAX_LEVEL = 100;
 
-        // Si ya es nivel máximo, solo topear la XP y salir
         if (hero.level >= MAX_LEVEL) {
             hero.xp = hero.maxXp;
             return;
@@ -108,20 +144,15 @@ class RPGSystem {
 
         hero.xp += Math.floor(amount);
         
-        // Bucle protegido: solo sube si es menor al nivel máximo
         while (hero.xp >= hero.maxXp && hero.level < MAX_LEVEL) {
             hero.xp -= hero.maxXp;
-            
             hero.level++;
             hero.maxXp = Math.floor(hero.maxXp * 1.5);
             hero.statPoints += 3; 
-            
             if (hero.level % 10 === 0) hero.talentPoints++;
-            
             if (gameState.playerStats) gameState.playerStats.hp = gameState.playerStats.maxHp;
         }
 
-        // Si después de todo sigue sobrando XP y ya es nivel máximo, topear
         if (hero.level >= MAX_LEVEL) {
             hero.xp = hero.maxXp;
         }
@@ -155,7 +186,6 @@ class RPGSystem {
         return gameState.professions[profKey].level;
     }
     
-    // --- CRAFTEO UNIVERSAL (Héroes y Torres) ---
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
@@ -199,7 +229,6 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
-    // --- GENERACIÓN UNIVERSAL ---
     generateItem(recipe, rarity, initialEnchant = 0) {
         const stats = { ...recipe.baseStats };
         
@@ -279,14 +308,9 @@ class RPGSystem {
 
         for (let i = 0; i < baseQty; i++) {
             const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            const rand = Math.random() * 100;
-            let rarity = 'common';
             
-            const chanceUncommon = 5 + (levelId * 4);
-            const chanceRare = (levelId > 3) ? (levelId - 3) * 3 : 0;
-            
-            if (rand < chanceRare) rarity = 'rare';
-            else if (rand < chanceUncommon + chanceRare) rarity = 'uncommon';
+            // USAR NUEVA LÓGICA RAREZA
+            const rarity = this.getDynamicRarity(levelId);
             
             if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
             gameState.materials[matKey][rarity]++;
@@ -296,7 +320,7 @@ class RPGSystem {
         
         if (levelId >= 5) {
             const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            const bonusRarity = levelId >= 8 ? 'rare' : 'uncommon';
+            const bonusRarity = this.getDynamicRarity(levelId + 2); // Bonus de mejor calidad
             gameState.materials[matKey][bonusRarity]++;
             lootList.push({ key: matKey, rarity: bonusRarity, amount: 1, bonus: true });
         }
