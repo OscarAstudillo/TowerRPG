@@ -23,6 +23,10 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.isPuddle = false; // Veneno
         this.puddleTick = 0;
         this.type = 'arrow';
+        
+        // Coordenadas de destino para precisión
+        this.destX = 0;
+        this.destY = 0;
     }
 
     fire(target, options) {
@@ -63,16 +67,17 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.bodyShape.setFillStyle(0xffff00); // Amarillo Rayo
             this.bodyShape.setRadius(3);
             this.isParabolic = false;
-            this.speed = 800; // Rápido
+            this.speed = 800; 
             
         } else if (this.type === 'poison') { 
             this.bodyShape.setFillStyle(0x00ff00); // Verde Veneno
             this.bodyShape.setRadius(5);
-            this.isParabolic = true; // Frasco parabólico
+            this.isParabolic = true; 
             this.speed = 400;
             
             this.startX = this.x;
             this.startY = this.y;
+            // Guardamos destino exacto
             this.destX = target.x;
             this.destY = target.y;
             
@@ -81,9 +86,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.timer = 0;
             
         } else if (this.type === 'quake') { 
-            // QUAKE: Detonación Instantánea en el lugar de la torre
             this.hit(null); 
-            return; // No sigue procesando movimiento
+            return; 
             
         } else { // Archer default
             this.bodyShape.setFillStyle(0xffffff); 
@@ -92,7 +96,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.speed = 700;
         }
 
-        // Iniciar movimiento si no es Quake (que ya retornó)
+        // Iniciar movimiento si no es Quake
         if (!this.isParabolic && this.target && this.target.active) {
             const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
             this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
@@ -111,23 +115,20 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 return;
             }
 
-            // Aplicar veneno cada 200ms a quien pise el charco
+            // Daño por tick (cada 200ms)
             if (this.puddleTick >= 200) {
                 this.puddleTick = 0;
-                // Buscar enemigos en el área
                 if (this.scene && this.scene.enemies) {
                     const enemies = this.scene.enemies.getChildren();
                     enemies.forEach(e => {
                         if (e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= this.aoeRadius) {
-                            // Aplicar efecto de veneno si lo tiene
                             if (this.effect) e.applyStatus(this.effect);
-                            // Pequeño daño por estar encima
                             e.takeDamage(1);
                         }
                     });
                 }
             }
-            return; // El charco no se mueve
+            return; 
         }
 
         // --- LÓGICA PROYECTIL NORMAL ---
@@ -138,13 +139,12 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         if (this.isParabolic) {
-            // Cañón / Veneno (Vuelo)
             this.timer += delta;
             const t = Math.min(this.timer / this.duration, 1);
 
             const cx = Phaser.Math.Linear(this.startX, this.destX, t);
             const cy = Phaser.Math.Linear(this.startY, this.destY, t);
-            const height = 100 * Math.sin(t * Math.PI); // Arco
+            const height = 100 * Math.sin(t * Math.PI); 
             
             this.x = cx;
             this.y = cy - height;
@@ -153,7 +153,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 this.hit(null); 
             }
         } else {
-            // Guiado simple (Homing)
             if (!this.target || !this.target.active) {
                 this.destroy();
                 return;
@@ -162,7 +161,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
             this.rotation = angle;
             
-            // Check manual de distancia por si la física falla a alta velocidad
             if (Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y) < 10) {
                 this.hit(this.target);
             }
@@ -177,21 +175,25 @@ export default class Projectile extends Phaser.GameObjects.Container {
 
         // --- LÓGICA VENENO (CREAR CHARCO) ---
         if (this.type === 'poison') {
+            // FIX: Forzar posición exacta al destino para que quede en el camino
+            if (this.destX !== 0 && this.destY !== 0) {
+                this.x = this.destX;
+                this.y = this.destY;
+            }
+
             this.isPuddle = true;
-            this.body.setVelocity(0, 0); // Detener movimiento
-            this.lifespan = 1500; // Duración del charco
-            this.aoeRadius = this.aoeRadius || 60; // Radio por defecto si falta
+            this.body.setVelocity(0, 0); 
+            this.lifespan = 1500; 
+            this.aoeRadius = this.aoeRadius || 60; 
             
-            // Cambio visual a charco
-            // FIX: Usamos destroy() en lugar de clear() porque es un Arc
+            // Reemplazar gráfico con elipse
             if (this.bodyShape) this.bodyShape.destroy(); 
             
             this.bodyShape = this.scene.add.ellipse(0, 0, this.aoeRadius * 2, this.aoeRadius, 0x00ff00, 0.4);
             this.add(this.bodyShape);
             
-            // Primer tick de daño inmediato
             this.createExplosion(0x00ff00);
-            return; // NO DESTRUIR, ahora es un charco
+            return; 
         }
 
         // --- DAÑO EN ÁREA (Cañón / Quake) ---
@@ -211,31 +213,28 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 }
             });
         } 
-        // --- IMPACTO DIRECTO (Archer / Mage / Tesla) ---
+        // --- IMPACTO DIRECTO ---
         else if (directTarget && directTarget.active) {
             directTarget.takeDamage(this.damage);
             if (this.effect) directTarget.applyStatus(this.effect);
             
-            // --- LÓGICA TESLA (CADENA) ---
+            // Tesla Chain
             if (this.chainCount > 0) {
                 const nextTarget = this.findNextChainTarget(directTarget);
                 if (nextTarget) {
-                    // Efecto visual del rayo
                     this.drawLightning(this.x, this.y, nextTarget.x, nextTarget.y);
 
-                    // Reutilizar proyectil para saltar
                     this.x = directTarget.x;
                     this.y = directTarget.y;
                     this.target = nextTarget;
-                    this.damage = Math.floor(this.damage * 0.8); // Reduce daño
+                    this.damage = Math.floor(this.damage * 0.8); 
                     this.chainCount--;
-                    this.lifespan = 1000; // Reset vida
+                    this.lifespan = 1000; 
                     
-                    // Recalcular velocidad hacia nuevo objetivo
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, nextTarget.x, nextTarget.y);
                     this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
                     
-                    return; // NO DESTRUIR
+                    return; 
                 }
             }
         }
@@ -244,7 +243,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
     }
 
     findNextChainTarget(currentEnemy) {
-        const range = 200; // Rango de salto del rayo
+        const range = 200; 
         let closest = null;
         let minDist = Infinity;
         
@@ -268,7 +267,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         graphics.lineStyle(2, 0xffff00, 1);
         graphics.beginPath();
         graphics.moveTo(x1, y1);
-        // Pequeño efecto zig-zag simple
         const midX = (x1 + x2) / 2 + (Math.random() * 20 - 10);
         const midY = (y1 + y2) / 2 + (Math.random() * 20 - 10);
         graphics.lineTo(midX, midY);
@@ -288,7 +286,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         const circle = this.scene.add.circle(this.x, this.y, 10, color, 0.6);
         this.scene.tweens.add({
             targets: circle,
-            scale: this.aoeRadius / 5, // Escalar visualmente
+            scale: this.aoeRadius / 5, 
             alpha: 0,
             duration: 300,
             onComplete: () => circle.destroy()

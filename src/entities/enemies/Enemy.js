@@ -16,20 +16,19 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.levelDifficulty = levelDifficulty;
 
         const data = ENEMY_DB[typeKey] || ENEMY_DB['slime'];
-
+        
         this.name = data.name;
         this.hp = Math.floor(data.hp * levelDifficulty);
         this.maxHp = this.hp;
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
-        this.baseArmor = data.armor || 0;
-        this.armor = this.baseArmor;
-        
+        this.armor = data.armor || 0;
+        this.baseArmor = this.armor; // Guardar base para restaurar
         this.isFlying = data.flying || false; 
         this.isHealer = data.healer || false;
         
         this.drops = data.drops || [];
-        this.coinReward = Math.floor(15 * levelDifficulty); 
+        this.coinReward = Math.floor(15 * levelDifficulty);
         this.xpReward = Math.floor(10 * levelDifficulty);
         this.leakDamage = (data.hp > 2000) ? 5 : 1; 
 
@@ -43,6 +42,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (this.isHealer) color = 0xff69b4; 
         if (typeKey.includes('boss')) color = 0x4b0082; 
 
+        this.originalColor = color; // Guardar color original
         const size = (this.maxHp > 2000) ? 40 : 20;
 
         this.bodyShape = scene.add.rectangle(0, 0, size, size, color);
@@ -62,14 +62,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.skillTimer = 0; 
         this.isShielded = false;
 
-        // --- SISTEMA DE ESTADOS EXPANDIDO ---
         this.statusEffects = {
             slow: { active: false, factor: 0, timer: 0 },
             burn: { active: false, damage: 0, timer: 0, tickTimer: 0 },
-            poison: { active: false, damage: 0, timer: 0, tickTimer: 0 }, // NUEVO
+            poison: { active: false, damage: 0, timer: 0, tickTimer: 0 }, 
             freeze: { active: false, factor: 0, timer: 0 },
             stun: { active: false, timer: 0 },
-            armorBreak: { active: false, val: 0, timer: 0 } // NUEVO
+            armorBreak: { active: false, val: 0, timer: 0 }
         };
     }
 
@@ -78,6 +77,9 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         this.updateDebuffs(delta);
         
+        // --- SEGURIDAD: Si murió por debuff, parar update ---
+        if (!this.active) return;
+
         if (!this.isShielded && !this.statusEffects.stun.active) {
             let speedMod = 1.0;
             if (this.statusEffects.slow.active) speedMod *= (1 - this.statusEffects.slow.factor);
@@ -130,13 +132,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.burn.timer = effect.duration;
             this.bodyShape.setFillStyle(0xff4500); 
         } 
-        else if (effect.type === 'poison') { // LOGICA VENENO
+        else if (effect.type === 'poison') { 
             this.statusEffects.poison.active = true;
             this.statusEffects.poison.damage = Math.max(this.statusEffects.poison.damage, effect.val);
             this.statusEffects.poison.timer = effect.duration;
             this.bodyShape.setFillStyle(0x00ff00); // Verde brillante
         }
-        else if (effect.type === 'armor_break') { // LOGICA ACID
+        else if (effect.type === 'armor_break') {
             this.statusEffects.armorBreak.active = true;
             this.statusEffects.armorBreak.val = effect.val;
             this.statusEffects.armorBreak.timer = effect.duration;
@@ -157,7 +159,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     updateDebuffs(delta) {
-        // Quemadura
         if (this.statusEffects.burn.active) {
             this.statusEffects.burn.timer -= delta;
             this.statusEffects.burn.tickTimer += delta;
@@ -170,11 +171,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
-        // Veneno
         if (this.statusEffects.poison.active) {
             this.statusEffects.poison.timer -= delta;
             this.statusEffects.poison.tickTimer += delta;
-            if (this.statusEffects.poison.tickTimer >= 800) { // Tick más lento que fuego
+            if (this.statusEffects.poison.tickTimer >= 800) { // Tick más lento
                 this.takeTrueDamage(this.statusEffects.poison.damage, '#00ff00');
                 this.statusEffects.poison.tickTimer = 0;
             }
@@ -183,7 +183,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
-        // Armor Break (Restaurar)
         if (this.statusEffects.armorBreak.active) {
             this.statusEffects.armorBreak.timer -= delta;
             if (this.statusEffects.armorBreak.timer <= 0) {
@@ -191,7 +190,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.armor = this.baseArmor;
             }
         }
-        // CC
         if (this.statusEffects.freeze.active) {
             this.statusEffects.freeze.timer -= delta;
             if (this.statusEffects.freeze.timer <= 0) {
@@ -210,18 +208,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     clearTint() {
         if (this.active && this.bodyShape) {
-            let color = 0xff0000;
-            if (this.scene.biome === 'forest') color = 0x008000;
-            if (this.scene.biome === 'mountain') color = 0x8b4513;
-            if (this.scene.biome === 'volcano') color = 0xff4500;
-            if (this.isFlying) color = 0x00ffff;
-            if (this.isHealer) color = 0xff69b4;
-            if (this.typeKey.includes('boss')) color = 0x4b0082;
+            let color = this.originalColor;
             
             // Prioridad de color de estado
             if (this.statusEffects.burn.active) color = 0xff4500;
             else if (this.statusEffects.poison.active) color = 0x00ff00;
             else if (this.statusEffects.freeze.active) color = 0x00ffff;
+            else if (this.statusEffects.stun.active) color = 0xffff00;
             
             this.bodyShape.setFillStyle(color);
         }
