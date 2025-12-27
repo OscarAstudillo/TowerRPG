@@ -253,7 +253,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invItemsContainer = this.add.container(gridX, gridY); 
         this.invContainer.add(this.invItemsContainer);
         
-        // Contenedor para el detalle (se reconstruirá)
         const detailX = w * 0.78;
         this.itemDetailContainer = this.add.container(detailX, gridY); 
         this.itemDetailContainer.setVisible(false); 
@@ -262,7 +261,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.createFusionModals(cx, cy);
     }
     
-    // --- UI FUSIÓN CORREGIDA ---
     createFusionModals(cx, cy) {
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         
@@ -798,12 +796,12 @@ export default class MainMenuScene extends Phaser.Scene {
     // --- VISTAS HEROE Y TORRES (MODIFICADO PARA MAS ESPACIO Y MEJORES LABELS) ---
     createHeroView(w, h, cx, cy) { 
         // Texto Nivel
-        this.heroLevelText = this.add.text(cx, h * 0.12, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); 
+        this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); 
         this.heroContainer.add(this.heroLevelText); 
         
         // PANEL PRINCIPAL (AUMENTADO TAMAÑO)
         const panelWidth = 500; // Antes 450
-        const panelHeight = 650; // Antes 550
+        const panelHeight = 700; // Antes 550
         const statsBg = this.add.rectangle(w * 0.35, cy + 20, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(2, 0x555555); 
         this.heroContainer.add(statsBg); 
         
@@ -820,7 +818,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.heroContainer.add(this.equippedTextContainer); 
         
         // Nuevo: Contenedor de Sets (Abajo)
-        this.heroSetsText = this.add.text(textStartX, textStartY + 450, '', { ...this.fontBody, fontSize: '13px', color: '#ffff00', lineHeight: 20 });
+        this.heroSetsText = this.add.text(textStartX, textStartY + 480, '', { ...this.fontBody, fontSize: '13px', color: '#ffff00', lineHeight: 20 });
         this.heroContainer.add(this.heroSetsText);
 
         // Botones de Upgrade a la derecha (fuera del panel principal)
@@ -854,14 +852,14 @@ export default class MainMenuScene extends Phaser.Scene {
 
 -- ATRIBUTOS BASE --
 ❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  |  🛡️ Defensa: ${s.defense}
-⚔️ Daño: ${s.damage}  |  ⚡ Vel. Ataque: ${atkSpeedTxt}
-📏 Alcance: ${rangeTxt}  |  🏃 Movimiento: ${s.moveSpeed}
+⚔️ Daño: ${s.damage}             |  ⚡ Vel. Ataque: ${atkSpeedTxt}
+📏 Alcance: ${rangeTxt}     |  🏃 Movimiento: ${s.moveSpeed}
 
 -- ATRIBUTOS SECUNDARIOS --
-🎯 Prob. Crítica: ${s.critChance}%  |  💥 Daño Crítico: ${s.critDamage}%
-🩸 Robo de Vida: ${s.lifesteal}%  |  💖 Regeneración: ${s.regenHp}/s
+🎯 Prob. Crítica: ${s.critChance}%       |  💥 Daño Crítico: ${s.critDamage}%
+🩸 Robo de Vida: ${s.lifesteal}%     |  💖 Regeneración: ${s.regenHp}/s
 ⚔️⚔️ Golpe Doble: ${s.doubleAttack}%  |  🌵 Espinas: ${s.thorns}
-⏳ Reducción CD: ${s.cdr}%  |  🛡️ Bloqueo: ${s.blockChance}%`;
+⏳ Reducción CD: ${s.cdr}%    |  🛡️ Bloqueo: ${s.blockChance}%`;
 
         this.heroStatsText.setText(statsBlock); 
 
