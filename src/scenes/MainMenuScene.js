@@ -101,6 +101,22 @@ export default class MainMenuScene extends Phaser.Scene {
 
         const resetBtn = this.add.text(w - 50, botY, 'BORRAR DATOS', { ...this.fontBtn, color: '#ff5555' }).setInteractive({ useHandCursor: true }).setOrigin(1, 0.5);
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
+
+        // BOTÓN DE TRUCO (CHEAT)
+        const cheatBtn = this.add.text(w - 50, 50, "¡LEVEL UP!", { 
+            fontSize: '20px', fontStyle: 'bold', color: '#00ff00' 
+        }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+
+        cheatBtn.on('pointerdown', () => {
+            const hero = getCurrentHero();
+            if (hero) {
+                RPGSystem.gainHeroXP(5000); 
+                SaveSystem.save();
+                this.refreshHero();
+                this.refreshTalents();
+                this.showCentralAlert("¡TRUCO ACTIVADO: XP GANADA!", "#00ff00");
+            }
+        });
     }
 
     createMenuButton(x, y, text, callback) {
@@ -261,31 +277,26 @@ export default class MainMenuScene extends Phaser.Scene {
         const fcBg = this.add.rectangle(0, 0, 900, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
         const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { ...this.fontTitle, fontSize:'32px' }).setOrigin(0.5);
         
-        // Texto más grande y legible
         const fcInfo = this.add.text(0, -220, "El resultado heredará los stats de UNO de los dos (50/50).\nEl nivel de encantamiento subirá +1.", { ...this.fontBody, fontSize: '18px', color: '#eeeeee', align: 'center' }).setOrigin(0.5);
 
-        const panelY = 20; // Ajustado para centrar mejor
+        const panelY = 20; 
         
-        // IZQUIERDA
         const leftBg = this.add.rectangle(-220, panelY, 350, 350, 0x000000).setStrokeStyle(2, 0x00ffff);
-        this.fusionLeftBg = leftBg; // Guardamos referencia para cambiar color borde
+        this.fusionLeftBg = leftBg; 
         const leftTitle = this.add.text(-220, panelY - 150, "ITEM BASE", { ...this.fontHeader, fontSize: '22px', color: '#00ffff' }).setOrigin(0.5);
         this.fusionItem1Info = this.add.text(-220, panelY, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
 
-        // DERECHA
         const rightBg = this.add.rectangle(220, panelY, 350, 350, 0x000000).setStrokeStyle(2, 0xff00ff);
-        this.fusionRightBg = rightBg; // Guardamos referencia
+        this.fusionRightBg = rightBg; 
         const rightTitle = this.add.text(220, panelY - 150, "SACRIFICIO", { ...this.fontHeader, fontSize: '22px', color: '#ff00ff' }).setOrigin(0.5);
         this.fusionItem2Info = this.add.text(220, panelY, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
 
-        // Símbolo +
         const plusSign = this.add.text(0, panelY, "+", { fontSize: '80px', fontFamily: 'Cinzel', color: '#ffffff' }).setOrigin(0.5);
 
         const confirmBtn = this.add.rectangle(0, 240, 250, 60, 0x006400).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
         const confirmTxt = this.add.text(0, 240, "¡FUSIONAR!", { ...this.fontBtn, fontSize: '20px' }).setOrigin(0.5);
         confirmBtn.on('pointerdown', () => this.executeFusion());
         
-        // Botón Volver (Abajo Derecha)
         const backBtn = this.add.text(380, 260, "VOLVER", { ...this.fontBtn, fontSize: '18px', color: '#ff5555' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         backBtn.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
 
@@ -309,7 +320,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invMatsText.setText(""); 
         this.invItemsContainer.removeAll(true); 
         
-        // VISTA MATERIALES (Tarjetas + Color)
         if (this.inventoryCategory === 'mats') { 
             let col = 0; 
             let row = 0; 
@@ -352,7 +362,6 @@ export default class MainMenuScene extends Phaser.Scene {
                     if (count > 0) {
                         const rData = RARITY[r];
                         const dot = this.add.circle(15, yPos + 6, 4, rData.color);
-                        // TEXTO BLANCO SIEMPRE
                         const txt = this.add.text(25, yPos, `${count} ${rData.name}`, { 
                             fontFamily: 'Roboto', fontSize: '11px', color: '#ffffff' 
                         });
@@ -367,7 +376,6 @@ export default class MainMenuScene extends Phaser.Scene {
             return; 
         } 
         
-        // VISTA EQUIPO
         const filteredItems = gameState.inventory.filter(i => { 
             if (!i) return false; 
             if (this.inventoryCategory === 'mats') return false; 
@@ -503,7 +511,6 @@ export default class MainMenuScene extends Phaser.Scene {
             return s;
         };
         
-        // MOSTRAR DATOS EN BLANCO, BORDES DE COLOR RAREZA
         this.fusionItem1Info.setText(getInfo(this.itemToFuse1)); 
         this.fusionItem1Info.setColor('#ffffff');
         if(this.fusionLeftBg) this.fusionLeftBg.setStrokeStyle(2, this.itemToFuse1.color || 0xffffff);
@@ -788,9 +795,123 @@ export default class MainMenuScene extends Phaser.Scene {
     }
     executeRefine(id) { const res = RPGSystem.refineMaterial(id); if(res.success) { SaveSystem.save(); this.refreshRefining(); this.showCentralAlert("REFINADO OK", '#00ff00'); } }
 
-    createHeroView(w, h, cx, cy) { this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); this.heroContainer.add(this.heroLevelText); const leftX = w * 0.3; const contentY = h * 0.3; const panelWidth = 450; const panelHeight = 550; const statsBg = this.add.rectangle(leftX, cy + 20, panelWidth, panelHeight, 0x000000, 0.8).setStrokeStyle(2, 0x555555); this.heroContainer.add(statsBg); const textStartX = leftX - (panelWidth / 2) + 20; const textStartY = (cy + 20) - (panelHeight / 2) + 20; this.heroStatsText = this.add.text(textStartX, textStartY, '', { ...this.fontBody, fontSize: '15px', lineHeight: 22 }); this.heroContainer.add(this.heroStatsText); this.equippedTextContainer = this.add.container(0, 0); this.heroContainer.add(this.equippedTextContainer); const rightX = w * 0.75; let upgradeY = h * 0.3; this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5); this.heroContainer.add(this.pointsText); upgradeY += 60; const statsToUpgrade = [ { label: "Daño (+1)", key: 'damage' }, { label: "Vida (+10)", key: 'hp' }, { label: "Vel. Atq (+10ms)", key: 'speed' }, { label: "Defensa (+1)", key: 'defense' } ]; statsToUpgrade.forEach((s, i) => { this.createStatButton(rightX, upgradeY + (i * 60), s.label, s.key); }); }
+    // --- VISTAS HEROE Y TORRES (MODIFICADO PARA MAS ESPACIO Y MEJORES LABELS) ---
+    createHeroView(w, h, cx, cy) { 
+        // Texto Nivel
+        this.heroLevelText = this.add.text(cx, h * 0.12, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); 
+        this.heroContainer.add(this.heroLevelText); 
+        
+        // PANEL PRINCIPAL (AUMENTADO TAMAÑO)
+        const panelWidth = 500; // Antes 450
+        const panelHeight = 650; // Antes 550
+        const statsBg = this.add.rectangle(w * 0.35, cy + 20, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(2, 0x555555); 
+        this.heroContainer.add(statsBg); 
+        
+        // Textos dentro del panel
+        const textStartX = (w * 0.35) - (panelWidth / 2) + 30; 
+        const textStartY = (cy + 20) - (panelHeight / 2) + 30; 
+        
+        // Stats Principales
+        this.heroStatsText = this.add.text(textStartX, textStartY, '', { ...this.fontBody, fontSize: '15px', lineHeight: 24 }); 
+        this.heroContainer.add(this.heroStatsText); 
+        
+        // Contenedor de Equipo (Centro)
+        this.equippedTextContainer = this.add.container(0, 0); 
+        this.heroContainer.add(this.equippedTextContainer); 
+        
+        // Nuevo: Contenedor de Sets (Abajo)
+        this.heroSetsText = this.add.text(textStartX, textStartY + 450, '', { ...this.fontBody, fontSize: '13px', color: '#ffff00', lineHeight: 20 });
+        this.heroContainer.add(this.heroSetsText);
+
+        // Botones de Upgrade a la derecha (fuera del panel principal)
+        const rightX = w * 0.8; 
+        let upgradeY = h * 0.3; 
+        this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5); 
+        this.heroContainer.add(this.pointsText); 
+        
+        upgradeY += 60; 
+        const statsToUpgrade = [ { label: "Daño (+1)", key: 'damage' }, { label: "Vida (+10)", key: 'hp' }, { label: "Vel. Atq (+10ms)", key: 'speed' }, { label: "Defensa (+1)", key: 'defense' } ]; 
+        statsToUpgrade.forEach((s, i) => { this.createStatButton(rightX, upgradeY + (i * 60), s.label, s.key); }); 
+    }
+
     createStatButton(x, y, label, statKey) { const btn = this.add.rectangle(x, y, 220, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00); const txt = this.add.text(x, y, label, this.fontBtn).setOrigin(0.5); btn.on('pointerdown', () => { if (RPGSystem.spendStatPoint(statKey)) { this.refreshHero(); SaveSystem.save(); } }); this.heroContainer.add([btn, txt]); }
-    refreshHero() { updatePlayerStats(); const s = gameState.playerStats; const eq = gameState.equipment; const hero = getCurrentHero(); const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); let setsText = ""; if (gameState.activeSets && gameState.activeSets.length > 0) { setsText = "\n\n-- SETS ACTIVOS --\n"; gameState.activeSets.forEach(set => { setsText += `[${set.name}]\n`; set.bonuses.forEach(b => setsText += `  ${b}\n`); }); } const details = `Crítico: ${s.critChance}% (x${s.critDamage}%) \nRobo Vida: ${s.lifesteal}%  |  Regen HP: ${s.regenHp}/5s \nDoble Ataque: ${s.doubleAttack}%  |  Espinas: ${s.thorns} \nCooldown: -${s.cdr}%${setsText}`; this.heroStatsText.setText(`CLASE: [ ${clsName} ]\n\n-- ATRIBUTOS BASE --\n❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}\n⚔️ Daño: ${s.damage}\n🛡️ Defensa: ${s.defense}\n⚡ Delay Atq: ${s.attackSpeed}ms\n📏 Rango: ${s.range}\n\n-- EXTRAS --\n${details}`); this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); this.equippedTextContainer.removeAll(true); const startX = this.heroStatsText.x; let startY = this.heroStatsText.y + 300; this.equippedTextContainer.add(this.add.text(startX, startY, "-- EQUIPAMIENTO (Clic gestiona) --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); startY += 30; const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; slots.forEach(slot => { const item = eq[slot.key]; const slotBg = this.add.rectangle(startX + 180, startY + 10, 360, 30, 0x222222).setOrigin(0.5).setInteractive({useHandCursor: true}); slotBg.setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); const name = item ? `${item.name} (+${item.enchant})` : '- VACÍO (Ir a Mochila) -'; const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888'; const txt = this.add.text(startX, startY, `${slot.label}:`, this.fontBody); const valTxt = this.add.text(startX + 80, startY, name, { ...this.fontBody, color: color, fontStyle: 'bold' }); slotBg.on('pointerdown', () => { if (!item) { this.inventoryCategory = slot.cat; this.switchTab('inventory'); } else { this.showUnequipModal(item, slot.key); } }); this.equippedTextContainer.add([slotBg, txt, valTxt]); startY += 35; }); }
+    
+    refreshHero() { 
+        updatePlayerStats(); 
+        const s = gameState.playerStats; 
+        const eq = gameState.equipment; 
+        const hero = getCurrentHero(); 
+        const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); 
+        
+        // 1. STATS FORMAT
+        // Formatear stats para que se vean bien
+        const atkSpeedTxt = `${s.attackSpeed}ms`; // Antes 'Delay'
+        const rangeTxt = `${s.range}m`; // Antes 'Rango' sin unidad
+        
+        // Construir bloque de texto de stats
+        const statsBlock = 
+`CLASE: [ ${clsName} ]
+
+-- ATRIBUTOS BASE --
+❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  |  🛡️ Defensa: ${s.defense}
+⚔️ Daño: ${s.damage}  |  ⚡ Vel. Ataque: ${atkSpeedTxt}
+📏 Alcance: ${rangeTxt}  |  🏃 Movimiento: ${s.moveSpeed}
+
+-- ATRIBUTOS SECUNDARIOS --
+🎯 Prob. Crítica: ${s.critChance}%  |  💥 Daño Crítico: ${s.critDamage}%
+🩸 Robo de Vida: ${s.lifesteal}%  |  💖 Regeneración: ${s.regenHp}/s
+⚔️⚔️ Golpe Doble: ${s.doubleAttack}%  |  🌵 Espinas: ${s.thorns}
+⏳ Reducción CD: ${s.cdr}%  |  🛡️ Bloqueo: ${s.blockChance}%`;
+
+        this.heroStatsText.setText(statsBlock); 
+
+        // 2. EQUIPAMIENTO (Posición fija en el medio)
+        this.equippedTextContainer.removeAll(true); 
+        const startX = this.heroStatsText.x; 
+        const equipY = this.heroStatsText.y + 280; // Bajamos un poco más para dar espacio a stats
+
+        this.equippedTextContainer.add(this.add.text(startX, equipY, "-- EQUIPAMIENTO --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); 
+        
+        let slotY = equipY + 30; 
+        const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; 
+        
+        slots.forEach(slot => { 
+            const item = eq[slot.key]; 
+            const slotBg = this.add.rectangle(startX + 180, slotY + 10, 360, 35, 0x222222).setOrigin(0.5).setInteractive({useHandCursor: true}); 
+            slotBg.setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); 
+            
+            const name = item ? `${item.name} (+${item.enchant})` : '- VACÍO -'; 
+            const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888'; 
+            
+            const txt = this.add.text(startX, slotY, `${slot.label}:`, this.fontBody); 
+            const valTxt = this.add.text(startX + 80, slotY, name, { ...this.fontBody, color: color, fontStyle: 'bold' }); 
+            
+            slotBg.on('pointerdown', () => { 
+                if (!item) { this.inventoryCategory = slot.cat; this.switchTab('inventory'); } 
+                else { this.showUnequipModal(item, slot.key); } 
+            }); 
+            
+            this.equippedTextContainer.add([slotBg, txt, valTxt]); 
+            slotY += 40; 
+        }); 
+        
+        // 3. SETS (Posición fija abajo)
+        let setsText = "-- SETS ACTIVOS --\n"; 
+        if (gameState.activeSets && gameState.activeSets.length > 0) { 
+            gameState.activeSets.forEach(set => { 
+                setsText += `★ ${set.name}\n`; 
+                set.bonuses.forEach(b => setsText += `   ${b}\n`); 
+            }); 
+        } else {
+            setsText += "(Ninguno)";
+        }
+        this.heroSetsText.setText(setsText);
+
+        // Header Info
+        this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); 
+        this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); 
+    }
+
     showUnequipModal(item, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { gameState.equipment[slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.heroContainer.add(modal); }
     createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
     refreshTowersView() { const types = ['archer', 'cannon', 'mage']; types.forEach(type => { const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } }); const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`); if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); } for (let s = 1; s <= 2; s++) { const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`); if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } } } }); }
