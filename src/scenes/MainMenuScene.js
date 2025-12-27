@@ -348,7 +348,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 card.add(bg);
 
                 const title = this.add.text(10, 8, matName.toUpperCase(), { 
-                    fontFamily: 'Cinzel', fontSize: '13px', color: '#ffd700', fontStyle: 'bold' 
+                    fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' 
                 });
                 card.add(title);
 
@@ -361,7 +361,7 @@ export default class MainMenuScene extends Phaser.Scene {
                         const rData = RARITY[r];
                         const dot = this.add.circle(15, yPos + 6, 4, rData.color);
                         const txt = this.add.text(25, yPos, `${count} ${rData.name}`, { 
-                            fontFamily: 'Roboto', fontSize: '11px', color: '#ffffff' 
+                            fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff' 
                         });
                         card.add([dot, txt]);
                         yPos += 16;
@@ -428,10 +428,10 @@ export default class MainMenuScene extends Phaser.Scene {
         } 
         
         let currentY = 0;
-        const title = this.add.text(0, currentY, item.name, { ...this.fontHeader, fontSize: '18px', color: '#' + itemColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const title = this.add.text(0, currentY, item.name, { ...this.fontHeader, fontSize: '20px', color: '#' + itemColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += title.height + 20;
 
-        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '18px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += stats.height + 30;
 
         const equipLabel = item.type === 'tower_part' ? "EQUIPAR EN..." : "EQUIPAR";
