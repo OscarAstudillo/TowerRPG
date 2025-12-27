@@ -22,6 +22,11 @@ export default class MainMenuScene extends Phaser.Scene {
         this.selectedItem = null;
         this.itemToFuse1 = null; 
         this.itemToFuse2 = null; 
+        
+        // --- PAGINACIÓN FUSIÓN ---
+        this.fusionPage = 0;
+        this.fusionItemsPerPage = 7; 
+
         this.expandedRecipeId = null; 
         this.craftSelection = { type: null, recipe: null, rarity: null };
         this.hasLoaded = false;
@@ -136,15 +141,20 @@ export default class MainMenuScene extends Phaser.Scene {
         return btn;
     }
 
-    // --- MISIONES UI ---
+    // --- MISIONES UI (MODIFICADO: MÁS GRANDE) ---
     createQuestModal(w, h, cx, cy) {
         this.questContainer = this.add.container(0, 0).setVisible(false).setDepth(2000);
         const blocker = this.add.rectangle(cx, cy, w, h, 0x000000, 0.8).setInteractive();
-        const bg = this.add.rectangle(cx, cy, 500, 600, 0x222222).setStrokeStyle(4, 0xffd700);
-        const title = this.add.text(cx, cy - 250, "TABLÓN DE MISIONES", { ...this.fontTitle, fontSize: '28px' }).setOrigin(0.5);
-        const closeBtn = this.add.text(cx + 220, cy - 280, "X", { fontSize: '32px', color: '#ff0000', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
+        
+        // Aumentado tamaño de fondo
+        const bg = this.add.rectangle(cx, cy, 800, 700, 0x222222).setStrokeStyle(4, 0xffd700);
+        
+        // Reposicionado título y botón
+        const title = this.add.text(cx, cy - 300, "TABLÓN DE MISIONES", { ...this.fontTitle, fontSize: '28px' }).setOrigin(0.5);
+        const closeBtn = this.add.text(cx + 350, cy - 320, "X", { fontSize: '32px', color: '#ff0000', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
+        
         closeBtn.on('pointerdown', () => this.toggleQuestModal());
-        this.questListContainer = this.add.container(cx, cy - 150);
+        this.questListContainer = this.add.container(cx, cy - 200);
         this.questContainer.add([blocker, bg, title, closeBtn, this.questListContainer]);
         this.add.existing(this.questContainer);
     }
@@ -165,10 +175,12 @@ export default class MainMenuScene extends Phaser.Scene {
         }
 
         gameState.quests.active.forEach(quest => {
-            const qBg = this.add.rectangle(0, y, 450, 120, 0x333333).setStrokeStyle(1, 0xaaaaaa); 
+            // Aumentado ancho tarjeta
+            const qBg = this.add.rectangle(0, y, 700, 120, 0x333333).setStrokeStyle(1, 0xaaaaaa); 
             
-            const qTitle = this.add.text(-210, y - 40, quest.desc, { ...this.fontHeader, fontSize: '18px' }).setOrigin(0, 0.5);
-            const qProgress = this.add.text(-210, y - 10, `Progreso: ${quest.progress}/${quest.count}`, { ...this.fontBody, color: '#00ffff' }).setOrigin(0, 0.5);
+            // Textos alineados al nuevo ancho
+            const qTitle = this.add.text(-330, y - 40, quest.desc, { ...this.fontHeader, fontSize: '18px', wordWrap: { width: 650 } }).setOrigin(0, 0.5);
+            const qProgress = this.add.text(-330, y - 10, `Progreso: ${quest.progress}/${quest.count}`, { ...this.fontBody, color: '#00ffff' }).setOrigin(0, 0.5);
             
             let rewardText = "Recompensa: ";
             if (quest.reward.gold) rewardText += `$${quest.reward.gold} `;
@@ -183,12 +195,12 @@ export default class MainMenuScene extends Phaser.Scene {
                 rewardText += `\n📜 PLANO: ${rName}`;
             }
 
-            const qReward = this.add.text(-210, y + 25, rewardText, { ...this.fontSmall, color: '#ffd700', fontSize: '12px' }).setOrigin(0, 0.5);
+            const qReward = this.add.text(-330, y + 25, rewardText, { ...this.fontSmall, color: '#ffd700', fontSize: '12px' }).setOrigin(0, 0.5);
             
             let statusBtn;
             if (quest.completed) {
-                statusBtn = this.add.rectangle(150, y, 120, 40, 0x006400).setInteractive({ useHandCursor: true });
-                const btnTxt = this.add.text(150, y, "RECLAMAR", this.fontBtn).setOrigin(0.5);
+                statusBtn = this.add.rectangle(250, y, 120, 40, 0x006400).setInteractive({ useHandCursor: true });
+                const btnTxt = this.add.text(250, y, "RECLAMAR", this.fontBtn).setOrigin(0.5);
                 statusBtn.on('pointerdown', () => {
                     const res = RPGSystem.claimQuestReward(quest.id);
                     if (res.success) {
@@ -201,7 +213,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 });
                 this.questListContainer.add([qBg, qTitle, qProgress, qReward, statusBtn, btnTxt]);
             } else {
-                statusBtn = this.add.text(150, y, "En Curso", { ...this.fontBody, color: '#aaaaaa', fontStyle: 'italic' }).setOrigin(0.5);
+                statusBtn = this.add.text(250, y, "En Curso", { ...this.fontBody, color: '#aaaaaa', fontStyle: 'italic' }).setOrigin(0.5);
                 this.questListContainer.add([qBg, qTitle, qProgress, qReward, statusBtn]);
             }
             
@@ -232,7 +244,7 @@ export default class MainMenuScene extends Phaser.Scene {
             if (set.items.includes(recipeId)) {
                 text += `\n✨ SET: ${set.name} ✨\n`;
                 set.bonuses.forEach(b => {
-                    text += `  (${b.count}) ${b.desc}\n`;
+                    text += `  (${b.count}) ${b.desc}\n`;
                 });
             }
         }
@@ -261,15 +273,27 @@ export default class MainMenuScene extends Phaser.Scene {
         this.createFusionModals(cx, cy);
     }
     
+    // --- UI FUSIÓN (MODIFICADO: PAGINACIÓN) ---
     createFusionModals(cx, cy) {
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
         const fTitle = this.add.text(0, -220, "SELECCIONA 2° ITEM (SACRIFICIO)", { ...this.fontHeader, fontSize: '24px' }).setOrigin(0.5);
         this.fusionList = this.add.container(0, -180); 
+        
+        // Controles Paginación
+        this.fusionPrevBtn = this.add.text(-250, 0, "<", { fontSize: '40px', color: '#00ffff', fontStyle:'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5).setVisible(false);
+        this.fusionPrevBtn.on('pointerdown', () => this.changeFusionPage(-1));
+
+        this.fusionNextBtn = this.add.text(250, 0, ">", { fontSize: '40px', color: '#00ffff', fontStyle:'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5).setVisible(false);
+        this.fusionNextBtn.on('pointerdown', () => this.changeFusionPage(1));
+
+        this.fusionPageText = this.add.text(0, 180, "Página 1/1", { ...this.fontSmall }).setOrigin(0.5);
+
         const fCancel = this.add.text(0, 220, "CANCELAR", { ...this.fontBtn, color: '#ff0000' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         fCancel.on('pointerdown', () => this.fusionListModal.setVisible(false));
-        this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel]);
+        
+        this.fusionListModal.add([fBg, fTitle, this.fusionList, fCancel, this.fusionPrevBtn, this.fusionNextBtn, this.fusionPageText]);
 
         this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
         const fcBg = this.add.rectangle(0, 0, 900, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
@@ -348,7 +372,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 card.add(bg);
 
                 const title = this.add.text(10, 8, matName.toUpperCase(), { 
-                    fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' 
+                    fontFamily: 'Cinzel', fontSize: '13px', color: '#ffd700', fontStyle: 'bold' 
                 });
                 card.add(title);
 
@@ -361,7 +385,7 @@ export default class MainMenuScene extends Phaser.Scene {
                         const rData = RARITY[r];
                         const dot = this.add.circle(15, yPos + 6, 4, rData.color);
                         const txt = this.add.text(25, yPos, `${count} ${rData.name}`, { 
-                            fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff' 
+                            fontFamily: 'Roboto', fontSize: '11px', color: '#ffffff' 
                         });
                         card.add([dot, txt]);
                         yPos += 16;
@@ -476,20 +500,56 @@ export default class MainMenuScene extends Phaser.Scene {
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
     swapping(slot, newItem) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; }
     forceUnequip(slot) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
-    initiateFusion() { if (!this.selectedItem) return; this.itemToFuse1 = this.selectedItem; this.fusionListModal.setVisible(true); this.populateFusionList(); }
     
+    initiateFusion() { 
+        if (!this.selectedItem) return; 
+        this.itemToFuse1 = this.selectedItem; 
+        this.fusionPage = 0; // RESETEAR PÁGINA AL ABRIR
+        this.fusionListModal.setVisible(true); 
+        this.populateFusionList(); 
+    }
+    
+    // --- NUEVO: CAMBIAR PÁGINA ---
+    changeFusionPage(dir) {
+        this.fusionPage += dir;
+        this.populateFusionList();
+    }
+
+    // --- NUEVO: POPULATE CON PAGINACIÓN ---
     populateFusionList() { 
         this.fusionList.removeAll(true); 
         const candidates = gameState.inventory.filter(i => String(i.id) !== String(this.itemToFuse1.id) && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); 
-        if (candidates.length === 0) { this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5)); return; } 
+        
+        if (candidates.length === 0) { 
+            this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5)); 
+            this.fusionPrevBtn.setVisible(false);
+            this.fusionNextBtn.setVisible(false);
+            this.fusionPageText.setVisible(false);
+            return; 
+        } 
+
+        // Lógica paginación
+        const totalPages = Math.ceil(candidates.length / this.fusionItemsPerPage);
+        if (this.fusionPage < 0) this.fusionPage = 0;
+        if (this.fusionPage >= totalPages) this.fusionPage = totalPages - 1;
+
+        const start = this.fusionPage * this.fusionItemsPerPage;
+        const end = start + this.fusionItemsPerPage;
+        const pageItems = candidates.slice(start, end);
+
         let y = 0; 
-        candidates.forEach(item => { 
+        pageItems.forEach(item => { 
             const btn = this.add.rectangle(0, y, 400, 40, 0x333333).setInteractive({useHandCursor:true}); 
             const txt = this.add.text(0, y, `${item.name}`, { ...this.fontBody }).setOrigin(0.5); 
             btn.on('pointerdown', () => this.selectSecondItemForFusion(item)); 
             this.fusionList.add([btn, txt]); 
             y += 50; 
         }); 
+
+        // Actualizar UI paginación
+        this.fusionPrevBtn.setVisible(this.fusionPage > 0);
+        this.fusionNextBtn.setVisible(this.fusionPage < totalPages - 1);
+        this.fusionPageText.setVisible(true).setText(`Página ${this.fusionPage + 1}/${totalPages}`);
     }
     
     selectSecondItemForFusion(item2) { 
