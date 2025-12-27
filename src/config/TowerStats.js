@@ -24,18 +24,18 @@ export const TOWER_TYPES = {
         color: 0xff0000,
         type: 'physical',
         levels: [
-            { level: 1, damage: 25, range: 360, fireRate: 1500, aoe: 60, upgradeCost: 100 },
-            { level: 2, damage: 35, range: 390, fireRate: 1400, aoe: 70, upgradeCost: 150 },
-            { level: 3, damage: 50, range: 420, fireRate: 1300, aoe: 80, upgradeCost: 250 }
+            { level: 1, damage: 25, range: 360, fireRate: 1500, aoe: 80, upgradeCost: 100 },
+            { level: 2, damage: 35, range: 390, fireRate: 1400, aoe: 90, upgradeCost: 150 },
+            { level: 3, damage: 50, range: 420, fireRate: 1300, aoe: 100, upgradeCost: 250 }
         ],
         evolutions: {
-            pathA: { key: 'missile', name: "Lanzamisiles", cost: 450, color: 0x8b0000, stats: { damage: 100, range: 750, fireRate: 1800, aoe: 40 } }, // Menos AoE, más rango/daño
-            pathB: { key: 'bigbertha', name: "Gran Bertha", cost: 500, color: 0xff4500, stats: { damage: 80, range: 420, fireRate: 1500, aoe: 120 } } // Masivo AoE
+            pathA: { key: 'missile', name: "Lanzamisiles", cost: 450, color: 0x8b0000, stats: { damage: 100, range: 750, fireRate: 1800, aoe: 60 } },
+            pathB: { key: 'bigbertha', name: "Gran Bertha", cost: 500, color: 0xff4500, stats: { damage: 80, range: 420, fireRate: 1500, aoe: 150 } } 
         }
     },
     mage: {
         name: "Torre Arcana",
-        description: "Lanza rayos mágicos que atraviesan armadura ligera.",
+        description: "Lanza rayos mágicos.",
         baseCost: 120,
         color: 0x0000ff,
         type: 'magic',
@@ -51,44 +51,44 @@ export const TOWER_TYPES = {
     },
     tesla: {
         name: "Torre Tesla",
-        description: "Lanza rayos que saltan entre enemigos cercanos.",
+        description: "Lanza rayos que saltan.",
         baseCost: 180,
         color: 0xffff00,
         type: 'magic',
         levels: [
-            { level: 1, damage: 12, range: 390, fireRate: 900, upgradeCost: 110 },
-            { level: 2, damage: 18, range: 420, fireRate: 850, upgradeCost: 160 },
-            { level: 3, damage: 26, range: 450, fireRate: 800, upgradeCost: 240 }
+            { level: 1, damage: 12, range: 390, fireRate: 900, upgradeCost: 110, effect: { type: 'chain', val: 1 } },
+            { level: 2, damage: 18, range: 420, fireRate: 850, upgradeCost: 160, effect: { type: 'chain', val: 2 } },
+            { level: 3, damage: 26, range: 450, fireRate: 800, upgradeCost: 240, effect: { type: 'chain', val: 3 } }
         ],
         evolutions: {
-            pathA: { key: 'superconductor', name: "Superconductor", cost: 500, color: 0xffd700, stats: { damage: 35, range: 480, fireRate: 750, effect: { type: 'chain', val: 3, duration: 0 } } }, // 3 Saltos
-            pathB: { key: 'static', name: "Campo Estático", cost: 450, color: 0xb8860b, stats: { damage: 15, range: 420, fireRate: 200, effect: { type: 'stun', val: 0.1, duration: 500 } } } // Micro-stuns rápidos
+            pathA: { key: 'superconductor', name: "Superconductor", cost: 500, color: 0xffd700, stats: { damage: 35, range: 480, fireRate: 750, effect: { type: 'chain', val: 5, duration: 0 } } }, 
+            pathB: { key: 'static', name: "Campo Estático", cost: 450, color: 0xb8860b, stats: { damage: 15, range: 420, fireRate: 200, effect: { type: 'stun', val: 0.1, duration: 500 } } } 
         }
     },
     poison: {
         name: "Alquimista",
-        description: "Lanza frascos de ácido que dañan en el tiempo.",
+        description: "Crea charcos de ácido.",
         baseCost: 130,
-        color: 0x006400, // Verde oscuro
+        color: 0x006400, 
         type: 'chemical',
         levels: [
-            { level: 1, damage: 5, range: 420, fireRate: 1100, upgradeCost: 90, effect: { type: 'poison', val: 3, duration: 3000 } }, // 3dmg/tick
-            { level: 2, damage: 8, range: 450, fireRate: 1050, upgradeCost: 130, effect: { type: 'poison', val: 5, duration: 4000 } },
-            { level: 3, damage: 12, range: 480, fireRate: 1000, upgradeCost: 210, effect: { type: 'poison', val: 8, duration: 5000 } }
+            { level: 1, damage: 5, range: 420, fireRate: 1500, aoe: 60, upgradeCost: 90, effect: { type: 'poison', val: 3, duration: 3000 } },
+            { level: 2, damage: 8, range: 450, fireRate: 1400, aoe: 70, upgradeCost: 130, effect: { type: 'poison', val: 5, duration: 4000 } },
+            { level: 3, damage: 12, range: 480, fireRate: 1300, aoe: 80, upgradeCost: 210, effect: { type: 'poison', val: 8, duration: 5000 } }
         ],
         evolutions: {
-            pathA: { key: 'venom', name: "Veneno Letal", cost: 400, color: 0x7cfc00, stats: { damage: 20, range: 510, fireRate: 1000, effect: { type: 'poison', val: 20, duration: 6000 } } }, // Alto DoT
-            pathB: { key: 'acid', name: "Ácido", cost: 420, color: 0x556b2f, stats: { damage: 15, range: 480, fireRate: 1000, effect: { type: 'armor_break', val: 5, duration: 5000 } } } // Reduce armadura
+            pathA: { key: 'venom', name: "Veneno Letal", cost: 400, color: 0x7cfc00, stats: { damage: 20, range: 510, fireRate: 1200, aoe: 90, effect: { type: 'poison', val: 20, duration: 6000 } } },
+            pathB: { key: 'acid', name: "Ácido", cost: 420, color: 0x556b2f, stats: { damage: 15, range: 480, fireRate: 1200, aoe: 80, effect: { type: 'armor_break', val: 5, duration: 5000 } } } 
         }
     },
     quake: {
         name: "Torre Sísmica",
-        description: "Golpea el suelo dañando a todos los enemigos cercanos.",
+        description: "Golpea el suelo (AOE Instantáneo).",
         baseCost: 200,
-        color: 0x8b4513, // Marrón tierra
+        color: 0x8b4513, 
         type: 'physical',
         levels: [
-            { level: 1, damage: 40, range: 240, fireRate: 2000, aoe: 240, upgradeCost: 150 }, // Rango = AoE (sin proyectil)
+            { level: 1, damage: 40, range: 240, fireRate: 2000, aoe: 240, upgradeCost: 150 }, 
             { level: 2, damage: 60, range: 255, fireRate: 1900, aoe: 255, upgradeCost: 200 },
             { level: 3, damage: 90, range: 270, fireRate: 1800, aoe: 270, upgradeCost: 300 }
         ],

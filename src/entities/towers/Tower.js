@@ -49,7 +49,8 @@ export default class Tower extends Phaser.GameObjects.Container {
         if (time > this.lastAttackTime + this.attackSpeed) { 
             this.findTargetAndFire(time); 
         }
-        if (this.typeKey === 'mage' || this.evolutionKey === 'ice' || this.evolutionKey === 'fire') {
+        // Animación giratoria para torres mágicas/elementales
+        if (['mage', 'tesla', 'ice', 'fire'].includes(this.typeKey) || this.evolutionKey) {
             this.turretGroup.angle += 1; 
         }
     }
@@ -58,13 +59,18 @@ export default class Tower extends Phaser.GameObjects.Container {
         let target = null; 
         let maxProgress = -1;
         
+        // Quake ataca si HAY alguien en rango, no necesita un "target" específico para disparar
+        // pero necesitamos saber si hay alguien para activar el cooldown.
+        let enemyInRange = false;
+
         this.enemies.children.iterate(enemy => {
             if (enemy.active && !enemy.isDead) {
-                // Lógica de Vuelo: Cañones ignoran voladores
-                if (this.typeKey === 'cannon' && enemy.isFlying) return;
+                // Lógica de Vuelo: Cañones y Quake no atacan aire (a menos que quake evolucione, pero base no)
+                if ((this.typeKey === 'cannon' || this.typeKey === 'quake') && enemy.isFlying) return;
 
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                 if (dist <= this.range) {
+                    enemyInRange = true;
                     if (enemy.follower.t > maxProgress) { 
                         maxProgress = enemy.follower.t; 
                         target = enemy; 
@@ -73,8 +79,14 @@ export default class Tower extends Phaser.GameObjects.Container {
             }
         });
 
-        if (target) {
-            if (this.typeKey !== 'mage') { 
+        // Si es Quake y hay enemigos, disparar (hit al suelo)
+        if (this.typeKey === 'quake' && enemyInRange) {
+            this.fire(null); // No necesita target directo
+            this.lastAttackTime = time;
+        } 
+        // Otras torres necesitan target
+        else if (target) {
+            if (this.typeKey !== 'mage' && this.typeKey !== 'tesla' && this.typeKey !== 'poison') { 
                 const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
                 this.turretGroup.rotation = angle + (Math.PI / 2);
             }
@@ -86,12 +98,14 @@ export default class Tower extends Phaser.GameObjects.Container {
     fire(target) {
         const fireProjectile = () => {
             let projectileType = this.typeKey;
+            // Manejo especial de evolución visual
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
             const p = new Projectile(this.scene, this.x, this.y);
             if (this.projectiles) this.projectiles.add(p);
             
             let finalDamage = this.damage;
+            // Críticos
             if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
                 finalDamage *= 2; 
                 if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
@@ -107,11 +121,14 @@ export default class Tower extends Phaser.GameObjects.Container {
 
         fireProjectile();
         
-        if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance) {
-            this.scene.time.delayedCall(100, fireProjectile); 
+        // Doble ataque (Chance)
+        if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance && target) {
+            this.scene.time.delayedCall(150, fireProjectile); 
         }
         
-        this.scene.tweens.add({ targets: this.turretGroup, y: (this.evolutionKey==='gatling'?2:5), yoyo: true, duration: 50 });
+        // Animación de retroceso
+        const recoil = (this.evolutionKey==='gatling') ? 2 : 5;
+        this.scene.tweens.add({ targets: this.turretGroup, y: recoil, yoyo: true, duration: 50 });
     }
 
     upgrade() {
