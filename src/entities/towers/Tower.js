@@ -20,7 +20,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.typeName = data.name;
         this.baseColor = data.color;
         
-        // --- VISUALES ---
         this.base = scene.add.rectangle(0, 0, 40, 40, 0x808080);
         this.base.setStrokeStyle(2, 0x000000);
         
@@ -36,7 +35,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.rangeCircle.setVisible(false); 
         this.add(this.rangeCircle);
 
-        // --- ESTADO ---
         this.level = 1; 
         this.maxLevel = 3; 
         this.isEvolved = false;
@@ -44,7 +42,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.lastAttackTime = 0; 
         this.upgradeCost = 0;
         
-        // Cargar stats iniciales
         this.updateStats(); 
     }
 
@@ -63,6 +60,9 @@ export default class Tower extends Phaser.GameObjects.Container {
         
         this.enemies.children.iterate(enemy => {
             if (enemy.active && !enemy.isDead) {
+                // Lógica de Vuelo: Cañones ignoran voladores
+                if (this.typeKey === 'cannon' && enemy.isFlying) return;
+
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                 if (dist <= this.range) {
                     if (enemy.follower.t > maxProgress) { 
@@ -86,14 +86,12 @@ export default class Tower extends Phaser.GameObjects.Container {
     fire(target) {
         const fireProjectile = () => {
             let projectileType = this.typeKey;
-            // Gatling dispara recto
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
             const p = new Projectile(this.scene, this.x, this.y);
             if (this.projectiles) this.projectiles.add(p);
             
             let finalDamage = this.damage;
-            // Crítico Francotirador
             if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
                 finalDamage *= 2; 
                 if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
@@ -133,20 +131,16 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.evolutionKey = evoData.key;
             this.typeName = evoData.name;
             this.totalInvestment += evoData.cost;
-            
             this.turretBody.setFillStyle(evoData.color);
             this.base.setStrokeStyle(3, 0xffd700); 
             
-            // Aplicar stats base de evolución
             this.damage = evoData.stats.damage;
             this.range = evoData.stats.range;
             this.attackSpeed = evoData.stats.fireRate;
             this.currentEffect = evoData.stats.effect || null;
             this.currentAoE = evoData.stats.aoe || 0;
             
-            // Re-aplicar bonos (equipo y talentos)
             this.applyGlobalBonuses();
-
             this.showLevelUpEffect();
             this.rangeCircle.setRadius(this.range);
         }
@@ -154,10 +148,8 @@ export default class Tower extends Phaser.GameObjects.Container {
 
     updateStats() {
         if (this.isEvolved) return; 
-
         const typeData = TOWER_TYPES[this.typeKey];
         const currentStats = typeData.levels[this.level - 1];
-
         if (currentStats) {
             this.damage = currentStats.damage;
             this.range = currentStats.range;
@@ -165,30 +157,19 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.upgradeCost = currentStats.upgradeCost || 0;
             this.currentEffect = currentStats.effect || null;
             this.currentAoE = currentStats.aoe || 0;
-
             this.applyGlobalBonuses();
-
             if (this.rangeCircle) this.rangeCircle.setRadius(this.range);
         }
     }
 
     applyGlobalBonuses() {
-        // 1. Bonos de Equipo
         const equipBonuses = getTowerBonuses(this.typeKey);
-        
-        // 2. Bonos de Talentos (Se calculan en GameState)
         const talentBonuses = getTalentBonuses();
-
         this.damage += equipBonuses.damage + (talentBonuses.towerDamage || 0);
         this.range += equipBonuses.range + (talentBonuses.towerRange || 0);
-        
-        // Velocidad (reduce delay)
         const speedReduction = equipBonuses.attackSpeed; 
         this.attackSpeed = Math.max(100, this.attackSpeed - speedReduction);
-        
         this.doubleAttackChance = equipBonuses.doubleAttack || 0;
-
-        // Descuento
         if (talentBonuses.towerCost > 0 && !this.isEvolved) {
             this.upgradeCost = Math.floor(this.upgradeCost * (1 - (talentBonuses.towerCost / 100)));
         }
