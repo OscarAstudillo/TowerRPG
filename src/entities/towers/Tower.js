@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
 import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
 import Projectile from '../projectiles/Projectile.js';
+import SoundManager from '../../systems/SoundManager.js'; // IMPORTAR AUDIO
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -20,19 +21,17 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.typeName = data.name;
         this.baseColor = data.color;
         
-        // --- CAMBIO A SPRITE ---
-        // Usamos la textura generada en PreloadScene
+        // --- SPRITE BASE ---
         this.baseSprite = scene.add.sprite(0, 0, 'base_tower');
-        this.baseSprite.setTint(this.baseColor); // Aplicamos el color de la torre
+        this.baseSprite.setTint(this.baseColor); 
         this.baseSprite.setDisplaySize(40, 40);
         
-        // Marco de selección (borde)
         this.selectionRing = scene.add.graphics();
         this.selectionRing.lineStyle(2, 0x000000);
         this.selectionRing.strokeRect(-20, -20, 40, 40);
 
         this.add([this.baseSprite, this.selectionRing]);
-        // -----------------------
+        // -------------------
 
         this.setSize(40, 40);
         this.setInteractive({ useHandCursor: true });
@@ -55,8 +54,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         if (time > this.lastAttackTime + this.attackSpeed) { 
             this.findTargetAndFire(time); 
         }
-        
-        // Rotación visual del sprite
         if (['mage', 'tesla', 'ice', 'fire'].includes(this.typeKey) || this.evolutionKey) {
             this.baseSprite.angle += 1; 
         }
@@ -107,6 +104,14 @@ export default class Tower extends Phaser.GameObjects.Container {
                 p.setActive(true);
                 p.setVisible(true);
 
+                // --- AUDIO: REPRODUCIR SONIDO SEGÚN TIPO ---
+                let soundType = 'shoot_arrow';
+                if (['cannon', 'quake'].includes(this.typeKey)) soundType = 'shoot_cannon';
+                else if (['mage', 'tesla', 'ice', 'fire', 'poison'].includes(this.typeKey)) soundType = 'shoot_magic';
+                
+                SoundManager.playSound(soundType);
+                // -------------------------------------------
+
                 let finalDamage = this.damage;
                 if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
                     finalDamage *= 2; 
@@ -128,7 +133,6 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.scene.time.delayedCall(150, fireProjectile); 
         }
         
-        // Animación de retroceso (Recoil)
         const recoil = (this.evolutionKey==='gatling') ? 2 : 4;
         this.scene.tweens.add({ targets: this.baseSprite, y: recoil, yoyo: true, duration: 50 });
     }
@@ -138,6 +142,7 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.level++;
             this.updateStats();
             this.showLevelUpEffect();
+            SoundManager.playSound('upgrade'); // Sonido al mejorar
         }
     }
 
@@ -150,8 +155,6 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.evolutionKey = evoData.key;
             this.typeName = evoData.name;
             this.totalInvestment += evoData.cost;
-            
-            // Actualizar color del sprite
             this.baseSprite.setTint(evoData.color);
             this.selectionRing.lineStyle(3, 0xffd700); 
             this.selectionRing.strokeRect(-20, -20, 40, 40);
@@ -165,6 +168,7 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.applyGlobalBonuses();
             this.showLevelUpEffect();
             this.rangeCircle.setRadius(this.range);
+            SoundManager.playSound('upgrade'); // Sonido al evolucionar
         }
     }
 

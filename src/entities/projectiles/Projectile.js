@@ -1,5 +1,6 @@
 // src/entities/projectiles/Projectile.js
 import Phaser from 'phaser';
+import SoundManager from '../../systems/SoundManager.js'; // IMPORTAR AUDIO
 
 export default class Projectile extends Phaser.GameObjects.Container {
     constructor(scene, x, y) {
@@ -7,10 +8,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
         scene.add.existing(this);
         scene.physics.add.existing(this);
 
-        // --- CAMBIO A SPRITE ---
         this.sprite = scene.add.sprite(0, 0, 'base_projectile');
         this.add(this.sprite);
-        // -----------------------
         
         this.speed = 600;
         this.damage = 10;
@@ -70,7 +69,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.setActive(true);
         this.setVisible(true);
 
-        // Reset visual
         this.sprite.setVisible(true);
         this.sprite.setTint(0xffffff);
         this.sprite.setScale(1);
@@ -85,7 +83,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.chainCount = this.effect.val;
         }
 
-        // COLORES POR TIPO
         if (this.type === 'cannon') {
             this.sprite.setTint(0x000000); 
             this.sprite.setScale(1.5);
@@ -225,12 +222,13 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.lifespan = 1500; 
             this.aoeRadius = this.aoeRadius || 60; 
             
-            // Transformar sprite a charco visual
             this.sprite.setTint(0x00ff00);
             this.sprite.setAlpha(0.5);
-            this.sprite.setScale(this.aoeRadius / 8); // Ajuste visual
+            this.sprite.setScale(this.aoeRadius / 8); 
             
             this.createExplosion(0x00ff00);
+            // Sonido de salpicadura (similar a hit)
+            SoundManager.playSound('hit'); 
             return; 
         }
 
@@ -238,6 +236,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
             const colorExplosion = (this.type === 'quake') ? 0x8b4513 : 0xffa500;
             this.createExplosion(colorExplosion); 
             
+            // Sonido de explosión AOE
+            SoundManager.playSound('shoot_cannon'); // Reusamos el boom grave
+
             const enemies = this.scene.enemies.getChildren();
             enemies.forEach(enemy => {
                 if (enemy && enemy.active) {
@@ -266,6 +267,10 @@ export default class Projectile extends Phaser.GameObjects.Container {
             directTarget.takeDamage(this.damage);
             if (this.effect) directTarget.applyStatus(this.effect);
             
+            // --- AUDIO: SONIDO DE IMPACTO ---
+            SoundManager.playSound('hit');
+            // --------------------------------
+
             if (this.scene.createHitEffect) {
                 this.scene.createHitEffect(this.x, this.y, this.sprite.tintTopLeft);
             }

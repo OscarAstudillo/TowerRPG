@@ -12,6 +12,7 @@ import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import { BIOMES, getLevelData } from '../config/Levels.js'; 
 import { BIOME_ENEMIES } from '../config/Enemies.js';
+import SoundManager from '../systems/SoundManager.js'; // IMPORTAR AUDIO
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -46,7 +47,6 @@ export default class GameScene extends Phaser.Scene {
     create() {
         updatePlayerStats(); 
         
-        // Textura Pixel para partículas y barras de vida
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -54,8 +54,7 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
-        // --- SISTEMA DE PARTÍCULAS (CORREGIDO PARA PHASER 3.60+) ---
-        // Emitter para Explosiones (Muerte, Cañón, Quake)
+        // --- SISTEMA DE PARTÍCULAS ---
         this.explosionEmitter = this.add.particles(0, 0, 'pixel', {
             speed: { min: 50, max: 300 },
             angle: { min: 0, max: 360 },
@@ -63,25 +62,23 @@ export default class GameScene extends Phaser.Scene {
             alpha: { start: 1, end: 0 },
             lifespan: 600,
             gravityY: 0,
-            emitting: false, // Empieza apagado
+            emitting: false,
             blendMode: 'ADD'
         }).setDepth(900);
 
-        // Emitter para Impactos (Golpes de flecha, ticks de daño)
         this.hitEmitter = this.add.particles(0, 0, 'pixel', {
             speed: { min: 20, max: 100 },
             angle: { min: 0, max: 360 },
             scale: { start: 1, end: 0 },
             lifespan: 300,
-            emitting: false, // Empieza apagado
+            emitting: false,
             blendMode: 'ADD'
         }).setDepth(900);
-        // -------------------------------------
+        // -----------------------------
 
         // Grupos
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         
-        // Configuración Object Pooling para proyectiles
         this.projectiles = this.physics.add.group({ 
             classType: Projectile, 
             runChildUpdate: true,
@@ -135,11 +132,9 @@ export default class GameScene extends Phaser.Scene {
 
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        // Selector de Torres
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
@@ -147,7 +142,6 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
         this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
 
-        // Click Logic
         this.input.on('gameobjectdown', (pointer, obj) => {
             if (this.isPaused) return; 
             let tower = this.getTowerFromObject(obj);
@@ -172,7 +166,6 @@ export default class GameScene extends Phaser.Scene {
             }
         });
 
-        // Colisiones
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
             if(e.active && p.active) { 
                 if(p.hit) p.hit(e); 
@@ -544,6 +537,10 @@ export default class GameScene extends Phaser.Scene {
             this.updateUI(); 
             this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); 
             SaveSystem.save(); 
+            
+            // --- AUDIO: SONIDO DE CONSTRUCCIÓN ---
+            SoundManager.playSound('build');
+            // -------------------------------------
         } else { 
             this.cameras.main.shake(100, 0.005); 
         } 
@@ -558,6 +555,11 @@ export default class GameScene extends Phaser.Scene {
 
         const rewardGold = 100 + (this.level * 50); 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); 
+        
+        // --- AUDIO: SONIDO DE VICTORIA ---
+        SoundManager.playSound('upgrade'); // Usamos el sonido de upgrade como victoria
+        // ---------------------------------
+
         this.time.delayedCall(2000, () => { 
             this.scene.start('ChestScene', { biome: this.biome, level: this.level, winData: { gold: rewardGold, xp: 100 * this.level, baseHp: gameState.baseHp, enemyLoot: this.sessionLoot } }); 
         }); 
@@ -581,11 +583,10 @@ export default class GameScene extends Phaser.Scene {
         } catch (err) { console.warn("Error", err); } 
     }
     
-    // --- CORREGIDO: USAR NUEVA API DE PARTÍCULAS PHASER 3.60+ ---
     createExplosion(x, y, color) {
         if (!this.explosionEmitter) return;
         this.explosionEmitter.setPosition(x, y);
-        this.explosionEmitter.setParticleTint(color); // Phaser 3.60+ usa setParticleTint
+        this.explosionEmitter.setParticleTint(color); 
         this.explosionEmitter.explode(20); 
         this.cameras.main.shake(100, 0.005);
     }
@@ -593,10 +594,9 @@ export default class GameScene extends Phaser.Scene {
     createHitEffect(x, y, color) {
         if (!this.hitEmitter) return;
         this.hitEmitter.setPosition(x, y);
-        this.hitEmitter.setParticleTint(color); // Phaser 3.60+ usa setParticleTint
+        this.hitEmitter.setParticleTint(color); 
         this.hitEmitter.explode(5); 
     }
-    // -------------------------------------------------------------
 
     spawnLoot(x, y) { if (Math.random() > 0.30) return; let type = 'wood'; let rarity = 'common'; const roll = Math.random(); if (roll < 0.15) type = 'potion_hp'; else if (roll < 0.25) type = 'coin_bag'; else { const m = Math.random(); if(m<0.25) type='wood'; else type='copper'; } const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
     collectLoot(lootItem) { if (lootItem.isConsumable) { if (lootItem.typeKey === 'potion_hp') { const heal = Math.floor(gameState.playerStats.maxHp * 0.25); gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); } else if (lootItem.typeKey === 'coin_bag') { const gold = Phaser.Math.Between(30, 60); this.coins += gold; this.updateUI(); this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); } } else { if(gameState.materials[lootItem.typeKey]) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; RPGSystem.updateQuestProgress('collect', lootItem.typeKey, 1); if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {common:0}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); } } lootItem.destroy(); }
