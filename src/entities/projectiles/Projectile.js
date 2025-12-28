@@ -18,16 +18,12 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.effect = null;
         this.lifespan = 2000;
         
-        // Propiedades
-        this.chainCount = 0;   // Tesla
-        this.isPuddle = false; // Veneno
+        this.chainCount = 0;   
+        this.isPuddle = false; 
         this.puddleTick = 0;
         this.type = 'arrow';
-        
-        // CORRECCIÓN TESLA: Lista de enemigos ya golpeados por este rayo
         this.hitIds = []; 
         
-        // Coordenadas de destino para precisión
         this.destX = 0;
         this.destY = 0;
         this.timer = 0;
@@ -39,7 +35,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
     }
 
-    // Método auxiliar para limpiar variables al reciclar
     resetValues() {
         this.speed = 600;
         this.damage = 10;
@@ -56,8 +51,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.destY = 0;
         this.timer = 0;
         this.duration = 0;
-        
-        // RESETEAR LISTA DE IMPACTOS
         this.hitIds = [];
         
         if (this.body) {
@@ -71,17 +64,14 @@ export default class Projectile extends Phaser.GameObjects.Container {
     }
 
     fire(target, options) {
-        // 1. REVIVIR Y RESETEAR (Pooling)
         this.resetValues();
         this.setActive(true);
         this.setVisible(true);
 
-        // Asegurar forma base
         if (this.bodyShape) this.bodyShape.destroy();
         this.bodyShape = this.scene.add.circle(0, 0, 4, 0xffffff);
         this.add(this.bodyShape);
 
-        // 2. CONFIGURACIÓN
         this.target = target;
         this.damage = options.damage || 10;
         this.aoeRadius = options.aoe || 0;
@@ -92,7 +82,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.chainCount = this.effect.val;
         }
 
-        // --- LÓGICA VISUAL Y DE MOVIMIENTO ---
         if (this.type === 'cannon') {
             this.bodyShape.setFillStyle(0x000000); 
             this.bodyShape.setRadius(6);
@@ -154,7 +143,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
     update(time, delta) {
         if (!this.active) return;
 
-        // --- CHARCO VENENO ---
         if (this.isPuddle) {
             this.lifespan -= delta;
             this.puddleTick += delta;
@@ -172,6 +160,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
                         if (e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= this.aoeRadius) {
                             if (this.effect) e.applyStatus(this.effect);
                             e.takeDamage(1);
+                            // Visual para el tick de veneno
+                            if(this.scene.createHitEffect) this.scene.createHitEffect(e.x, e.y, 0x00ff00);
                         }
                     });
                 }
@@ -179,7 +169,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return;
         }
 
-        // --- PROYECTIL NORMAL ---
         this.lifespan -= delta;
         if (this.lifespan <= 0) {
             this.recycle();
@@ -187,7 +176,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         if (this.isParabolic) {
-            // Seguimiento en tiempo real para puntería perfecta (Cañón)
             if (this.target && this.target.active) {
                 this.destX = this.target.x;
                 this.destY = this.target.y;
@@ -227,7 +215,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return;
         }
 
-        // --- VENENO (CREAR CHARCO) ---
         if (this.type === 'poison') {
             if (this.destX !== 0 && this.destY !== 0) {
                 this.x = this.destX;
@@ -247,7 +234,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return; 
         }
 
-        // --- DAÑO EN ÁREA ---
         if (this.aoeRadius > 0) {
             const colorExplosion = (this.type === 'quake') ? 0x8b4513 : 0xffa500;
             this.createExplosion(colorExplosion); 
@@ -273,29 +259,23 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 }
             });
         } 
-        // --- IMPACTO DIRECTO ---
         else if (directTarget && directTarget.active) {
-            
-            // --- CORRECCIÓN TESLA: EVITAR GOLPES REPETIDOS ---
-            // Si este rayo ya le pegó a este enemigo, no hacer nada (ignorar colisión)
-            if (this.hitIds.includes(directTarget)) {
-                return;
-            }
-            // Registrar golpe
+            if (this.hitIds.includes(directTarget)) return;
             this.hitIds.push(directTarget);
 
             directTarget.takeDamage(this.damage);
             if (this.effect) directTarget.applyStatus(this.effect);
             
-            // Lógica de Salto (Chain)
+            // --- NUEVO: EFECTO DE GOLPE ---
+            if (this.scene.createHitEffect) {
+                this.scene.createHitEffect(this.x, this.y, this.bodyShape.fillColor);
+            }
+            // ------------------------------
+
             if (this.chainCount > 0) {
-                // Buscar siguiente objetivo excluyendo a los que YA golpeamos (hitIds)
                 const nextTarget = this.findNextChainTarget(this.hitIds); 
-                
                 if (nextTarget) {
                     this.drawLightning(this.x, this.y, nextTarget.x, nextTarget.y);
-
-                    // Reutilizar mismo proyectil para el salto
                     this.x = directTarget.x;
                     this.y = directTarget.y;
                     this.target = nextTarget;
@@ -305,7 +285,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
                     
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, nextTarget.x, nextTarget.y);
                     this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
-                    return; // MANTENER VIVO EL PROYECTIL
+                    return; 
                 }
             }
         }
@@ -320,16 +300,12 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.setPosition(-1000, -1000);
     }
 
-    // Recibe un array de excluidos (ya golpeados)
     findNextChainTarget(excludedEnemies) {
-        const range = 250; // Rango de salto
+        const range = 250; 
         let closest = null;
         let minDist = Infinity;
-        
         if (!this.scene || !this.scene.enemies) return null;
-
         this.scene.enemies.children.iterate(e => {
-            // Filtrar: Que esté vivo y NO esté en la lista de excluidos
             if (e.active && !e.isDead && !excludedEnemies.includes(e)) { 
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y);
                 if (dist < range && dist < minDist) {
@@ -357,7 +333,13 @@ export default class Projectile extends Phaser.GameObjects.Container {
 
     createExplosion(color = 0xff4500) {
         if(!this.scene) return;
-        const circle = this.scene.add.circle(this.x, this.y, 10, color, 0.6);
-        this.scene.tweens.add({ targets: circle, scale: this.aoeRadius / 5, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
+        // USAMOS EL NUEVO SISTEMA DE PARTÍCULAS DEL SCENE SI EXISTE
+        if (this.scene.createExplosion) {
+            this.scene.createExplosion(this.x, this.y, color);
+        } else {
+            // Fallback antiguo por si acaso
+            const circle = this.scene.add.circle(this.x, this.y, 10, color, 0.6);
+            this.scene.tweens.add({ targets: circle, scale: this.aoeRadius / 5, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
+        }
     }
 }

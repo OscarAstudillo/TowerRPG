@@ -46,7 +46,7 @@ export default class GameScene extends Phaser.Scene {
     create() {
         updatePlayerStats(); 
         
-        // Textura Pixel para barras de vida
+        // Textura Pixel para partículas y barras de vida
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -54,14 +54,43 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
+        // --- SISTEMA DE PARTÍCULAS (NUEVO) ---
+        // Creamos un manager de partículas global para la escena
+        this.particleManager = this.add.particles('pixel').setDepth(900); // Debajo de la UI (1000)
+
+        // Emitter para Explosiones (Muerte, Cañón, Quake)
+        this.explosionEmitter = this.particleManager.createEmitter({
+            speed: { min: 50, max: 300 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 2, end: 0 },
+            alpha: { start: 1, end: 0 },
+            lifespan: 600,
+            gravityY: 0,
+            quantity: 0, // Manual emission
+            on: false,
+            blendMode: 'ADD'
+        });
+
+        // Emitter para Impactos (Golpes de flecha, ticks de daño)
+        this.hitEmitter = this.particleManager.createEmitter({
+            speed: { min: 20, max: 100 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 1, end: 0 },
+            lifespan: 300,
+            quantity: 0,
+            on: false,
+            blendMode: 'ADD'
+        });
+        // -------------------------------------
+
         // Grupos
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         
-        // --- OBJECT POOLING: Configuración del Grupo de Proyectiles ---
+        // Configuración Object Pooling para proyectiles
         this.projectiles = this.physics.add.group({ 
             classType: Projectile, 
             runChildUpdate: true,
-            maxSize: 200 // Límite de seguridad para evitar fugas de memoria
+            maxSize: 200 
         });
 
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: false });
@@ -81,7 +110,6 @@ export default class GameScene extends Phaser.Scene {
         this.bossLootLog = []; 
         gameState.baseHp = 20;
 
-        // Dibujar Grid y Camino
         const graphics = this.add.graphics();
         if (this.theme.grid) {
             graphics.lineStyle(2, this.theme.grid, 0.3);
@@ -105,29 +133,26 @@ export default class GameScene extends Phaser.Scene {
 
         this.createBuildSlots();
 
-        // 1. INICIALIZAR UI PRIMERO (Para evitar errores de undefined)
+        // UI
         this.createUpgradeUI(); 
         this.createUI();
         this.createPauseMenu();
 
-        // Jugador
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
         // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        // Selección de Torres (1-3 Originales)
+        // Selector de Torres
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
-        
-        // --- NUEVAS TECLAS (4-6 Nuevas Torres) ---
         this.input.keyboard.on('keydown-FOUR', () => { if(!this.isPaused) { this.selectedTowerType = 'tesla'; this.updateUI(); }});
         this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
         this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
 
-        // Click en Torres
+        // Click Logic
         this.input.on('gameobjectdown', (pointer, obj) => {
             if (this.isPaused) return; 
             let tower = this.getTowerFromObject(obj);
@@ -137,10 +162,8 @@ export default class GameScene extends Phaser.Scene {
             } 
         });
 
-        // Click fuera para cerrar menú
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
-            // Protección: Verificar que upgradeContainer existe
             if (!this.upgradeContainer) return;
 
             const clickedOnUI = currentlyOver.some(obj => 
@@ -158,14 +181,13 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
             if(e.active && p.active) { 
                 if(p.hit) p.hit(e); 
-                // Usamos recycle() en lugar de destroy() si el proyectil lo soporta (ver Projectile.js)
-                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); } 
+                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); }
             } 
         });
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
 
         this.startWaveTimer(20); 
-        this.updateUI(); // Ahora sí funcionará porque la función está bien definida abajo
+        this.updateUI();
         this.isSceneReady = true;
     }
 
@@ -175,9 +197,6 @@ export default class GameScene extends Phaser.Scene {
         if (this.player) this.player.update(time, delta);
         if (this.towers) { this.towers.children.iterate(t => { if (t && t.active) t.update(time, delta); }); }
         
-        // Los proyectiles se actualizan automáticamente gracias a runChildUpdate: true
-        // if (this.projectiles) { this.projectiles.children.iterate(p => { if (p && p.active && p.update) p.update(time, delta); }); }
-
         const hero = getCurrentHero();
         if (hero && hero.level > this.lastHeroLevel) {
             this.showLevelUpEffect();
@@ -202,7 +221,6 @@ export default class GameScene extends Phaser.Scene {
     // --- GAMEPLAY UTILS ---
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
-        
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
         gameState.materials[matKey][rarity] += qty;
         
@@ -238,13 +256,10 @@ export default class GameScene extends Phaser.Scene {
             if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
         }
         
-        // MÁS ENEMIGOS
         let baseCount = 8 + (this.currentWave * 3); 
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
-        
-        // MENOS TIEMPO ENTRE ELLOS (Para que el cañón sea útil)
         let spawnDelay = 1000 - (this.currentWave * 50); 
-        if (spawnDelay < 200) spawnDelay = 200; // Mínimo 200ms
+        if (spawnDelay < 200) spawnDelay = 200; 
 
         if (this.isBossWave) {
             this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
@@ -325,7 +340,6 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // --- UI METHODS ---
-    
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
@@ -481,7 +495,7 @@ export default class GameScene extends Phaser.Scene {
             t.upgrade(); 
             this.updateUpgradeMenuText(); 
             this.updateUI(); 
-            SaveSystem.save(); // GUARDA DESPUÉS DE MEJORAR
+            SaveSystem.save(); 
         } 
     }
     
@@ -495,7 +509,7 @@ export default class GameScene extends Phaser.Scene {
             t.evolve(pathKey); 
             this.updateUpgradeMenuText(); 
             this.updateUI(); 
-            SaveSystem.save(); // GUARDA DESPUÉS DE EVOLUCIONAR
+            SaveSystem.save(); 
         } else { 
             this.showFloatingText(t.x, t.y, "¡Falta Oro!", "#ff0000"); 
         } 
@@ -534,7 +548,7 @@ export default class GameScene extends Phaser.Scene {
             site.occupy(); 
             this.updateUI(); 
             this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); 
-            SaveSystem.save(); // GUARDA DESPUÉS DE CONSTRUIR
+            SaveSystem.save(); 
         } else { 
             this.cameras.main.shake(100, 0.005); 
         } 
@@ -543,14 +557,9 @@ export default class GameScene extends Phaser.Scene {
     victory() { 
         this.physics.pause(); 
         if (this.spawnTimer) this.spawnTimer.remove(); 
+        if (this.level >= (gameState.maxLevel || 1)) { gameState.maxLevel = this.level + 1; } 
         
-        // Guardamos si desbloqueamos nivel
-        if (this.level >= (gameState.maxLevel || 1)) { 
-            gameState.maxLevel = this.level + 1; 
-        } 
-        
-        // SIEMPRE GUARDAMOS AL GANAR (Auto-Save de seguridad)
-        SaveSystem.save();
+        SaveSystem.save(); // AUTOGUARDADO
 
         const rewardGold = 100 + (this.level * 50); 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); 
@@ -571,13 +580,35 @@ export default class GameScene extends Phaser.Scene {
                 this.showFloatingText(enemy.x, enemy.y, "¡BOSS DERROTADO!", "#ffd700"); 
                 RPGSystem.updateQuestProgress('boss', 'any', 1); 
             }
+            // --- NUEVO: EXPLOSIÓN DE PARTÍCULAS ---
             this.createExplosion(enemy.x, enemy.y, enemy.bodyShape.fillColor); 
+            // -------------------------------------
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); 
             this.updateUI(); 
         } catch (err) { console.warn("Error", err); } 
     }
     
-    createExplosion(x, y, color) { const circle = this.add.circle(x, y, 5, color); this.tweens.add({ targets: circle, scale: 4, alpha: 0, duration: 300, onComplete: () => circle.destroy() }); for(let i=0; i<4; i++) { const spark = this.add.rectangle(x, y, 4, 4, color); const angle = Phaser.Math.DegToRad(Math.random() * 360); const dist = 30; this.tweens.add({ targets: spark, x: x + Math.cos(angle) * dist, y: y + Math.sin(angle) * dist, alpha: 0, duration: 400, onComplete: () => spark.destroy() }); } }
+    // --- NUEVO SISTEMA DE EFECTOS VISUALES ---
+    createExplosion(x, y, color) {
+        if (!this.explosionEmitter) return;
+        
+        this.explosionEmitter.setPosition(x, y);
+        this.explosionEmitter.setTint(color);
+        this.explosionEmitter.explode(20); // 20 partículas de golpe
+        
+        // Screen Shake suave para sentir el impacto
+        this.cameras.main.shake(100, 0.005);
+    }
+
+    createHitEffect(x, y, color) {
+        if (!this.hitEmitter) return;
+        
+        this.hitEmitter.setPosition(x, y);
+        this.hitEmitter.setTint(color);
+        this.hitEmitter.explode(5); // Pequeño burst de 5 partículas
+    }
+    // -----------------------------------------
+
     spawnLoot(x, y) { if (Math.random() > 0.30) return; let type = 'wood'; let rarity = 'common'; const roll = Math.random(); if (roll < 0.15) type = 'potion_hp'; else if (roll < 0.25) type = 'coin_bag'; else { const m = Math.random(); if(m<0.25) type='wood'; else type='copper'; } const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
     collectLoot(lootItem) { if (lootItem.isConsumable) { if (lootItem.typeKey === 'potion_hp') { const heal = Math.floor(gameState.playerStats.maxHp * 0.25); gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); } else if (lootItem.typeKey === 'coin_bag') { const gold = Phaser.Math.Between(30, 60); this.coins += gold; this.updateUI(); this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); } } else { if(gameState.materials[lootItem.typeKey]) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; RPGSystem.updateQuestProgress('collect', lootItem.typeKey, 1); if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {common:0}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); } } lootItem.destroy(); }
     showFloatingText(x, y, message, color = '#fff', duration = 800) { const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, duration: duration, onComplete: () => text.destroy() }); }
@@ -600,38 +631,26 @@ export default class GameScene extends Phaser.Scene {
         this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); 
     }
     
-    // --- CORRECCIÓN FINAL: PAUSAR TEMPORIZADORES Y GRUPOS ---
     togglePause() { 
         this.isPaused = !this.isPaused; 
-        
         if (this.isPaused) { 
-            // 1. Detener Física y Animaciones
             this.physics.pause(); 
             this.tweens.pauseAll(); 
+            this.time.paused = true; // PAUSAR RELOJ
             
-            // 2. DETENER EL RELOJ DE LA ESCENA (Vital para delayedCalls y spawns)
-            this.time.paused = true; 
-            
-            // 3. Congelar la lógica de actualización de los grupos (Enemigos/Proyectiles)
             if(this.enemies) this.enemies.runChildUpdate = false;
             if(this.projectiles) this.projectiles.runChildUpdate = false;
 
-            // Mostrar menú
             this.pauseContainer.setVisible(true); 
             this.children.bringToTop(this.pauseContainer); 
         } else { 
-            // 1. Reanudar Física y Animaciones
             this.physics.resume(); 
             this.tweens.resumeAll(); 
+            this.time.paused = false; // REANUDAR RELOJ
             
-            // 2. REANUDAR EL RELOJ
-            this.time.paused = false; 
-            
-            // 3. Reactivar la lógica de los grupos
             if(this.enemies) this.enemies.runChildUpdate = true;
             if(this.projectiles) this.projectiles.runChildUpdate = true;
 
-            // Ocultar menú
             this.pauseContainer.setVisible(false); 
         } 
     }

@@ -23,7 +23,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
         this.armor = data.armor || 0;
-        this.baseArmor = this.armor; // Guardar base para restaurar
+        this.baseArmor = this.armor; 
         this.isFlying = data.flying || false; 
         this.isHealer = data.healer || false;
         
@@ -42,7 +42,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (this.isHealer) color = 0xff69b4; 
         if (typeKey.includes('boss')) color = 0x4b0082; 
 
-        this.originalColor = color; // Guardar color original
+        this.originalColor = color; 
         const size = (this.maxHp > 2000) ? 40 : 20;
 
         this.bodyShape = scene.add.rectangle(0, 0, size, size, color);
@@ -77,7 +77,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         this.updateDebuffs(delta);
         
-        // --- SEGURIDAD: Si murió por debuff, parar update ---
         if (!this.active) return;
 
         if (!this.isShielded && !this.statusEffects.stun.active) {
@@ -136,7 +135,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.poison.active = true;
             this.statusEffects.poison.damage = Math.max(this.statusEffects.poison.damage, effect.val);
             this.statusEffects.poison.timer = effect.duration;
-            this.bodyShape.setFillStyle(0x00ff00); // Verde brillante
+            this.bodyShape.setFillStyle(0x00ff00); 
         }
         else if (effect.type === 'armor_break') {
             this.statusEffects.armorBreak.active = true;
@@ -164,6 +163,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.burn.tickTimer += delta;
             if (this.statusEffects.burn.tickTimer >= 500) { 
                 this.takeTrueDamage(this.statusEffects.burn.damage, '#ff4500');
+                // EFECTO VISUAL DE QUEMADURA
+                if(this.scene.createHitEffect) this.scene.createHitEffect(this.x, this.y, 0xff4500);
                 this.statusEffects.burn.tickTimer = 0;
             }
             if (this.statusEffects.burn.timer <= 0) {
@@ -174,8 +175,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (this.statusEffects.poison.active) {
             this.statusEffects.poison.timer -= delta;
             this.statusEffects.poison.tickTimer += delta;
-            if (this.statusEffects.poison.tickTimer >= 800) { // Tick más lento
+            if (this.statusEffects.poison.tickTimer >= 800) { 
                 this.takeTrueDamage(this.statusEffects.poison.damage, '#00ff00');
+                // EFECTO VISUAL DE VENENO
+                if(this.scene.createHitEffect) this.scene.createHitEffect(this.x, this.y, 0x00ff00);
                 this.statusEffects.poison.tickTimer = 0;
             }
             if (this.statusEffects.poison.timer <= 0) {
@@ -208,15 +211,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     clearTint() {
         if (this.active && this.bodyShape) {
-            let color = this.originalColor;
-            
-            // Prioridad de color de estado
-            if (this.statusEffects.burn.active) color = 0xff4500;
-            else if (this.statusEffects.poison.active) color = 0x00ff00;
-            else if (this.statusEffects.freeze.active) color = 0x00ffff;
-            else if (this.statusEffects.stun.active) color = 0xffff00;
-            
-            this.bodyShape.setFillStyle(color);
+            this.bodyShape.setFillStyle(this.originalColor); 
         }
     }
 
@@ -233,11 +228,15 @@ export default class Enemy extends Phaser.GameObjects.Container {
             if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
             return;
         }
-        let dmg = Math.max(1, amount - this.armor);
+        
+        const reductionMult = 100 / (100 + this.armor);
+        let dmg = Math.floor(amount * reductionMult);
+        if (dmg < 1) dmg = 1; 
+
         this.hp -= dmg;
         if (this.scene && this.scene.showFloatingText) {
             const isCrit = Math.random() > 0.8; 
-            this.scene.showFloatingText(this.x, this.y - 30, `-${Math.floor(dmg)}`, isCrit ? '#ffaa00' : '#ffffff', 800);
+            this.scene.showFloatingText(this.x, this.y - 30, `-${dmg}`, isCrit ? '#ffaa00' : '#ffffff', 800);
         }
         if (this.hp <= 0) {
             this.die(true);
