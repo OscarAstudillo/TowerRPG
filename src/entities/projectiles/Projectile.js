@@ -160,7 +160,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
                         if (e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= this.aoeRadius) {
                             if (this.effect) e.applyStatus(this.effect);
                             e.takeDamage(1);
-                            // Visual para el tick de veneno
+                            // Safety check para efectos visuales
                             if(this.scene.createHitEffect) this.scene.createHitEffect(e.x, e.y, 0x00ff00);
                         }
                     });
@@ -176,6 +176,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         if (this.isParabolic) {
+            // FIX: Actualizar destino en tiempo real para perseguir al enemigo
             if (this.target && this.target.active) {
                 this.destX = this.target.x;
                 this.destY = this.target.y;
@@ -214,13 +215,15 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.recycle();
             return;
         }
+        
+        // Si es parabólico, forzamos posición final al destino (el enemigo)
+        if (this.isParabolic) {
+            this.x = this.destX;
+            this.y = this.destY;
+        }
 
         if (this.type === 'poison') {
-            if (this.destX !== 0 && this.destY !== 0) {
-                this.x = this.destX;
-                this.y = this.destY;
-            }
-
+            // Charco se queda quieto
             this.isPuddle = true;
             this.body.setVelocity(0, 0); 
             this.lifespan = 1500; 
@@ -266,11 +269,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
             directTarget.takeDamage(this.damage);
             if (this.effect) directTarget.applyStatus(this.effect);
             
-            // --- NUEVO: EFECTO DE GOLPE ---
             if (this.scene.createHitEffect) {
                 this.scene.createHitEffect(this.x, this.y, this.bodyShape.fillColor);
             }
-            // ------------------------------
 
             if (this.chainCount > 0) {
                 const nextTarget = this.findNextChainTarget(this.hitIds); 
@@ -333,11 +334,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
 
     createExplosion(color = 0xff4500) {
         if(!this.scene) return;
-        // USAMOS EL NUEVO SISTEMA DE PARTÍCULAS DEL SCENE SI EXISTE
         if (this.scene.createExplosion) {
             this.scene.createExplosion(this.x, this.y, color);
         } else {
-            // Fallback antiguo por si acaso
             const circle = this.scene.add.circle(this.x, this.y, 10, color, 0.6);
             this.scene.tweens.add({ targets: circle, scale: this.aoeRadius / 5, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
         }

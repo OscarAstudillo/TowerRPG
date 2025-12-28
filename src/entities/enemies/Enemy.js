@@ -73,10 +73,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     update(time, delta) {
-        if (!this.scene) return;
+        // SEGURIDAD CRÍTICA: Si no hay escena, detener todo inmediatamente
+        if (!this.scene || !this.active) return;
 
         this.updateDebuffs(delta);
         
+        // Revisar de nuevo tras los debuffs por si murió
         if (!this.active) return;
 
         if (!this.isShielded && !this.statusEffects.stun.active) {
@@ -142,7 +144,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.armorBreak.val = effect.val;
             this.statusEffects.armorBreak.timer = effect.duration;
             this.armor = Math.max(0, this.baseArmor - effect.val);
-            if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡ROTO!", "#aaaaaa");
+            if(this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡ROTO!", "#aaaaaa");
         }
         else if (effect.type === 'freeze' || effect.type === 'slow') {
             this.statusEffects.freeze.active = true;
@@ -158,13 +160,18 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     updateDebuffs(delta) {
+        // --- QUEMADURA ---
         if (this.statusEffects.burn.active) {
             this.statusEffects.burn.timer -= delta;
             this.statusEffects.burn.tickTimer += delta;
             if (this.statusEffects.burn.tickTimer >= 500) { 
                 this.takeTrueDamage(this.statusEffects.burn.damage, '#ff4500');
-                // EFECTO VISUAL DE QUEMADURA
-                if(this.scene.createHitEffect) this.scene.createHitEffect(this.x, this.y, 0xff4500);
+                
+                // FIX: Verificar existencia de la escena y el método antes de llamar
+                if(this.scene && this.scene.createHitEffect) {
+                    this.scene.createHitEffect(this.x, this.y, 0xff4500);
+                }
+                
                 this.statusEffects.burn.tickTimer = 0;
             }
             if (this.statusEffects.burn.timer <= 0) {
@@ -172,13 +179,19 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
+        
+        // --- VENENO ---
         if (this.statusEffects.poison.active) {
             this.statusEffects.poison.timer -= delta;
             this.statusEffects.poison.tickTimer += delta;
             if (this.statusEffects.poison.tickTimer >= 800) { 
                 this.takeTrueDamage(this.statusEffects.poison.damage, '#00ff00');
-                // EFECTO VISUAL DE VENENO
-                if(this.scene.createHitEffect) this.scene.createHitEffect(this.x, this.y, 0x00ff00);
+                
+                // FIX: Verificar existencia de la escena y el método antes de llamar (Aquí estaba el crash)
+                if(this.scene && this.scene.createHitEffect) {
+                    this.scene.createHitEffect(this.x, this.y, 0x00ff00);
+                }
+                
                 this.statusEffects.poison.tickTimer = 0;
             }
             if (this.statusEffects.poison.timer <= 0) {
@@ -186,6 +199,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
+        
+        // --- ARMOR BREAK ---
         if (this.statusEffects.armorBreak.active) {
             this.statusEffects.armorBreak.timer -= delta;
             if (this.statusEffects.armorBreak.timer <= 0) {
@@ -193,6 +208,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.armor = this.baseArmor;
             }
         }
+        
+        // --- CC ---
         if (this.statusEffects.freeze.active) {
             this.statusEffects.freeze.timer -= delta;
             if (this.statusEffects.freeze.timer <= 0) {
@@ -225,7 +242,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     takeDamage(amount) {
         if (this.isShielded) {
-            if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
+            if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
             return;
         }
         
@@ -247,7 +264,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     useBossSkill() {
         if (this.typeKey.includes('boss')) {
-             this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "#ff0000");
+             if(this.scene && this.scene.showFloatingText) 
+                this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "#ff0000");
         }
     }
 
