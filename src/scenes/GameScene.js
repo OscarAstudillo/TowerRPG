@@ -46,7 +46,6 @@ export default class GameScene extends Phaser.Scene {
     create() {
         updatePlayerStats(); 
         
-        // Textura Pixel para barras de vida
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -57,11 +56,11 @@ export default class GameScene extends Phaser.Scene {
         // Grupos
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         
-        // --- OBJECT POOLING: Configuración del Grupo de Proyectiles ---
+        // Configuración Object Pooling para proyectiles
         this.projectiles = this.physics.add.group({ 
             classType: Projectile, 
             runChildUpdate: true,
-            maxSize: 200 // Límite de seguridad para evitar fugas de memoria
+            maxSize: 200 
         });
 
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: false });
@@ -81,7 +80,6 @@ export default class GameScene extends Phaser.Scene {
         this.bossLootLog = []; 
         gameState.baseHp = 20;
 
-        // Dibujar Grid y Camino
         const graphics = this.add.graphics();
         if (this.theme.grid) {
             graphics.lineStyle(2, this.theme.grid, 0.3);
@@ -105,29 +103,26 @@ export default class GameScene extends Phaser.Scene {
 
         this.createBuildSlots();
 
-        // 1. INICIALIZAR UI PRIMERO (Para evitar errores de undefined)
+        // UI
         this.createUpgradeUI(); 
         this.createUI();
         this.createPauseMenu();
 
-        // Jugador
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
         // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        // Selección de Torres (1-3 Originales)
+        // Selector de Torres
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
-        
-        // --- NUEVAS TECLAS (4-6 Nuevas Torres) ---
         this.input.keyboard.on('keydown-FOUR', () => { if(!this.isPaused) { this.selectedTowerType = 'tesla'; this.updateUI(); }});
         this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
         this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
 
-        // Click en Torres
+        // Click Logic
         this.input.on('gameobjectdown', (pointer, obj) => {
             if (this.isPaused) return; 
             let tower = this.getTowerFromObject(obj);
@@ -137,10 +132,8 @@ export default class GameScene extends Phaser.Scene {
             } 
         });
 
-        // Click fuera para cerrar menú
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
-            // Protección: Verificar que upgradeContainer existe
             if (!this.upgradeContainer) return;
 
             const clickedOnUI = currentlyOver.some(obj => 
@@ -158,14 +151,13 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
             if(e.active && p.active) { 
                 if(p.hit) p.hit(e); 
-                // Usamos recycle() en lugar de destroy() si el proyectil lo soporta (ver Projectile.js)
-                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); } 
+                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); }
             } 
         });
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
 
         this.startWaveTimer(20); 
-        this.updateUI(); // Ahora sí funcionará porque la función está bien definida abajo
+        this.updateUI();
         this.isSceneReady = true;
     }
 
@@ -175,8 +167,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.player) this.player.update(time, delta);
         if (this.towers) { this.towers.children.iterate(t => { if (t && t.active) t.update(time, delta); }); }
         
-        // Los proyectiles se actualizan automáticamente gracias a runChildUpdate: true
-        // if (this.projectiles) { this.projectiles.children.iterate(p => { if (p && p.active && p.update) p.update(time, delta); }); }
+        // Proyectiles se actualizan solos por el grupo
 
         const hero = getCurrentHero();
         if (hero && hero.level > this.lastHeroLevel) {
@@ -202,7 +193,6 @@ export default class GameScene extends Phaser.Scene {
     // --- GAMEPLAY UTILS ---
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
-        
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
         gameState.materials[matKey][rarity] += qty;
         
@@ -238,13 +228,10 @@ export default class GameScene extends Phaser.Scene {
             if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
         }
         
-        // MÁS ENEMIGOS
         let baseCount = 8 + (this.currentWave * 3); 
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
-        
-        // MENOS TIEMPO ENTRE ELLOS (Para que el cañón sea útil)
         let spawnDelay = 1000 - (this.currentWave * 50); 
-        if (spawnDelay < 200) spawnDelay = 200; // Mínimo 200ms
+        if (spawnDelay < 200) spawnDelay = 200; 
 
         if (this.isBossWave) {
             this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
@@ -325,7 +312,6 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // --- UI METHODS ---
-    
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
@@ -474,8 +460,32 @@ export default class GameScene extends Phaser.Scene {
         this.sellBtnText.setText(`VENDER (+$${Math.floor(t.totalInvestment * 0.7)})`); 
     }
     
-    tryUpgradeTower() { const t = this.selectedTowerToUpgrade; if (t && !t.isEvolved && t.level < t.maxLevel && this.coins >= t.upgradeCost) { this.coins -= t.upgradeCost; t.upgrade(); this.updateUpgradeMenuText(); this.updateUI(); } }
-    tryEvolveTower(pathKey) { const t = this.selectedTowerToUpgrade; if (!t) return; const stats = TOWER_TYPES[t.typeKey]; const evoData = stats.evolutions[pathKey]; if (this.coins >= evoData.cost) { this.coins -= evoData.cost; t.evolve(pathKey); this.updateUpgradeMenuText(); this.updateUI(); } else { this.showFloatingText(t.x, t.y, "¡Falta Oro!", "#ff0000"); } }
+    tryUpgradeTower() { 
+        const t = this.selectedTowerToUpgrade; 
+        if (t && !t.isEvolved && t.level < t.maxLevel && this.coins >= t.upgradeCost) { 
+            this.coins -= t.upgradeCost; 
+            t.upgrade(); 
+            this.updateUpgradeMenuText(); 
+            this.updateUI(); 
+            SaveSystem.save(); // GUARDA DESPUÉS DE MEJORAR
+        } 
+    }
+    
+    tryEvolveTower(pathKey) { 
+        const t = this.selectedTowerToUpgrade; 
+        if (!t) return; 
+        const stats = TOWER_TYPES[t.typeKey]; 
+        const evoData = stats.evolutions[pathKey]; 
+        if (this.coins >= evoData.cost) { 
+            this.coins -= evoData.cost; 
+            t.evolve(pathKey); 
+            this.updateUpgradeMenuText(); 
+            this.updateUI(); 
+            SaveSystem.save(); // GUARDA DESPUÉS DE EVOLUCIONAR
+        } else { 
+            this.showFloatingText(t.x, t.y, "¡Falta Oro!", "#ff0000"); 
+        } 
+    }
     
     openUpgradeMenu(tower) { 
         this.selectedTowerToUpgrade = tower; 
@@ -499,12 +509,35 @@ export default class GameScene extends Phaser.Scene {
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
     createSpawnIndicator(x, y) { const marker = this.add.circle(x, y, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(x, y - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
     createBuildSlots() { const slots = this.currentLevelData.towerSlots || []; slots.forEach(slot => { const site = new BuildSite(this, slot.x, slot.y); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
-    tryBuildTower(site) { if (site.isOccupied) return; const stats = TOWER_TYPES[this.selectedTowerType]; if (this.coins >= stats.baseCost) { this.coins -= stats.baseCost; const tower = new Tower(this, site.x, site.y, this.selectedTowerType, this.enemies, this.projectiles, site, stats.baseCost); this.towers.add(tower); site.occupy(); this.updateUI(); this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); } else { this.cameras.main.shake(100, 0.005); } }
+    
+    tryBuildTower(site) { 
+        if (site.isOccupied) return; 
+        const stats = TOWER_TYPES[this.selectedTowerType]; 
+        if (this.coins >= stats.baseCost) { 
+            this.coins -= stats.baseCost; 
+            const tower = new Tower(this, site.x, site.y, this.selectedTowerType, this.enemies, this.projectiles, site, stats.baseCost); 
+            this.towers.add(tower); 
+            site.occupy(); 
+            this.updateUI(); 
+            this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); 
+            SaveSystem.save(); // GUARDA DESPUÉS DE CONSTRUIR
+        } else { 
+            this.cameras.main.shake(100, 0.005); 
+        } 
+    }
     
     victory() { 
         this.physics.pause(); 
         if (this.spawnTimer) this.spawnTimer.remove(); 
-        if (this.level >= (gameState.maxLevel || 1)) { gameState.maxLevel = this.level + 1; SaveSystem.save(); } 
+        
+        // Guardamos si desbloqueamos nivel
+        if (this.level >= (gameState.maxLevel || 1)) { 
+            gameState.maxLevel = this.level + 1; 
+        } 
+        
+        // SIEMPRE GUARDAMOS AL GANAR (Auto-Save de seguridad)
+        SaveSystem.save();
+
         const rewardGold = 100 + (this.level * 50); 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); 
         this.time.delayedCall(2000, () => { 

@@ -23,7 +23,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.itemToFuse1 = null; 
         this.itemToFuse2 = null; 
         
-        // --- PAGINACIÓN FUSIÓN ---
         this.fusionPage = 0;
         this.fusionItemsPerPage = 7; 
 
@@ -31,7 +30,6 @@ export default class MainMenuScene extends Phaser.Scene {
         this.craftSelection = { type: null, recipe: null, rarity: null };
         this.hasLoaded = false;
 
-        // ESTILOS
         this.fontTitle = { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000000', strokeThickness: 4 };
         this.fontHeader = { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
         this.fontBody = { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 }; 
@@ -44,32 +42,23 @@ export default class MainMenuScene extends Phaser.Scene {
 
         // --- SISTEMA DE CARGA AUTOMÁTICA (SOLUCIÓN F5) ---
         if (!this.hasLoaded) {
-            // Intentamos cargar el archivo (ahora encriptado)
-            // Si devuelve true, es que recuperó el progreso anterior.
             const loaded = SaveSystem.load();
-
             if (loaded) {
-                console.log("✅ Progreso restaurado exitosamente.");
+                console.log("✅ Progreso restaurado.");
             } else {
-                console.log("ℹ️ Nueva sesión o sin datos guardados.");
+                console.log("ℹ️ Nueva sesión.");
+                if (!gameState.talents) gameState.talents = [];
+                this.sanitizeData(); 
             }
-
-            // Inicializaciones de seguridad por si es la primera vez
-            if (!gameState.talents) gameState.talents = [];
-            this.sanitizeData(); 
-            
-            // Marcamos como cargado para no repetir esto si volvemos del mapa
             this.hasLoaded = true;
         }
         // --------------------------------------------------
 
-        // Si después de intentar cargar NO hay clase seleccionada, ir a selección
         if (!gameState.selectedClass) {
             this.scene.start('HeroSelectScene');
             return;
         }
 
-        // Si hay datos, recalculamos los stats del jugador con el equipo cargado
         updatePlayerStats();
 
         const w = this.scale.width;
@@ -79,8 +68,6 @@ export default class MainMenuScene extends Phaser.Scene {
 
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
-        
-        // El texto se crea con el oro cargado del SaveSystem
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { ...this.fontHeader, color: '#ffd700' }).setOrigin(1, 0.5);
 
         const tabY = h * 0.12; const tabW = 140; const startX = cx - (tabW * 2.5);
@@ -95,8 +82,6 @@ export default class MainMenuScene extends Phaser.Scene {
         const questBtn = this.add.rectangle(w - 150, h * 0.2, 120, 40, 0x800080).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xffffff);
         this.add.text(w - 150, h * 0.2, "MISIONES", this.fontBtn).setOrigin(0.5);
         questBtn.on('pointerdown', () => this.toggleQuestModal());
-        
-        // Generar misiones diarias si no existen (se guardan en el save, así que no se regeneran con F5 si ya estaban)
         RPGSystem.generateDailyQuests();
         this.createQuestModal(w, h, cx, cy);
 
@@ -136,7 +121,7 @@ export default class MainMenuScene extends Phaser.Scene {
             const hero = getCurrentHero();
             if (hero) {
                 RPGSystem.gainHeroXP(5000); 
-                SaveSystem.save(); // Importante: Guardar después del cheat
+                SaveSystem.save(); // GUARDADO AUTOMÁTICO
                 this.refreshHero();
                 this.refreshTalents();
                 this.showCentralAlert("¡TRUCO ACTIVADO: XP GANADA!", "#00ff00");
@@ -161,15 +146,11 @@ export default class MainMenuScene extends Phaser.Scene {
         return btn;
     }
 
-    // --- MISIONES UI (MODIFICADO: MÁS GRANDE) ---
+    // --- MISIONES UI ---
     createQuestModal(w, h, cx, cy) {
         this.questContainer = this.add.container(0, 0).setVisible(false).setDepth(2000);
         const blocker = this.add.rectangle(cx, cy, w, h, 0x000000, 0.8).setInteractive();
-        
-        // Aumentado tamaño de fondo
         const bg = this.add.rectangle(cx, cy, 800, 700, 0x222222).setStrokeStyle(4, 0xffd700);
-        
-        // Reposicionado título y botón
         const title = this.add.text(cx, cy - 300, "TABLÓN DE MISIONES", { ...this.fontTitle, fontSize: '28px' }).setOrigin(0.5);
         const closeBtn = this.add.text(cx + 350, cy - 320, "X", { fontSize: '32px', color: '#ff0000', fontStyle: 'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
         
@@ -195,10 +176,7 @@ export default class MainMenuScene extends Phaser.Scene {
         }
 
         gameState.quests.active.forEach(quest => {
-            // Aumentado ancho tarjeta
             const qBg = this.add.rectangle(0, y, 700, 120, 0x333333).setStrokeStyle(1, 0xaaaaaa); 
-            
-            // Textos alineados al nuevo ancho
             const qTitle = this.add.text(-330, y - 40, quest.desc, { ...this.fontHeader, fontSize: '18px', wordWrap: { width: 650 } }).setOrigin(0, 0.5);
             const qProgress = this.add.text(-330, y - 10, `Progreso: ${quest.progress}/${quest.count}`, { ...this.fontBody, color: '#00ffff' }).setOrigin(0, 0.5);
             
@@ -224,7 +202,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 statusBtn.on('pointerdown', () => {
                     const res = RPGSystem.claimQuestReward(quest.id);
                     if (res.success) {
-                        SaveSystem.save();
+                        SaveSystem.save(); // GUARDADO AUTOMÁTICO
                         this.refreshQuestList();
                         this.goldText.setText(`ORO: ${gameState.gold}`);
                         if(res.reward.recipe) this.refreshForge();
@@ -249,8 +227,10 @@ export default class MainMenuScene extends Phaser.Scene {
         Object.values(gameState.towerEquipment).forEach(t => { if(t.slot1) equippedIds.add(getId(t.slot1)); if(t.slot2) equippedIds.add(getId(t.slot2)); });
         let cleanInv = []; const seenIdsInInv = new Set();
         gameState.inventory.forEach(item => { if (!item) return; if (!item.id || typeof item.id !== 'string') item.id = RPGSystem.getUniqueId(); const id = item.id; if (equippedIds.has(id)) return; if (seenIdsInInv.has(id)) { item.id = RPGSystem.getUniqueId(); } seenIdsInInv.add(item.id); cleanInv.push(item); });
-        gameState.inventory = cleanInv; SaveSystem.save();
+        gameState.inventory = cleanInv; 
+        SaveSystem.save(); // GUARDADO AUTOMÁTICO
     }
+    
     safeAddItemToInventory(item) { if (!item) return; const exists = gameState.inventory.some(i => i.id === item.id); if (!exists) gameState.inventory.push(item); else { item.id = RPGSystem.getUniqueId(); gameState.inventory.push(item); } }
     createTabButton(x, y, text, tabKey, width) { const btn = this.add.rectangle(x, y, width - 8, 45, 0x222222).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x555555); const txt = this.add.text(x, y, text, this.fontBtn).setOrigin(0.5); btn.on('pointerdown', () => { this.switchTab(tabKey); this.tweens.add({ targets: btn, scale: 0.95, yoyo: true, duration: 50 }); }); }
     switchTab(tabKey) { this.currentTab = tabKey; [this.heroContainer, this.talentsContainer, this.invContainer, this.refiningContainer, this.forgeContainer, this.towersContainer].forEach(c => c.setVisible(false)); if (tabKey === 'hero') { this.heroContainer.setVisible(true); this.refreshHero(); } if (tabKey === 'talents') { this.talentsContainer.setVisible(true); this.refreshTalents(); } if (tabKey === 'inventory') { this.invContainer.setVisible(true); this.refreshInventory(); } if (tabKey === 'refining') { this.refiningContainer.setVisible(true); this.refreshRefining(); } if (tabKey === 'forge') { this.forgeContainer.setVisible(true); this.refreshForge(); } if (tabKey === 'towers') { this.towersContainer.setVisible(true); this.refreshTowersView(); } }
@@ -264,7 +244,7 @@ export default class MainMenuScene extends Phaser.Scene {
             if (set.items.includes(recipeId)) {
                 text += `\n✨ SET: ${set.name} ✨\n`;
                 set.bonuses.forEach(b => {
-                    text += `  (${b.count}) ${b.desc}\n`;
+                    text += `  (${b.count}) ${b.desc}\n`;
                 });
             }
         }
@@ -293,15 +273,13 @@ export default class MainMenuScene extends Phaser.Scene {
         this.createFusionModals(cx, cy);
     }
     
-    // --- UI FUSIÓN (MODIFICADO: PAGINACIÓN) ---
     createFusionModals(cx, cy) {
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
         const fTitle = this.add.text(0, -220, "SELECCIONA 2° ITEM (SACRIFICIO)", { ...this.fontHeader, fontSize: '24px' }).setOrigin(0.5);
         this.fusionList = this.add.container(0, -180); 
-        
-        // Controles Paginación
+
         this.fusionPrevBtn = this.add.text(-250, 0, "<", { fontSize: '40px', color: '#00ffff', fontStyle:'bold' }).setInteractive({ useHandCursor: true }).setOrigin(0.5).setVisible(false);
         this.fusionPrevBtn.on('pointerdown', () => this.changeFusionPage(-1));
 
@@ -318,30 +296,22 @@ export default class MainMenuScene extends Phaser.Scene {
         this.fusionConfirmModal = this.add.container(cx, cy).setVisible(false).setDepth(2100);
         const fcBg = this.add.rectangle(0, 0, 900, 600, 0x111111).setStrokeStyle(3, 0xffd700).setInteractive();
         const fcTitle = this.add.text(0, -260, "CONFIRMAR FUSIÓN", { ...this.fontTitle, fontSize:'32px' }).setOrigin(0.5);
-        
         const fcInfo = this.add.text(0, -220, "El resultado heredará los stats de UNO de los dos (50/50).\nEl nivel de encantamiento subirá +1.", { ...this.fontBody, fontSize: '18px', color: '#eeeeee', align: 'center' }).setOrigin(0.5);
-
         const panelY = 20; 
-        
         const leftBg = this.add.rectangle(-220, panelY, 350, 350, 0x000000).setStrokeStyle(2, 0x00ffff);
         this.fusionLeftBg = leftBg; 
         const leftTitle = this.add.text(-220, panelY - 150, "ITEM BASE", { ...this.fontHeader, fontSize: '22px', color: '#00ffff' }).setOrigin(0.5);
         this.fusionItem1Info = this.add.text(-220, panelY, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
-
         const rightBg = this.add.rectangle(220, panelY, 350, 350, 0x000000).setStrokeStyle(2, 0xff00ff);
         this.fusionRightBg = rightBg; 
         const rightTitle = this.add.text(220, panelY - 150, "SACRIFICIO", { ...this.fontHeader, fontSize: '22px', color: '#ff00ff' }).setOrigin(0.5);
         this.fusionItem2Info = this.add.text(220, panelY, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 320} }).setOrigin(0.5);
-
         const plusSign = this.add.text(0, panelY, "+", { fontSize: '80px', fontFamily: 'Cinzel', color: '#ffffff' }).setOrigin(0.5);
-
         const confirmBtn = this.add.rectangle(0, 240, 250, 60, 0x006400).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
         const confirmTxt = this.add.text(0, 240, "¡FUSIONAR!", { ...this.fontBtn, fontSize: '20px' }).setOrigin(0.5);
         confirmBtn.on('pointerdown', () => this.executeFusion());
-        
         const backBtn = this.add.text(380, 260, "VOLVER", { ...this.fontBtn, fontSize: '18px', color: '#ff5555' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
         backBtn.on('pointerdown', () => { this.fusionConfirmModal.setVisible(false); this.fusionListModal.setVisible(true); });
-
         this.fusionConfirmModal.add([fcBg, fcTitle, fcInfo, leftBg, leftTitle, this.fusionItem1Info, rightBg, rightTitle, this.fusionItem2Info, plusSign, confirmBtn, confirmTxt, backBtn]);
     }
 
@@ -472,10 +442,10 @@ export default class MainMenuScene extends Phaser.Scene {
         } 
         
         let currentY = 0;
-        const title = this.add.text(0, currentY, item.name, { ...this.fontHeader, fontSize: '20px', color: '#' + itemColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const title = this.add.text(0, currentY, item.name, { ...this.fontHeader, fontSize: '18px', color: '#' + itemColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += title.height + 20;
 
-        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '18px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += stats.height + 30;
 
         const equipLabel = item.type === 'tower_part' ? "EQUIPAR EN..." : "EQUIPAR";
@@ -515,8 +485,31 @@ export default class MainMenuScene extends Phaser.Scene {
         } 
         this.finishAction('inventory');
     }
-    finishAction(targetTab) { updatePlayerStats(); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); if(targetTab === 'towers') this.switchTab('towers'); }
-    actionSell() { if (!this.selectedItem) return; const idx = gameState.inventory.findIndex(i => i.id === this.selectedItem.id); if (idx === -1) return; const item = gameState.inventory[idx]; let sellPrice = 50; gameState.gold += sellPrice; gameState.inventory.splice(idx, 1); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); }
+    
+    // --- AQUÍ AÑADIMOS SaveSystem.save() ---
+    finishAction(targetTab) { 
+        updatePlayerStats(); 
+        this.selectedItem = null; 
+        this.itemDetailContainer.setVisible(false); 
+        this.refreshInventory(); 
+        SaveSystem.save(); // GUARDADO AUTOMÁTICO
+        if(targetTab === 'towers') this.switchTab('towers'); 
+    }
+    
+    actionSell() { 
+        if (!this.selectedItem) return; 
+        const idx = gameState.inventory.findIndex(i => i.id === this.selectedItem.id); 
+        if (idx === -1) return; 
+        const item = gameState.inventory[idx]; 
+        let sellPrice = 50; 
+        gameState.gold += sellPrice; 
+        gameState.inventory.splice(idx, 1); 
+        this.selectedItem = null; 
+        this.itemDetailContainer.setVisible(false); 
+        this.refreshInventory(); 
+        SaveSystem.save(); // GUARDADO AUTOMÁTICO
+    }
+    
     canDualWield(cls) { return cls === 'guerrero' || cls === 'asesino'; }
     swapping(slot, newItem) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); } gameState.equipment[slot] = newItem; }
     forceUnequip(slot) { if (gameState.equipment[slot]) { this.safeAddItemToInventory(gameState.equipment[slot]); gameState.equipment[slot] = null; } }
@@ -524,31 +517,28 @@ export default class MainMenuScene extends Phaser.Scene {
     initiateFusion() { 
         if (!this.selectedItem) return; 
         this.itemToFuse1 = this.selectedItem; 
-        this.fusionPage = 0; // RESETEAR PÁGINA AL ABRIR
+        this.fusionPage = 0;
         this.fusionListModal.setVisible(true); 
         this.populateFusionList(); 
     }
     
-    // --- NUEVO: CAMBIAR PÁGINA ---
     changeFusionPage(dir) {
         this.fusionPage += dir;
         this.populateFusionList();
     }
 
-    // --- NUEVO: POPULATE CON PAGINACIÓN ---
     populateFusionList() { 
         this.fusionList.removeAll(true); 
         const candidates = gameState.inventory.filter(i => String(i.id) !== String(this.itemToFuse1.id) && i.type === this.itemToFuse1.type && i.rarity === this.itemToFuse1.rarity && i.enchant === this.itemToFuse1.enchant); 
         
         if (candidates.length === 0) { 
-            this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5)); 
+            this.fusionList.add(this.add.text(0, 0, "No hay items compatibles", { ...this.fontBody }).setOrigin(0.5));
             this.fusionPrevBtn.setVisible(false);
             this.fusionNextBtn.setVisible(false);
             this.fusionPageText.setVisible(false);
             return; 
         } 
 
-        // Lógica paginación
         const totalPages = Math.ceil(candidates.length / this.fusionItemsPerPage);
         if (this.fusionPage < 0) this.fusionPage = 0;
         if (this.fusionPage >= totalPages) this.fusionPage = totalPages - 1;
@@ -566,7 +556,6 @@ export default class MainMenuScene extends Phaser.Scene {
             y += 50; 
         }); 
 
-        // Actualizar UI paginación
         this.fusionPrevBtn.setVisible(this.fusionPage > 0);
         this.fusionNextBtn.setVisible(this.fusionPage < totalPages - 1);
         this.fusionPageText.setVisible(true).setText(`Página ${this.fusionPage + 1}/${totalPages}`);
@@ -598,10 +587,25 @@ export default class MainMenuScene extends Phaser.Scene {
         if(this.fusionRightBg) this.fusionRightBg.setStrokeStyle(2, this.itemToFuse2.color || 0xffffff);
     }
     
-    executeFusion() { const item1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id); const item2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id); if (!item1 || !item2) return; const result = RPGSystem.fuseSpecificItems(item1, item2); if (result.success) { gameState.inventory = gameState.inventory.filter(i => i.id !== item1.id && i.id !== item2.id); this.safeAddItemToInventory(result.item); this.fusionConfirmModal.setVisible(false); this.selectedItem = null; this.itemDetailContainer.setVisible(false); this.refreshInventory(); SaveSystem.save(); this.showCentralAlert(`FUSIÓN EXITOSA: ${result.item.name}`, '#00ff00'); } }
+    executeFusion() { 
+        const item1 = gameState.inventory.find(i => i.id === this.itemToFuse1.id); 
+        const item2 = gameState.inventory.find(i => i.id === this.itemToFuse2.id); 
+        if (!item1 || !item2) return; 
+        const result = RPGSystem.fuseSpecificItems(item1, item2); 
+        if (result.success) { 
+            gameState.inventory = gameState.inventory.filter(i => i.id !== item1.id && i.id !== item2.id); 
+            this.safeAddItemToInventory(result.item); 
+            this.fusionConfirmModal.setVisible(false); 
+            this.selectedItem = null; 
+            this.itemDetailContainer.setVisible(false); 
+            this.refreshInventory(); 
+            SaveSystem.save(); // GUARDADO AUTOMÁTICO
+            this.showCentralAlert(`FUSIÓN EXITOSA: ${result.item.name}`, '#00ff00'); 
+        } 
+    }
 
     createForgeView(w, h, cx, cy) {
-        this.profText = this.add.text(cx, h * 0.17, '', { ...this.fontBody, fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
+        this.profText = this.add.text(cx, h * 0.15, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
         
         const catY = h * 0.22;
@@ -624,7 +628,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     createForgeCatBtn(x, y, label, cat) { 
-        const btn = this.add.text(x, y, label, { ...this.fontHeader, color: '#ffffffff' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
+        const btn = this.add.text(x, y, label, { ...this.fontHeader, color: '#888' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
         btn.on('pointerdown', () => { 
             this.forgeCategory = cat; 
             this.forgeSubFilter = 'all'; 
@@ -646,7 +650,7 @@ export default class MainMenuScene extends Phaser.Scene {
         
         let subX = this.scale.width * 0.2;
         subs.forEach(s => {
-            const btn = this.add.text(subX, this.scale.height * 0.28, s[0], { ...this.fontSmall, fontSize: '20px', color: this.forgeSubFilter === s[1] ? '#fff' : '#666' })
+            const btn = this.add.text(subX, this.scale.height * 0.28, s[0], { ...this.fontSmall, fontSize: '16px', color: this.forgeSubFilter === s[1] ? '#fff' : '#666' })
                 .setInteractive({useHandCursor:true}).setOrigin(0.5);
             btn.on('pointerdown', () => { this.forgeSubFilter = s[1]; this.refreshForge(); });
             this.forgeSubFilterContainer.add(btn);
@@ -686,7 +690,7 @@ export default class MainMenuScene extends Phaser.Scene {
             const strokeColor = isSpecial ? 0x00ffff : 0xffffff;
 
             const btn = this.add.rectangle(startX + (col * 250), startY, 220, 45, 0x222222).setInteractive({useHandCursor:true}).setStrokeStyle(isSpecial ? 2 : 1, strokeColor);
-            const txt = this.add.text(startX + (col * 250), startY, recipe.name, { ...this.fontBody, fontSize: '18px', color: isSpecial ? '#00ffff' : '#fff'}).setOrigin(0.5);
+            const txt = this.add.text(startX + (col * 250), startY, recipe.name, { ...this.fontBody, color: isSpecial ? '#00ffff' : '#fff'}).setOrigin(0.5);
             btn.on('pointerdown', () => { this.expandedRecipeId = (this.expandedRecipeId === recipe.id) ? null : recipe.id; this.refreshForge(); });
             this.recipesContainer.add([btn, txt]); startY += 55;
             
@@ -694,7 +698,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 ['common', 'uncommon', 'rare'].forEach(rarity => { 
                     const rData = RARITY[rarity]; 
                     const rBtn = this.add.rectangle(startX + (col * 250) + 20, startY, 180, 35, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rData.color); 
-                    const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'20px' }).setOrigin(0.5).setColor('#' + rData.color.toString(16).padStart(6,'0'));
+                    const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'12px' }).setOrigin(0.5).setColor('#' + rData.color.toString(16).padStart(6,'0'));
                     rBtn.on('pointerdown', () => this.selectNormalRecipe(recipe, rarity)); 
                     this.recipesContainer.add([rBtn, rTxt]); 
                     startY += 40;
@@ -724,10 +728,10 @@ export default class MainMenuScene extends Phaser.Scene {
         infoText += setInfo ? `\n${setInfo}` : "";
         
         let currentY = 0;
-        const title = this.add.text(0, currentY, recipe.name, { ...this.fontHeader, fontSize: '20px', color: hexColor, align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const title = this.add.text(0, currentY, recipe.name, { ...this.fontHeader, fontSize: '18px', color: hexColor, align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += title.height + 20;
 
-        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '16px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
+        const stats = this.add.text(0, currentY, infoText, { ...this.fontBody, fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
         currentY += stats.height + 30;
 
         const craftBtn = this.createActionButton(0, currentY, "FORJAR", () => this.handleCraftButton());
@@ -749,7 +753,10 @@ export default class MainMenuScene extends Phaser.Scene {
         }
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         if (result.success) { 
-            gameState.gold -= cost; this.safeAddItemToInventory(result.item); this.goldText.setText(`ORO: ${gameState.gold}`); SaveSystem.save(); 
+            gameState.gold -= cost; 
+            this.safeAddItemToInventory(result.item); 
+            this.goldText.setText(`ORO: ${gameState.gold}`); 
+            SaveSystem.save(); // GUARDADO AUTOMÁTICO
             this.showCentralAlert(`¡CREADO: ${result.item.name}!`, '#' + RARITY[rarityKey].color.toString(16).padStart(6,'0')); 
         } else { 
             this.showCentralAlert(`ERROR: ${result.error}`, '#ff0000'); 
@@ -810,12 +817,20 @@ export default class MainMenuScene extends Phaser.Scene {
             currentY += 90; 
         }); 
     }
-    learnTalent(talent) { if (RPGSystem.spendTalentPoint(talent.id, 1)) { updatePlayerStats(); SaveSystem.save(); this.refreshTalents(); this.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); } }
+    
+    learnTalent(talent) { 
+        if (RPGSystem.spendTalentPoint(talent.id, 1)) { 
+            updatePlayerStats(); 
+            SaveSystem.save(); // GUARDADO AUTOMÁTICO
+            this.refreshTalents(); 
+            this.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); 
+        } 
+    }
 
     createRefiningView(w, h, cx, cy) {
-        this.refiningTitle = this.add.text(cx, h * 0.17, "REFINACIÓN", { ...this.fontTitle}).setOrigin(0.5);
+        this.refiningTitle = this.add.text(cx, h * 0.15, "REFINACIÓN", this.fontTitle).setOrigin(0.5);
         this.refiningContainer.add(this.refiningTitle);
-        this.refiningProfText = this.add.text(cx, h * 0.2, "", { ...this.fontBody, fontSize: '24px' , color: '#00ff00' }).setOrigin(0.5);
+        this.refiningProfText = this.add.text(cx, h * 0.2, "", { ...this.fontBody, color: '#00ff00' }).setOrigin(0.5);
         this.refiningContainer.add(this.refiningProfText);
         
         const cats = ['wood', 'ore', 'cloth', 'leather'];
@@ -871,17 +886,25 @@ export default class MainMenuScene extends Phaser.Scene {
             y += 60;
         });
     }
-    executeRefine(id) { const res = RPGSystem.refineMaterial(id); if(res.success) { SaveSystem.save(); this.refreshRefining(); this.showCentralAlert("REFINADO OK", '#00ff00'); } }
+    
+    executeRefine(id) { 
+        const res = RPGSystem.refineMaterial(id); 
+        if(res.success) { 
+            SaveSystem.save(); // GUARDADO AUTOMÁTICO
+            this.refreshRefining(); 
+            this.showCentralAlert("REFINADO OK", '#00ff00'); 
+        } 
+    }
 
-    // --- VISTAS HEROE Y TORRES (MODIFICADO PARA MAS ESPACIO Y MEJORES LABELS) ---
+    // --- VISTAS HEROE Y TORRES ---
     createHeroView(w, h, cx, cy) { 
         // Texto Nivel
-        this.heroLevelText = this.add.text(cx, h * 0.17, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); 
+        this.heroLevelText = this.add.text(cx, h * 0.19, '', { ...this.fontHeader, fontSize: '28px', color: '#00ffff' }).setOrigin(0.5); 
         this.heroContainer.add(this.heroLevelText); 
         
         // PANEL PRINCIPAL (AUMENTADO TAMAÑO)
-        const panelWidth = 500; // Antes 450
-        const panelHeight = 700; // Antes 550
+        const panelWidth = 500; 
+        const panelHeight = 700; 
         const statsBg = this.add.rectangle(w * 0.35, cy + 20, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(2, 0x555555); 
         this.heroContainer.add(statsBg); 
         
@@ -897,11 +920,11 @@ export default class MainMenuScene extends Phaser.Scene {
         this.equippedTextContainer = this.add.container(0, 0); 
         this.heroContainer.add(this.equippedTextContainer); 
         
-        // Nuevo: Contenedor de Sets (Abajo)
-        this.heroSetsText = this.add.text(textStartX, textStartY + 480, '', { ...this.fontBody, fontSize: '13px', color: '#ffff00', lineHeight: 20 });
+        // Contenedor de Sets (Abajo)
+        this.heroSetsText = this.add.text(textStartX, textStartY + 520, '', { ...this.fontBody, fontSize: '13px', color: '#ffff00', lineHeight: 20 });
         this.heroContainer.add(this.heroSetsText);
 
-        // Botones de Upgrade a la derecha (fuera del panel principal)
+        // Botones de Upgrade a la derecha
         const rightX = w * 0.8; 
         let upgradeY = h * 0.3; 
         this.pointsText = this.add.text(rightX, upgradeY, "Puntos: 0", { ...this.fontHeader, color: '#ffd700' }).setOrigin(0.5); 
@@ -912,7 +935,17 @@ export default class MainMenuScene extends Phaser.Scene {
         statsToUpgrade.forEach((s, i) => { this.createStatButton(rightX, upgradeY + (i * 60), s.label, s.key); }); 
     }
 
-    createStatButton(x, y, label, statKey) { const btn = this.add.rectangle(x, y, 220, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00); const txt = this.add.text(x, y, label, this.fontBtn).setOrigin(0.5); btn.on('pointerdown', () => { if (RPGSystem.spendStatPoint(statKey)) { this.refreshHero(); SaveSystem.save(); } }); this.heroContainer.add([btn, txt]); }
+    createStatButton(x, y, label, statKey) { 
+        const btn = this.add.rectangle(x, y, 220, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00); 
+        const txt = this.add.text(x, y, label, this.fontBtn).setOrigin(0.5); 
+        btn.on('pointerdown', () => { 
+            if (RPGSystem.spendStatPoint(statKey)) { 
+                this.refreshHero(); 
+                SaveSystem.save(); // GUARDADO AUTOMÁTICO
+            } 
+        }); 
+        this.heroContainer.add([btn, txt]); 
+    }
     
     refreshHero() { 
         updatePlayerStats(); 
@@ -921,34 +954,31 @@ export default class MainMenuScene extends Phaser.Scene {
         const hero = getCurrentHero(); 
         const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); 
         
-        // 1. STATS FORMAT
-        // Formatear stats para que se vean bien
-        const atkSpeedTxt = `${s.attackSpeed}ms`; // Antes 'Delay'
-        const rangeTxt = `${s.range}m`; // Antes 'Rango' sin unidad
+        const atkSpeedTxt = `${s.attackSpeed}ms`; 
+        const rangeTxt = `${s.range}m`; 
         
-        // Construir bloque de texto de stats
         const statsBlock = 
 `CLASE: [ ${clsName} ]
 
 -- ATRIBUTOS BASE --
 ❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  |  🛡️ Defensa: ${s.defense}
-⚔️ Daño: ${s.damage}             |  ⚡ Vel. Ataque: ${atkSpeedTxt}
-📏 Alcance: ${rangeTxt}     |  🏃 Movimiento: ${s.moveSpeed}
+⚔️ Daño: ${s.damage}  |  ⚡ Vel. Ataque: ${atkSpeedTxt}
+📏 Alcance: ${rangeTxt}  |  🏃 Movimiento: ${s.moveSpeed}
 
 -- ATRIBUTOS SECUNDARIOS --
-🎯 Prob. Crítica: ${s.critChance}%       |  💥 Daño Crítico: ${s.critDamage}%
-🩸 Robo de Vida: ${s.lifesteal}%     |  💖 Regeneración: ${s.regenHp}/s
+🎯 Prob. Crítica: ${s.critChance}%  |  💥 Daño Crítico: ${s.critDamage}%
+🩸 Robo de Vida: ${s.lifesteal}%  |  💖 Regeneración: ${s.regenHp}/s
 ⚔️⚔️ Golpe Doble: ${s.doubleAttack}%  |  🌵 Espinas: ${s.thorns}
-⏳ Reducción CD: ${s.cdr}%    |  🛡️ Bloqueo: ${s.blockChance}%`;
+⏳ Reducción CD: ${s.cdr}%  |  🛡️ Bloqueo: ${s.blockChance}%`;
 
         this.heroStatsText.setText(statsBlock); 
 
-        // 2. EQUIPAMIENTO (Posición fija en el medio)
+        // 2. EQUIPAMIENTO
         this.equippedTextContainer.removeAll(true); 
         const startX = this.heroStatsText.x; 
-        const equipY = this.heroStatsText.y + 280; // Bajamos un poco más para dar espacio a stats
+        const equipY = this.heroStatsText.y + 280; 
 
-        this.equippedTextContainer.add(this.add.text(startX, equipY, "-- EQUIPAMIENTO --", { ...this.fontBody, color: '#ffffffff', fontStyle: 'italic'})); 
+        this.equippedTextContainer.add(this.add.text(startX, equipY, "-- EQUIPAMIENTO --", { ...this.fontBody, color: '#aaa', fontStyle: 'italic'})); 
         
         let slotY = equipY + 30; 
         const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; 
@@ -973,7 +1003,6 @@ export default class MainMenuScene extends Phaser.Scene {
             slotY += 40; 
         }); 
         
-        // 3. SETS (Posición fija abajo)
         let setsText = "-- SETS ACTIVOS --\n"; 
         if (gameState.activeSets && gameState.activeSets.length > 0) { 
             gameState.activeSets.forEach(set => { 
@@ -985,13 +1014,68 @@ export default class MainMenuScene extends Phaser.Scene {
         }
         this.heroSetsText.setText(setsText);
 
-        // Header Info
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); 
         this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); 
     }
 
-    showUnequipModal(item, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#ffffffff' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { gameState.equipment[slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); updatePlayerStats(); this.refreshHero(); modal.destroy(); } else { this.showCentralAlert("Error: Item no equipado", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.heroContainer.add(modal); }
-    createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, fontSize: '20px', color: '#ffffffff', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xaaaaaa).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '18px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
+    showUnequipModal(item, slotKey) { 
+        const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); 
+        const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); 
+        const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); 
+        const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); 
+        const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); 
+        const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); 
+        const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); 
+        const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
+        
+        btnUnequip.on('pointerdown', () => { 
+            if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { 
+                gameState.equipment[slotKey] = null; 
+                this.safeAddItemToInventory(item); 
+                SaveSystem.save(); // GUARDADO AUTOMÁTICO
+                updatePlayerStats(); 
+                this.refreshHero(); 
+                modal.destroy(); 
+            } else { 
+                this.showCentralAlert("Error: Item no equipado", "#ff0000"); 
+                modal.destroy(); 
+            } 
+        }); 
+        
+        btnClose.on('pointerdown', () => modal.destroy()); 
+        modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); 
+        this.heroContainer.add(modal); 
+    }
+
+    createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
     refreshTowersView() { const types = ['archer', 'cannon', 'mage']; types.forEach(type => { const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } }); const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`); if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); } for (let s = 1; s <= 2; s++) { const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`); if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } } } }); }
-    showTowerUnequipModal(item, towerType, slotKey) { const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); btnUnequip.on('pointerdown', () => { if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) { gameState.towerEquipment[towerType][slotKey] = null; this.safeAddItemToInventory(item); SaveSystem.save(); this.refreshTowersView(); modal.destroy(); this.showCentralAlert("Mejora desequipada", "#ffff00"); } else { this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); modal.destroy(); } }); btnClose.on('pointerdown', () => modal.destroy()); modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); this.towersContainer.add(modal); }
+    
+    showTowerUnequipModal(item, towerType, slotKey) { 
+        const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); 
+        const bg = this.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); 
+        const title = this.add.text(0, -100, item.name, { ...this.fontHeader, fontSize: '22px', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); 
+        const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); 
+        const info = this.add.text(0, -20, statsStr, this.fontBody).setOrigin(0.5); 
+        const btnUnequip = this.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); 
+        const txtUnequip = this.add.text(0, 80, "DESEQUIPAR", this.fontBtn).setOrigin(0.5); 
+        const btnClose = this.add.text(0, 130, "Cancelar", { ...this.fontBody, color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
+        
+        btnUnequip.on('pointerdown', () => { 
+            if (gameState.towerEquipment[towerType][slotKey] && gameState.towerEquipment[towerType][slotKey].id === item.id) { 
+                gameState.towerEquipment[towerType][slotKey] = null; 
+                this.safeAddItemToInventory(item); 
+                SaveSystem.save(); // GUARDADO AUTOMÁTICO
+                this.refreshTowersView(); 
+                modal.destroy(); 
+                this.showCentralAlert("Mejora desequipada", "#ffff00"); 
+            } else { 
+                this.showCentralAlert("Error: Ya no está equipada", "#ff0000"); 
+                modal.destroy(); 
+            } 
+        }); 
+        
+        btnClose.on('pointerdown', () => modal.destroy()); 
+        modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); 
+        this.towersContainer.add(modal); 
+    }
 }
