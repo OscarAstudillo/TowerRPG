@@ -32,7 +32,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.xpReward = Math.floor(10 * levelDifficulty);
         this.leakDamage = (data.hp > 2000) ? 5 : 1; 
 
-        // Visual
+        // Visual Colors
         let color = 0xff0000;
         if (scene.biome === 'forest') color = 0x008000;   
         if (scene.biome === 'mountain') color = 0x8b4513; 
@@ -45,12 +45,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.originalColor = color; 
         const size = (this.maxHp > 2000) ? 40 : 20;
 
-        this.bodyShape = scene.add.rectangle(0, 0, size, size, color);
-        if (this.isFlying) this.bodyShape.setStrokeStyle(2, 0xffffff); 
-        else if (typeKey.includes('boss')) this.bodyShape.setStrokeStyle(3, 0xffd700); 
-        else this.bodyShape.setStrokeStyle(1, 0x000000); 
-        
-        this.add(this.bodyShape);
+        // --- CAMBIO A SPRITE ---
+        this.sprite = scene.add.sprite(0, 0, 'base_enemy');
+        this.sprite.setTint(color); 
+        this.sprite.setDisplaySize(size, size);
+        this.add(this.sprite);
+        // -----------------------
 
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 8, size + 10, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -size/2 - 8, size + 8, 4, 0x00ff00);
@@ -73,12 +73,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     update(time, delta) {
-        // SEGURIDAD CRÍTICA: Si no hay escena, detener todo inmediatamente
         if (!this.scene || !this.active) return;
 
         this.updateDebuffs(delta);
         
-        // Revisar de nuevo tras los debuffs por si murió
         if (!this.active) return;
 
         if (!this.isShielded && !this.statusEffects.stun.active) {
@@ -131,13 +129,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.burn.active = true;
             this.statusEffects.burn.damage = Math.max(this.statusEffects.burn.damage, effect.val);
             this.statusEffects.burn.timer = effect.duration;
-            this.bodyShape.setFillStyle(0xff4500); 
+            this.sprite.setTint(0xff4500); // Cambio: setTint en lugar de setFillStyle
         } 
         else if (effect.type === 'poison') { 
             this.statusEffects.poison.active = true;
             this.statusEffects.poison.damage = Math.max(this.statusEffects.poison.damage, effect.val);
             this.statusEffects.poison.timer = effect.duration;
-            this.bodyShape.setFillStyle(0x00ff00); 
+            this.sprite.setTint(0x00ff00); 
         }
         else if (effect.type === 'armor_break') {
             this.statusEffects.armorBreak.active = true;
@@ -150,28 +148,24 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.freeze.active = true;
             this.statusEffects.freeze.factor = effect.val;
             this.statusEffects.freeze.timer = effect.duration;
-            this.bodyShape.setFillStyle(0x00ffff); 
+            this.sprite.setTint(0x00ffff); 
         } 
         else if (effect.type === 'stun' && !this.typeKey.includes('boss')) {
             this.statusEffects.stun.active = true;
             this.statusEffects.stun.timer = effect.duration;
-            this.bodyShape.setFillStyle(0xffff00); 
+            this.sprite.setTint(0xffff00); 
         }
     }
 
     updateDebuffs(delta) {
-        // --- QUEMADURA ---
         if (this.statusEffects.burn.active) {
             this.statusEffects.burn.timer -= delta;
             this.statusEffects.burn.tickTimer += delta;
             if (this.statusEffects.burn.tickTimer >= 500) { 
                 this.takeTrueDamage(this.statusEffects.burn.damage, '#ff4500');
-                
-                // FIX: Verificar existencia de la escena y el método antes de llamar
                 if(this.scene && this.scene.createHitEffect) {
                     this.scene.createHitEffect(this.x, this.y, 0xff4500);
                 }
-                
                 this.statusEffects.burn.tickTimer = 0;
             }
             if (this.statusEffects.burn.timer <= 0) {
@@ -179,19 +173,14 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
-        
-        // --- VENENO ---
         if (this.statusEffects.poison.active) {
             this.statusEffects.poison.timer -= delta;
             this.statusEffects.poison.tickTimer += delta;
             if (this.statusEffects.poison.tickTimer >= 800) { 
                 this.takeTrueDamage(this.statusEffects.poison.damage, '#00ff00');
-                
-                // FIX: Verificar existencia de la escena y el método antes de llamar (Aquí estaba el crash)
                 if(this.scene && this.scene.createHitEffect) {
                     this.scene.createHitEffect(this.x, this.y, 0x00ff00);
                 }
-                
                 this.statusEffects.poison.tickTimer = 0;
             }
             if (this.statusEffects.poison.timer <= 0) {
@@ -199,8 +188,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.clearTint();
             }
         }
-        
-        // --- ARMOR BREAK ---
         if (this.statusEffects.armorBreak.active) {
             this.statusEffects.armorBreak.timer -= delta;
             if (this.statusEffects.armorBreak.timer <= 0) {
@@ -208,8 +195,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.armor = this.baseArmor;
             }
         }
-        
-        // --- CC ---
         if (this.statusEffects.freeze.active) {
             this.statusEffects.freeze.timer -= delta;
             if (this.statusEffects.freeze.timer <= 0) {
@@ -227,8 +212,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     clearTint() {
-        if (this.active && this.bodyShape) {
-            this.bodyShape.setFillStyle(this.originalColor); 
+        if (this.active && this.sprite) {
+            this.sprite.setTint(this.originalColor); 
         }
     }
 

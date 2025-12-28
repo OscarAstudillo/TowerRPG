@@ -1,30 +1,31 @@
 // src/main.js
 import Phaser from 'phaser';
-import MainMenuScene from './scenes/MainMenuScene';
-import WorldMapScene from './scenes/WorldMapScene';
-import GameScene from './scenes/GameScene';
-import ResultScene from './scenes/ResultScene';
-import HeroSelectScene from './scenes/HeroSelectScene';
+import PreloadScene from './scenes/PreloadScene.js'; // IMPORTAR
+import MainMenuScene from './scenes/MainMenuScene.js';
+import HeroSelectScene from './scenes/HeroSelectScene.js';
+import GameScene from './scenes/GameScene.js';
+import ResultScene from './scenes/ResultScene.js';
+import WorldMapScene from './scenes/WorldMapScene.js';
 import ChestScene from './scenes/ChestScene.js';
-
 
 const config = {
     type: Phaser.AUTO,
     width: 1920,
-    height: 1080, // <--- CAMBIO IMPORTANTE: De 720 a 960
+    height: 1080,
     parent: 'app',
     physics: {
         default: 'arcade',
         arcade: {
-            debug: false
+            debug: false,
+            gravity: { y: 0 }
         }
     },
-    // Ajustar escala para que quepa en pantallas pequeñas si es necesario
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    scene: [HeroSelectScene,MainMenuScene, WorldMapScene, GameScene, ResultScene,ChestScene]
+    // PreloadScene va PRIMERO
+    scene: [PreloadScene, MainMenuScene, HeroSelectScene, GameScene, ResultScene, WorldMapScene, ChestScene]
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);

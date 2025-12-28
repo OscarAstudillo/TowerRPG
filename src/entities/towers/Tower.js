@@ -1,3 +1,4 @@
+// src/entities/towers/Tower.js
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
 import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
@@ -10,7 +11,7 @@ export default class Tower extends Phaser.GameObjects.Container {
 
         this.typeKey = typeKey;
         this.enemies = enemiesGroup;
-        this.projectiles = projectilesGroup; // Grupo de Phaser
+        this.projectiles = projectilesGroup;
         this.buildSite = buildSite; 
         this.baseCost = baseCost;
         this.totalInvestment = baseCost; 
@@ -19,14 +20,20 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.typeName = data.name;
         this.baseColor = data.color;
         
-        this.base = scene.add.rectangle(0, 0, 40, 40, 0x808080);
-        this.base.setStrokeStyle(2, 0x000000);
+        // --- CAMBIO A SPRITE ---
+        // Usamos la textura generada en PreloadScene
+        this.baseSprite = scene.add.sprite(0, 0, 'base_tower');
+        this.baseSprite.setTint(this.baseColor); // Aplicamos el color de la torre
+        this.baseSprite.setDisplaySize(40, 40);
         
-        this.turretGroup = scene.add.container(0, 0);
-        this.turretBody = scene.add.rectangle(0, 0, 24, 24, this.baseColor);
-        this.turretGroup.add(this.turretBody);
+        // Marco de selección (borde)
+        this.selectionRing = scene.add.graphics();
+        this.selectionRing.lineStyle(2, 0x000000);
+        this.selectionRing.strokeRect(-20, -20, 40, 40);
 
-        this.add([this.base, this.turretGroup]);
+        this.add([this.baseSprite, this.selectionRing]);
+        // -----------------------
+
         this.setSize(40, 40);
         this.setInteractive({ useHandCursor: true });
 
@@ -48,8 +55,10 @@ export default class Tower extends Phaser.GameObjects.Container {
         if (time > this.lastAttackTime + this.attackSpeed) { 
             this.findTargetAndFire(time); 
         }
+        
+        // Rotación visual del sprite
         if (['mage', 'tesla', 'ice', 'fire'].includes(this.typeKey) || this.evolutionKey) {
-            this.turretGroup.angle += 1; 
+            this.baseSprite.angle += 1; 
         }
     }
 
@@ -80,7 +89,7 @@ export default class Tower extends Phaser.GameObjects.Container {
         else if (target) {
             if (this.typeKey !== 'mage' && this.typeKey !== 'tesla' && this.typeKey !== 'poison') { 
                 const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
-                this.turretGroup.rotation = angle + (Math.PI / 2);
+                this.baseSprite.rotation = angle + (Math.PI / 2);
             }
             this.fire(target);
             this.lastAttackTime = time;
@@ -92,12 +101,9 @@ export default class Tower extends Phaser.GameObjects.Container {
             let projectileType = this.typeKey;
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
-            // --- OBJECT POOLING ---
-            // 'get' busca uno reciclado. Si no hay, crea uno nuevo.
             const p = this.projectiles.get(this.x, this.y);
             
             if (p) {
-                // Activar y mostrar
                 p.setActive(true);
                 p.setVisible(true);
 
@@ -107,7 +113,6 @@ export default class Tower extends Phaser.GameObjects.Container {
                     if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
                 }
 
-                // Disparar (esto resetea las variables internas del proyectil)
                 p.fire(target, {
                     damage: finalDamage,
                     type: projectileType,
@@ -123,8 +128,9 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.scene.time.delayedCall(150, fireProjectile); 
         }
         
-        const recoil = (this.evolutionKey==='gatling') ? 2 : 5;
-        this.scene.tweens.add({ targets: this.turretGroup, y: recoil, yoyo: true, duration: 50 });
+        // Animación de retroceso (Recoil)
+        const recoil = (this.evolutionKey==='gatling') ? 2 : 4;
+        this.scene.tweens.add({ targets: this.baseSprite, y: recoil, yoyo: true, duration: 50 });
     }
 
     upgrade() {
@@ -144,8 +150,11 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.evolutionKey = evoData.key;
             this.typeName = evoData.name;
             this.totalInvestment += evoData.cost;
-            this.turretBody.setFillStyle(evoData.color);
-            this.base.setStrokeStyle(3, 0xffd700); 
+            
+            // Actualizar color del sprite
+            this.baseSprite.setTint(evoData.color);
+            this.selectionRing.lineStyle(3, 0xffd700); 
+            this.selectionRing.strokeRect(-20, -20, 40, 40);
             
             this.damage = evoData.stats.damage;
             this.range = evoData.stats.range;

@@ -7,8 +7,10 @@ export default class Projectile extends Phaser.GameObjects.Container {
         scene.add.existing(this);
         scene.physics.add.existing(this);
 
-        this.bodyShape = scene.add.circle(0, 0, 4, 0xffffff);
-        this.add(this.bodyShape);
+        // --- CAMBIO A SPRITE ---
+        this.sprite = scene.add.sprite(0, 0, 'base_projectile');
+        this.add(this.sprite);
+        // -----------------------
         
         this.speed = 600;
         this.damage = 10;
@@ -68,9 +70,10 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.setActive(true);
         this.setVisible(true);
 
-        if (this.bodyShape) this.bodyShape.destroy();
-        this.bodyShape = this.scene.add.circle(0, 0, 4, 0xffffff);
-        this.add(this.bodyShape);
+        // Reset visual
+        this.sprite.setVisible(true);
+        this.sprite.setTint(0xffffff);
+        this.sprite.setScale(1);
 
         this.target = target;
         this.damage = options.damage || 10;
@@ -82,9 +85,10 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.chainCount = this.effect.val;
         }
 
+        // COLORES POR TIPO
         if (this.type === 'cannon') {
-            this.bodyShape.setFillStyle(0x000000); 
-            this.bodyShape.setRadius(6);
+            this.sprite.setTint(0x000000); 
+            this.sprite.setScale(1.5);
             this.isParabolic = true;
             this.speed = 350; 
             
@@ -97,20 +101,17 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.duration = (dist / this.speed) * 1000;
 
         } else if (this.type === 'mage') {
-            this.bodyShape.setFillStyle(0x00ffff); 
-            this.bodyShape.setRadius(4);
+            this.sprite.setTint(0x00ffff); 
             this.isParabolic = false;
             this.speed = 500;
             
         } else if (this.type === 'tesla') { 
-            this.bodyShape.setFillStyle(0xffff00); 
-            this.bodyShape.setRadius(3);
+            this.sprite.setTint(0xffff00); 
             this.isParabolic = false;
             this.speed = 800;
             
         } else if (this.type === 'poison') { 
-            this.bodyShape.setFillStyle(0x00ff00); 
-            this.bodyShape.setRadius(5);
+            this.sprite.setTint(0x00ff00); 
             this.isParabolic = true; 
             this.speed = 400;
             
@@ -127,8 +128,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return; 
             
         } else { // Archer default
-            this.bodyShape.setFillStyle(0xffffff); 
-            this.bodyShape.setRadius(3);
+            this.sprite.setTint(0xffffff); 
             this.isParabolic = false;
             this.speed = 700;
         }
@@ -160,7 +160,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
                         if (e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= this.aoeRadius) {
                             if (this.effect) e.applyStatus(this.effect);
                             e.takeDamage(1);
-                            // Safety check para efectos visuales
                             if(this.scene.createHitEffect) this.scene.createHitEffect(e.x, e.y, 0x00ff00);
                         }
                     });
@@ -176,7 +175,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         if (this.isParabolic) {
-            // FIX: Actualizar destino en tiempo real para perseguir al enemigo
             if (this.target && this.target.active) {
                 this.destX = this.target.x;
                 this.destY = this.target.y;
@@ -216,22 +214,21 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return;
         }
         
-        // Si es parabólico, forzamos posición final al destino (el enemigo)
         if (this.isParabolic) {
             this.x = this.destX;
             this.y = this.destY;
         }
 
         if (this.type === 'poison') {
-            // Charco se queda quieto
             this.isPuddle = true;
             this.body.setVelocity(0, 0); 
             this.lifespan = 1500; 
             this.aoeRadius = this.aoeRadius || 60; 
             
-            if (this.bodyShape) this.bodyShape.destroy(); 
-            this.bodyShape = this.scene.add.ellipse(0, 0, this.aoeRadius * 2, this.aoeRadius, 0x00ff00, 0.4);
-            this.add(this.bodyShape);
+            // Transformar sprite a charco visual
+            this.sprite.setTint(0x00ff00);
+            this.sprite.setAlpha(0.5);
+            this.sprite.setScale(this.aoeRadius / 8); // Ajuste visual
             
             this.createExplosion(0x00ff00);
             return; 
@@ -270,7 +267,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             if (this.effect) directTarget.applyStatus(this.effect);
             
             if (this.scene.createHitEffect) {
-                this.scene.createHitEffect(this.x, this.y, this.bodyShape.fillColor);
+                this.scene.createHitEffect(this.x, this.y, this.sprite.tintTopLeft);
             }
 
             if (this.chainCount > 0) {
