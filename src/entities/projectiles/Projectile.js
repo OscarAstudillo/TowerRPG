@@ -1,9 +1,10 @@
+// src/entities/projectiles/Projectile.js
 import Phaser from 'phaser';
 
 export default class Projectile extends Phaser.GameObjects.Container {
     constructor(scene, x, y) {
         super(scene, x, y);
-        // No agregamos a la escena manualmente aquí, el Group lo hace.
+        // El Group maneja la adición a la escena, no lo hacemos aquí.
         
         // Forma inicial
         this.bodyShape = scene.add.circle(0, 0, 4, 0xffffff);
@@ -27,9 +28,15 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.destY = 0;
         this.timer = 0;
         this.duration = 0;
+        
+        // Asegurar cuerpo físico
+        if (this.body) {
+            this.body.setVelocity(0, 0);
+            this.body.enable = true;
+        }
     }
 
-    // Limpiar variables al reciclar para que no herede datos viejos
+    // Limpiar variables al reciclar
     resetValues() {
         this.speed = 600;
         this.damage = 10;
@@ -63,7 +70,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.setActive(true);
         this.setVisible(true);
 
-        // Asegurar forma base (por si era un charco antes)
+        // Asegurar forma base
         if (this.bodyShape) this.bodyShape.destroy();
         this.bodyShape = this.scene.add.circle(0, 0, 4, 0xffffff);
         this.add(this.bodyShape);
@@ -121,7 +128,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.duration = (dist / this.speed) * 1000;
             
         } else if (this.type === 'quake') { 
-            this.hit(null); // Instantáneo
+            this.hit(null); 
             return; 
             
         } else { // Archer default
@@ -131,6 +138,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.speed = 700;
         }
 
+        // Iniciar movimiento si no es parabólico
         if (!this.isParabolic && this.target && this.target.active) {
             const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
             this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
@@ -139,7 +147,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
     }
 
     update(time, delta) {
-        if (!this.active) return; // Si está inactivo, no gastar CPU
+        if (!this.active) return; 
 
         // --- CHARCO DE VENENO ---
         if (this.isPuddle) {
@@ -174,12 +182,21 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         if (this.isParabolic) {
+            // --- CORRECCIÓN: SEGUIMIENTO DE OBJETIVO ---
+            // Si el objetivo sigue vivo, actualizamos el destino para que el proyectil lo persiga en el aire.
+            // Esto asegura que la parábola aterrice SIEMPRE sobre el enemigo (y por tanto en el camino).
+            if (this.target && this.target.active) {
+                this.destX = this.target.x;
+                this.destY = this.target.y;
+            }
+
             this.timer += delta;
             const t = Math.min(this.timer / this.duration, 1);
 
+            // Interpolación Lineal hacia el destino (que puede haberse movido)
             const cx = Phaser.Math.Linear(this.startX, this.destX, t);
             const cy = Phaser.Math.Linear(this.startY, this.destY, t);
-            const height = 100 * Math.sin(t * Math.PI);
+            const height = 100 * Math.sin(t * Math.PI); 
             
             this.x = cx;
             this.y = cy - height;
@@ -208,13 +225,14 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return;
         }
 
+        // Si es parabólico, forzamos la posición final al destino exacto para asegurar precisión en la explosión
+        if (this.isParabolic) {
+            this.x = this.destX;
+            this.y = this.destY;
+        }
+
         // --- VENENO (CREAR CHARCO) ---
         if (this.type === 'poison') {
-            if (this.destX !== 0 && this.destY !== 0) {
-                this.x = this.destX;
-                this.y = this.destY;
-            }
-
             this.isPuddle = true;
             this.body.setVelocity(0, 0); 
             this.lifespan = 1500; 
@@ -225,7 +243,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.add(this.bodyShape);
             
             this.createExplosion(0x00ff00);
-            return; // No reciclamos aún, se queda como charco
+            return; 
         }
 
         // --- DAÑO EN ÁREA ---
@@ -266,7 +284,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 if (nextTarget) {
                     this.drawLightning(this.x, this.y, nextTarget.x, nextTarget.y);
 
-                    // Reutilizar mismo proyectil para el salto
                     this.x = directTarget.x;
                     this.y = directTarget.y;
                     this.target = nextTarget;
@@ -284,12 +301,11 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.recycle();
     }
 
-    // --- LA MAGIA DEL POOLING ---
     recycle() {
         this.setActive(false);
         this.setVisible(false);
         if (this.body) this.body.stop();
-        this.setPosition(-1000, -1000); // Fuera de cámara
+        this.setPosition(-1000, -1000);
     }
 
     findNextChainTarget(currentEnemy) {
