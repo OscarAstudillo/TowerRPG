@@ -332,6 +332,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.invMatsText.setText(""); 
         this.invItemsContainer.removeAll(true); 
         
+        // --- SECCIÓN DE MATERIALES CON SPRITES ---
         if (this.inventoryCategory === 'mats') { 
             let col = 0; 
             let row = 0; 
@@ -359,12 +360,22 @@ export default class MainMenuScene extends Phaser.Scene {
                 
                 const card = this.add.container(col * (cardWidth + gapX), row * (cardHeight + gapY));
                 const bg = this.add.rectangle(cardWidth/2, cardHeight/2, cardWidth, cardHeight, 0x222222).setStrokeStyle(1, 0x555555);
-                card.add(bg);
+                
+                // --- SPRITE MATERIAL ---
+                // Selecciona icono basado en nombre (madera, mineral, etc)
+                let iconKey = 'mat_wood'; // Default
+                if (k.includes('wood') || k.includes('cedar') || k.includes('ebony')) iconKey = 'mat_wood';
+                else if (k.includes('ore') || k.includes('iron') || k.includes('mithril') || k.includes('copper')) iconKey = 'mat_ore';
+                else if (k.includes('cloth') || k.includes('cotton') || k.includes('silk')) iconKey = 'mat_cloth';
+                else if (k.includes('leather') || k.includes('hide') || k.includes('scale')) iconKey = 'mat_leather';
 
-                const title = this.add.text(10, 8, matName.toUpperCase(), { 
+                const icon = this.add.sprite(30, 30, iconKey).setScale(0.8);
+                // -----------------------
+
+                const title = this.add.text(50, 8, matName.toUpperCase(), { 
                     fontFamily: 'Cinzel', fontSize: '13px', color: '#ffd700', fontStyle: 'bold' 
                 });
-                card.add(title);
+                card.add([bg, icon, title]);
 
                 let yPos = 30;
                 const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
@@ -373,12 +384,11 @@ export default class MainMenuScene extends Phaser.Scene {
                     const count = matCounts[r];
                     if (count > 0) {
                         const rData = RARITY[r];
-                        const dot = this.add.circle(15, yPos + 6, 4, rData.color);
-                        const txt = this.add.text(25, yPos, `${count} ${rData.name}`, { 
+                        const txt = this.add.text(60, yPos, `${count} ${rData.name}`, { 
                             fontFamily: 'Roboto', fontSize: '11px', color: '#ffffff' 
                         });
-                        card.add([dot, txt]);
-                        yPos += 16;
+                        card.add(txt);
+                        yPos += 14;
                     }
                 });
                 this.invItemsContainer.add(card);
@@ -388,6 +398,7 @@ export default class MainMenuScene extends Phaser.Scene {
             return; 
         } 
         
+        // --- SECCIÓN DE ITEMS CON SPRITES ---
         const filteredItems = gameState.inventory.filter(i => { 
             if (!i) return false; 
             if (this.inventoryCategory === 'mats') return false; 
@@ -401,7 +412,25 @@ export default class MainMenuScene extends Phaser.Scene {
             const itemContainer = this.add.container(col * 180, row * 50); 
             const bg = this.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({ useHandCursor: true }); 
             bg.setStrokeStyle(1, item.color); 
-            const nameTxt = this.add.text(10, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 150} }); 
+            
+            // --- SPRITE SEGÚN TIPO ---
+            let iconKey = 'icon_sword';
+            if(item.type === 'bow') iconKey = 'icon_bow';
+            if(item.type === 'staff') iconKey = 'icon_staff';
+            if(item.type === 'dagger') iconKey = 'icon_dagger';
+            if(item.type === 'armor' || item.type === 'offhand') iconKey = 'icon_shield'; // Usamos escudo como armadura genérica por ahora
+            if(item.type === 'accessory') iconKey = 'icon_accessory';
+            if(item.type === 'tower_part') iconKey = 'icon_tower_part';
+
+            // Verificamos si existe, si no, no ponemos sprite para evitar error
+            if (this.textures.exists(iconKey)) {
+                const icon = this.add.sprite(20, 20, iconKey).setScale(0.7);
+                itemContainer.add(icon);
+            }
+            // -------------------------
+
+            const nameTxt = this.add.text(40, 12, item.name, { ...this.fontBody, fontSize:'12px', color: '#fff', wordWrap: {width: 120} }); 
+            
             bg.on('pointerdown', () => this.selectItem(item)); 
             itemContainer.add([bg, nameTxt]); 
             this.invItemsContainer.add(itemContainer); 

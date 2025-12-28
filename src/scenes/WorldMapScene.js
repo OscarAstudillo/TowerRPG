@@ -24,15 +24,16 @@ export default class WorldMapScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
-        // Fondo del Mapa
-        this.add.rectangle(w/2, h/2, w, h, 0x1a1a1a);
+        // --- FONDO (Placeholder inicial, se actualiza en updateBiomeView) ---
+        this.bgImage = this.add.image(w/2, h/2, 'bg_forest').setDisplaySize(w, h).setDepth(-10);
+        // --------------------------------------------------------------------
         
         // Título
         this.add.text(w/2, 50, "MAPA DEL MUNDO", {
             fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
         }).setOrigin(0.5);
 
-        // --- AJUSTE: Panel más a la derecha (0.76) ---
+        // Panel de información (Tu código original)
         this.infoPanelContainer = this.add.container(w * 0.76, h * 0.5);
         this.add.existing(this.infoPanelContainer);
         
@@ -63,26 +64,21 @@ export default class WorldMapScene extends Phaser.Scene {
         rightArrow.on('pointerdown', () => this.changeBiome(1));
 
         this.levelsContainer = this.add.container(w * 0.35, h * 0.5);
-        // IMPORTANTE: Agregar el contenedor a la escena para que sea visible
         this.add.existing(this.levelsContainer); 
     }
 
     createBiomeInfoPanel() {
-        // --- AJUSTE: Panel más grande (400x600) ---
-        const bg = this.add.rectangle(0, 0, 400, 600, 0x000000, 0.85)
-            .setStrokeStyle(2, 0xffd700);
+        const bg = this.add.rectangle(0, 0, 400, 600, 0x000000, 0.85).setStrokeStyle(2, 0xffd700);
         
         const title = this.add.text(0, -260, "INFORMACIÓN DE ZONA", {
             fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700'
         }).setOrigin(0.5);
 
-        // Lore
         this.loreText = this.add.text(0, -180, "", {
             fontFamily: 'Roboto', fontSize: '16px', color: '#ffffff', align: 'center',
-            wordWrap: { width: 360 } // Ajustado al nuevo ancho
+            wordWrap: { width: 360 }
         }).setOrigin(0.5);
 
-        // Enemigos
         const enemiesHeader = this.add.text(0, -80, "-- ENEMIGOS --", {
             fontFamily: 'Cinzel', fontSize: '20px', color: '#ffaaaa'
         }).setOrigin(0.5);
@@ -92,7 +88,6 @@ export default class WorldMapScene extends Phaser.Scene {
             wordWrap: { width: 360 }
         }).setOrigin(0.5);
 
-        // Drops
         const dropsHeader = this.add.text(0, 100, "-- RECURSOS --", {
             fontFamily: 'Cinzel', fontSize: '20px', color: '#aaffaa'
         }).setOrigin(0.5);
@@ -116,13 +111,21 @@ export default class WorldMapScene extends Phaser.Scene {
         const biomeKey = this.biomeKeys[this.currentBiomeIndex];
         const biomeData = BIOMES[biomeKey];
 
+        // --- ACTUALIZAR FONDO (Nuevo) ---
+        // Usa las texturas generadas: bg_forest, bg_mountain, bg_volcano
+        const bgKey = `bg_${biomeKey}`;
+        if (this.textures.exists(bgKey)) {
+            this.bgImage.setTexture(bgKey);
+        } else {
+            this.bgImage.setTexture('bg_menu'); // Fallback
+        }
+        // --------------------------------
+
         if (this.biomeTitle) this.biomeTitle.destroy();
         
         this.biomeTitle = this.add.text(this.scale.width / 2, 100, `ZONA: ${biomeData.name.toUpperCase()}`, {
             fontFamily: 'Cinzel', fontSize: '40px', color: '#ffffff', stroke: '#000', strokeThickness: 4
         }).setOrigin(0.5);
-
-        this.cameras.main.setBackgroundColor(biomeData.theme.bg);
 
         this.levelsContainer.removeAll(true);
         this.createLevelButtons(biomeKey);
@@ -131,6 +134,7 @@ export default class WorldMapScene extends Phaser.Scene {
     }
 
     updateInfoPanelContent(biomeKey) {
+        // Tu lógica original de mostrar enemigos y drops
         const lore = BIOME_LORE[biomeKey] || "Una zona misteriosa e inexplorada.";
         this.loreText.setText(lore);
 
@@ -170,9 +174,7 @@ export default class WorldMapScene extends Phaser.Scene {
     }
 
     createLevelButtons(biomeKey) {
-        // --- CORRECCIÓN DE NIVELES ---
-        // Grid 2x5 centrado en el levelsContainer
-        let startX = -75; // Ajustado para centrar las columnas
+        let startX = -75;
         let startY = -200;
         let x = startX;
         let y = startY;
@@ -181,11 +183,9 @@ export default class WorldMapScene extends Phaser.Scene {
             const levelId = i;
             const isUnlocked = levelId <= (gameState.maxLevel || 1);
             
-            // Botón
             const btn = this.add.rectangle(x, y, 80, 80, isUnlocked ? 0x222222 : 0x111111)
                 .setStrokeStyle(2, isUnlocked ? 0x00ff00 : 0x550000);
             
-            // Texto
             const txt = this.add.text(x, y, `${i}`, {
                 fontFamily: 'Cinzel', fontSize: '32px', color: isUnlocked ? '#fff' : '#555'
             }).setOrigin(0.5);
@@ -204,15 +204,13 @@ export default class WorldMapScene extends Phaser.Scene {
                 btn.on('pointerout', () => btn.setFillStyle(0x222222));
             }
 
-            // --- IMPORTANTE: Añadir al contenedor para que se vean ---
             this.levelsContainer.add([btn, txt]);
 
-            // Lógica de grid (2 columnas)
             if (i % 2 === 0) {
                 x = startX;
-                y += 100; // Siguiente fila
+                y += 100;
             } else {
-                x += 150; // Siguiente columna
+                x += 150;
             }
         }
     }

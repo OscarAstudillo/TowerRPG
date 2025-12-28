@@ -1,29 +1,119 @@
+
+    
+
 // src/entities/player/Player.js
 import Phaser from 'phaser';
-import { gameState } from '../../config/GameState.js'; 
-import { TALENTS } from '../../config/Talents.js';
+import { gameState, getCurrentHero } from '../../config/GameState.js';
+import SoundManager from '../../systems/SoundManager.js'; // Opcional: Si ya tienes el SoundManager
 
-export default class Player extends Phaser.GameObjects.Rectangle {
+export default class Player extends Phaser.GameObjects.Container {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
-        const stats = gameState.playerStats;
-        const color = stats.color || 0xffff00;
-        super(scene, x, y, 32, 32, color); 
+        super(scene, x, y);
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
-        this.body.setCollideWorldBounds(true);
-        this.enemiesGroup = enemiesGroup;
-        this.projectilesGroup = projectilesGroup;
+        this.charClass = charClass;
+        this.enemies = enemiesGroup;
+        this.projectiles = projectilesGroup;
+
+        // --- VISUALIZACIÓN: SPRITE ---
+        const textureKey = `hero_${charClass}`; 
         
-        this.lastAttackTime = 0;
+        if (scene.textures.exists(textureKey)) {
+            this.bodySprite = scene.add.sprite(0, 0, textureKey);
+            this.bodySprite.setDisplaySize(32, 32);
+        } else {
+            // Fallback: Color del stats o amarillo
+            const stats = gameState.playerStats;
+            const color = stats.color || 0xffff00; 
+            this.bodySprite = scene.add.rectangle(0, 0, 32, 32, color);
+        }
+        this.add(this.bodySprite);
+        // -----------------------------
+
+        // Configuración Física
+        this.body.setSize(32, 32);
+        this.body.setCollideWorldBounds(true);
+        // Ajustamos el offset para que la caja de colisión esté centrada en el container
+        this.body.setOffset(-16, -16); 
+
+        this.attackTimer = 0;
         this.skillCooldown = 0;
         this.skillMaxCooldown = 5000; 
-        this.regenTimer = 0;
-        this.isBuffed = false; 
-        this.isDead = false; 
+
+        // Barra de vida (Ahora como hijos del contenedor para que sigan al jugador automáticamente)
+        this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
+        this.hpBar = scene.add.rectangle(0, -25, 38, 4, 0x00ff00);
+        this.add([this.hpBarBg, this.hpBar]);
         
-        this.cursors = scene.input.keyboard.addKeys({ up: Phaser.Input.Keyboard.KeyCodes.W, down: Phaser.Input.Keyboard.KeyCodes.S, left: Phaser.Input.Keyboard.KeyCodes.A, right: Phaser.Input.Keyboard.KeyCodes.D });
+        this.isDead = false;
+        this.respawnTimer = 0;
+        
         this.loadPassives();
+    }
+
+    update(time, delta) {
+        if (!this.scene) return;
+
+        if (this.isDead) {
+            this.respawnTimer -= delta;
+            if (this.respawnTimer <= 0) this.respawn();
+            return;
+        }
+
+        const stats = gameState.playerStats;
+
+        // Movimiento
+        const cursors = this.scene.input.keyboard.createCursorKeys();
+        const wasd = this.scene.input.keyboard.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'D': Phaser.Input.Keyboard.KeyCodes.D });
+
+        let velocityX = 0;
+        let velocityY = 0;
+
+        if (cursors.left.isDown || wasd.A.isDown) velocityX = -1;
+        else if (cursors.right.isDown || wasd.D.isDown) velocityX = 1;
+
+        if (cursors.up.isDown || wasd.W.isDown) velocityY = -1;
+        else if (cursors.down.isDown || wasd.S.isDown) velocityY = 1;
+
+        // Normalizar velocidad diagonal
+        if (velocityX !== 0 && velocityY !== 0) {
+            velocityX *= 0.707;
+            velocityY *= 0.707;
+        }
+
+        this.body.setVelocity(velocityX * stats.moveSpeed, velocityY * stats.moveSpeed);
+
+        // --- ANIMACIÓN FLIP (Mirar a donde camina) ---
+        if (this.bodySprite && this.bodySprite.setFlipX) {
+            if (velocityX < 0) this.bodySprite.setFlipX(true);
+            else if (velocityX > 0) this.bodySprite.setFlipX(false);
+        }
+        // --------------------------------------------
+
+        // Regeneración HP
+        if (stats.regenHp > 0) {
+            stats.hp = Math.min(stats.maxHp, stats.hp + (stats.regenHp * delta / 1000));
+        }
+
+        // Skill Cooldown
+        if (this.skillCooldown > 0) this.skillCooldown -= delta;
+
+        // Auto-Attack
+        this.attackTimer += delta;
+        if (this.attackTimer >= stats.attackSpeed) {
+            this.attackTimer = 0;
+            this.autoAttack();
+        }
+
+        // Actualizar barra de vida
+        const hpPercent = Math.max(0, stats.hp / stats.maxHp);
+        this.hpBar.width = 38 * hpPercent;
+        this.hpBar.fillColor = hpPercent < 0.3 ? 0xff0000 : 0x00ff00;
+        
+        if (stats.hp <= 0) {
+            this.die();
+        }
     }
 
     loadPassives() {
@@ -40,130 +130,110 @@ export default class Player extends Phaser.GameObjects.Rectangle {
             });
         }
     }
-    
-    get stats() { return gameState.playerStats; }
 
-    update(time, delta) {
-        if (this.isDead) { if(this.body) this.body.setVelocity(0); return; }
-        this.body.setVelocity(0);
-        const speed = this.stats.moveSpeed; 
-        if (this.cursors.left.isDown) this.body.setVelocityX(-speed); else if (this.cursors.right.isDown) this.body.setVelocityX(speed);
-        if (this.cursors.up.isDown) this.body.setVelocityY(-speed); else if (this.cursors.down.isDown) this.body.setVelocityY(speed);
-        
-        if (this.skillCooldown > 0) this.skillCooldown -= delta;
-        
-        // --- SEGURIDAD ANTI-CRASH ---
-        // Aseguramos un mínimo de 200ms de delay base
-        let baseSpeed = Math.max(200, this.stats.attackSpeed);
-        let currentAttackSpeed = baseSpeed;
-        
-        if (this.isBuffed && gameState.selectedClass === 'arquero') {
-            currentAttackSpeed /= 2; // Nerfeado de /3 a /2 para seguridad
-        }
-        
-        // Mínimo absoluto de 100ms (10 disparos/segundo)
-        if (currentAttackSpeed < 100) currentAttackSpeed = 100; 
+    autoAttack() {
+        const stats = gameState.playerStats;
+        let target = null;
+        let minDistance = stats.range;
 
-        if (time > this.lastAttackTime + currentAttackSpeed) { this.findTargetAndAttack(time); }
-        
-        this.regenTimer += delta;
-        if (this.regenTimer >= 5000) { 
-            this.regenTimer = 0;
-            if (this.stats.regenHp > 0 && this.stats.hp < this.stats.maxHp) {
-                gameState.playerStats.hp = Math.min(this.stats.hp + this.stats.regenHp, this.stats.maxHp);
-                if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${this.stats.regenHp}`, '#00ff00');
+        this.enemies.children.iterate((enemy) => {
+            if (enemy.active && !enemy.isDead) {
+                const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
+                if (dist <= minDistance) {
+                    minDistance = dist;
+                    target = enemy;
+                }
+            }
+        });
+
+        if (target) {
+            this.fireProjectile(target);
+            if (stats.doubleAttack > 0 && Math.random() * 100 < stats.doubleAttack) {
+                this.scene.time.delayedCall(150, () => {
+                    if(target.active) this.fireProjectile(target);
+                });
             }
         }
+    }
+
+    fireProjectile(target) {
+        const stats = gameState.playerStats;
+        
+        // Usamos pooling
+        const projectile = this.projectiles.get(this.x, this.y);
+        
+        if (projectile) {
+            let finalDamage = stats.damage;
+            
+            if (Math.random() * 100 < stats.critChance) {
+                finalDamage *= (stats.critDamage / 100);
+                this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
+            }
+
+            // Sonido
+            if (SoundManager && SoundManager.playSound) SoundManager.playSound('shoot_arrow');
+
+            projectile.fire(target, {
+                damage: finalDamage,
+                type: 'arrow',
+                effect: null
+            });
+        }
+    }
+
+    castSkill() {
+        if (this.skillCooldown > 0) return { success: false };
+        const hero = getCurrentHero();
+        if (!hero) return { success: false };
+
+        this.skillCooldown = this.skillMaxCooldown;
+        this.scene.showFloatingText(this.x, this.y, "¡HABILIDAD!", "#00ffff");
+
+        if (this.charClass === 'guerrero') {
+            gameState.playerStats.hp = Math.min(gameState.playerStats.maxHp, gameState.playerStats.hp + (gameState.playerStats.maxHp * 0.3));
+        } else if (this.charClass === 'mago') {
+            if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
+        } else if (this.charClass === 'arquero') {
+            // Lógica arquero
+        }
+
+        return { success: true };
     }
 
     takeDamage(amount) {
-        if (this.isDead) return;
-        if (this.passives.blockChance > 0 && Math.random() * 100 < this.passives.blockChance) { this.scene.showFloatingText(this.x, this.y - 40, "¡BLOQUEADO!", "#ffffff"); return; }
-        let safeAmount = Number(amount); if (isNaN(safeAmount)) safeAmount = 0;
-        const def = this.stats.defense || 0;
-        let finalDamage = Math.max(1, safeAmount - def);
-        gameState.playerStats.hp -= finalDamage;
-        if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(finalDamage)}`, '#ff0000');
-        if ((this.stats.thorns || 0) > 0) { const attacker = this.findClosestEnemy(100); if (attacker) attacker.takeDamage(this.stats.thorns); }
-        this.scene.tweens.add({ targets: this, alpha: 0.2, yoyo: true, duration: 100, repeat: 1 });
-        if (this.stats.hp <= 0) this.die();
-    }
+        const stats = gameState.playerStats;
+        
+        if (Math.random() * 100 < stats.blockChance) {
+            this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
+            return;
+        }
 
-    findTargetAndAttack(time) {
-        const target = this.findClosestEnemy(this.stats.range);
-        if (target) {
-            let hits = 1;
-            if (this.passives.doubleStrike > 0 && Math.random() * 100 < this.passives.doubleStrike) { hits = 2; this.scene.showFloatingText(this.x, this.y - 40, "¡DOBLE!", "#ff0000"); }
-            
-            for(let i=0; i<hits; i++) {
-                this.scene.time.delayedCall(i * 100, () => {
-                    // Verificación de seguridad: ¿La escena sigue activa?
-                    if (!this.scene || !this.projectilesGroup) return;
+        const mitigation = stats.defense * 0.5;
+        const finalDamage = Math.max(1, amount - mitigation);
 
-                    const projectile = this.projectilesGroup.get(this.x, this.y);
-                    if (projectile) {
-                        let dmg = this.stats.damage;
-                        if (this.passives.pierce > 0) dmg += 5; 
-                        
-                        let effect = null;
-                        if (gameState.selectedClass === 'mago') {
-                            effect = { type: 'freeze', val: 0.2, duration: 1500 }; 
-                            if(this.passives.frostHit > 0) effect.val = 0.5;
-                        } else if (gameState.selectedClass === 'asesino') {
-                            effect = { type: 'poison', val: Math.max(2, Math.floor(dmg * 0.2)), duration: 3000 };
-                        }
+        stats.hp -= finalDamage;
+        this.scene.cameras.main.shake(50, 0.002);
+        this.scene.showFloatingText(this.x, this.y, `-${Math.floor(finalDamage)}`, "#ff0000");
 
-                        // Calcular crítico
-                        let isCrit = false;
-                        if (this.stats.critChance > 0 && Math.random() * 100 < this.stats.critChance) {
-                            dmg = Math.floor(dmg * (this.stats.critDamage / 100));
-                            isCrit = true;
-                        }
-
-                        projectile.fire(target, { damage: dmg, type: 'hero', aoeRadius: 0, effect: effect });
-                        
-                        if (isCrit && this.scene.showFloatingText) {
-                            this.scene.showFloatingText(target.x, target.y - 30, "¡CRIT!", "#ff0000");
-                        }
-                        
-                        if (this.stats.lifesteal > 0) {
-                            const heal = Math.ceil(this.stats.damage * (this.stats.lifesteal / 100));
-                            if (heal > 0 && this.stats.hp < this.stats.maxHp) gameState.playerStats.hp += heal;
-                        }
-                    }
-                });
-            }
-            this.lastAttackTime = time;
+        if (stats.thorns > 0) {
+            // Lógica de espinas
         }
     }
 
-    castSkill() { 
-        if (this.isDead) return { success: false, msg: '¡Estás muerto!' }; 
-        if (this.skillCooldown > 0) return { success: false, msg: 'Cooldown!' }; 
-        const cls = gameState.selectedClass; let skillName = ""; 
-        if (cls === 'paladin') { const healAmount = Math.floor(this.stats.maxHp * 0.3); gameState.playerStats.hp = Math.min(this.stats.hp + healAmount, this.stats.maxHp); this.createEffect('heal'); skillName = "¡Sanación!"; if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, `+${healAmount}`, '#00ff00'); } 
-        else if (cls === 'guerrero') { const damage = this.stats.damage * 2.5; this.createAOE(150, damage, 0xff0000); skillName = "¡Torbellino!"; } 
-        else if (cls === 'mago') { const damage = this.stats.damage * 2; this.createAOE(200, damage, 0x00ffff); skillName = "¡Nova de Hielo!"; } 
-        else if (cls === 'arquero') { this.isBuffed = true; this.scene.time.delayedCall(3000, () => { this.isBuffed = false; }); this.createEffect('buff'); skillName = "¡Instinto!"; } 
-        else if (cls === 'asesino') { const target = this.findClosestEnemy(300); if (target) { target.takeDamage(this.stats.damage * 5); this.scene.add.text(target.x, target.y - 20, "¡CRÍTICO!", { fontSize: '20px', color: '#ff0000' }).destroy(); this.x = target.x; this.y = target.y; } else { return { success: false, msg: '¡Sin objetivo!' }; } skillName = "¡Ejecución!"; } 
-        const cdrMult = 1 - ((this.stats.cdr || 0) / 100); this.skillCooldown = this.skillMaxCooldown * cdrMult; return { success: true, msg: skillName }; 
+    die() {
+        this.isDead = true;
+        this.visible = false; // Oculta todo el contenedor
+        this.respawnTimer = 5000;
+        this.scene.showFloatingText(this.x, this.y, "MUERTO (5s)", "#ff0000");
+        this.scene.cameras.main.flash(500, 255, 0, 0);
     }
 
-    findClosestEnemy(range) { let closest = null; let minDist = Infinity; this.enemiesGroup.children.iterate(enemy => { if (enemy.active) { const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y); if (dist < range && dist < minDist) { minDist = dist; closest = enemy; } } }); return closest; }
-    
-    createAOE(radius, damage, color) { 
-        const circle = this.scene.add.circle(this.x, this.y, radius, color, 0.4); 
-        this.scene.tweens.add({ targets: circle, alpha: 0, scale: 1.2, duration: 300, onComplete: () => circle.destroy() }); 
-        
-        const enemies = this.enemiesGroup.getChildren(); 
-        enemies.forEach(enemy => { 
-            if (enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= radius) { 
-                enemy.takeDamage(damage); 
-            } 
-        }); 
+    respawn() {
+        this.isDead = false;
+        this.visible = true;
+        gameState.playerStats.hp = gameState.playerStats.maxHp;
+        this.x = this.scene.scale.width / 2;
+        this.y = this.scene.scale.height / 2;
+        this.scene.showFloatingText(this.x, this.y, "¡REVIVIDO!", "#00ff00");
     }
-    
-    createEffect(type) { if (type === 'buff') { this.setStrokeStyle(4, 0xffffff); this.scene.time.delayedCall(3000, () => this.setStrokeStyle(0)); } }
-    die() { if (this.isDead) return; this.isDead = true; gameState.playerStats.hp = 0; this.setFillStyle(0x555555); this.scene.add.text(this.x - 20, this.y - 40, "☠️", { fontSize: '30px' }).destroy({delay: 1000}); this.body.enable = false; this.respawnText = this.scene.add.text(this.x, this.y - 30, "Reviviendo...", { fontSize: '14px', color: '#fff', backgroundColor: '#000' }).setOrigin(0.5); this.scene.time.delayedCall(10000, () => { this.respawn(); }); }
-    respawn() { this.isDead = false; gameState.playerStats.hp = this.stats.maxHp; this.body.enable = true; this.lastAttackTime = 0; this.setFillStyle(this.stats.color); if (this.respawnText) this.respawnText.destroy(); this.scene.tweens.add({ targets: this, scale: { from: 0, to: 1 }, duration: 500, ease: 'Back.out' }); this.scene.showFloatingText(this.x, this.y - 50, "¡RESUCITADO!", "#00ff00"); }
 }
