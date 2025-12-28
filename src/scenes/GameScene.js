@@ -46,6 +46,7 @@ export default class GameScene extends Phaser.Scene {
     create() {
         updatePlayerStats(); 
         
+        // Textura Pixel para barras de vida
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -56,11 +57,11 @@ export default class GameScene extends Phaser.Scene {
         // Grupos
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         
-        // Configuración Object Pooling para proyectiles
+        // --- OBJECT POOLING: Configuración del Grupo de Proyectiles ---
         this.projectiles = this.physics.add.group({ 
             classType: Projectile, 
             runChildUpdate: true,
-            maxSize: 200 
+            maxSize: 200 // Límite de seguridad para evitar fugas de memoria
         });
 
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: false });
@@ -80,6 +81,7 @@ export default class GameScene extends Phaser.Scene {
         this.bossLootLog = []; 
         gameState.baseHp = 20;
 
+        // Dibujar Grid y Camino
         const graphics = this.add.graphics();
         if (this.theme.grid) {
             graphics.lineStyle(2, this.theme.grid, 0.3);
@@ -103,26 +105,29 @@ export default class GameScene extends Phaser.Scene {
 
         this.createBuildSlots();
 
-        // UI
+        // 1. INICIALIZAR UI PRIMERO (Para evitar errores de undefined)
         this.createUpgradeUI(); 
         this.createUI();
         this.createPauseMenu();
 
+        // Jugador
         this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
         
         // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        // Selector de Torres
+        // Selección de Torres (1-3 Originales)
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
+        
+        // --- NUEVAS TECLAS (4-6 Nuevas Torres) ---
         this.input.keyboard.on('keydown-FOUR', () => { if(!this.isPaused) { this.selectedTowerType = 'tesla'; this.updateUI(); }});
         this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
         this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
 
-        // Click Logic
+        // Click en Torres
         this.input.on('gameobjectdown', (pointer, obj) => {
             if (this.isPaused) return; 
             let tower = this.getTowerFromObject(obj);
@@ -132,8 +137,10 @@ export default class GameScene extends Phaser.Scene {
             } 
         });
 
+        // Click fuera para cerrar menú
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
+            // Protección: Verificar que upgradeContainer existe
             if (!this.upgradeContainer) return;
 
             const clickedOnUI = currentlyOver.some(obj => 
@@ -151,13 +158,14 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
             if(e.active && p.active) { 
                 if(p.hit) p.hit(e); 
-                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); }
+                // Usamos recycle() en lugar de destroy() si el proyectil lo soporta (ver Projectile.js)
+                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); } 
             } 
         });
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
 
         this.startWaveTimer(20); 
-        this.updateUI();
+        this.updateUI(); // Ahora sí funcionará porque la función está bien definida abajo
         this.isSceneReady = true;
     }
 
@@ -167,7 +175,8 @@ export default class GameScene extends Phaser.Scene {
         if (this.player) this.player.update(time, delta);
         if (this.towers) { this.towers.children.iterate(t => { if (t && t.active) t.update(time, delta); }); }
         
-        // Proyectiles se actualizan solos por el grupo
+        // Los proyectiles se actualizan automáticamente gracias a runChildUpdate: true
+        // if (this.projectiles) { this.projectiles.children.iterate(p => { if (p && p.active && p.update) p.update(time, delta); }); }
 
         const hero = getCurrentHero();
         if (hero && hero.level > this.lastHeroLevel) {
@@ -193,6 +202,7 @@ export default class GameScene extends Phaser.Scene {
     // --- GAMEPLAY UTILS ---
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
+        
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
         gameState.materials[matKey][rarity] += qty;
         
@@ -228,10 +238,13 @@ export default class GameScene extends Phaser.Scene {
             if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
         }
         
+        // MÁS ENEMIGOS
         let baseCount = 8 + (this.currentWave * 3); 
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
+        
+        // MENOS TIEMPO ENTRE ELLOS (Para que el cañón sea útil)
         let spawnDelay = 1000 - (this.currentWave * 50); 
-        if (spawnDelay < 200) spawnDelay = 200; 
+        if (spawnDelay < 200) spawnDelay = 200; // Mínimo 200ms
 
         if (this.isBossWave) {
             this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
@@ -312,6 +325,7 @@ export default class GameScene extends Phaser.Scene {
     }
     
     // --- UI METHODS ---
+    
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
@@ -586,5 +600,30 @@ export default class GameScene extends Phaser.Scene {
         this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); 
     }
     
-    togglePause() { this.isPaused = !this.isPaused; if (this.isPaused) { this.physics.pause(); this.tweens.pauseAll(); this.pauseContainer.setVisible(true); this.children.bringToTop(this.pauseContainer); } else { this.physics.resume(); this.tweens.resumeAll(); this.pauseContainer.setVisible(false); } }
+    // --- CORRECCIÓN FINAL: PAUSAR TEMPORIZADORES Y GRUPOS ---
+    togglePause() { 
+        this.isPaused = !this.isPaused; 
+        if (this.isPaused) { 
+            this.physics.pause(); 
+            this.tweens.pauseAll(); 
+            this.time.paused = true; // PAUSAR RELOJ DE LA ESCENA
+            
+            // CONGELAR LOGICA INTERNA DE LOS GRUPOS
+            if(this.enemies) this.enemies.runChildUpdate = false;
+            if(this.projectiles) this.projectiles.runChildUpdate = false;
+
+            this.pauseContainer.setVisible(true); 
+            this.children.bringToTop(this.pauseContainer); 
+        } else { 
+            this.physics.resume(); 
+            this.tweens.resumeAll(); 
+            this.time.paused = false; // REANUDAR RELOJ
+            
+            // REANUDAR LOGICA DE LOS GRUPOS
+            if(this.enemies) this.enemies.runChildUpdate = true;
+            if(this.projectiles) this.projectiles.runChildUpdate = true;
+
+            this.pauseContainer.setVisible(false); 
+        } 
+    }
 }
