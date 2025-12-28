@@ -1,8 +1,7 @@
-// src/entities/towers/Tower.js
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
 import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
-import Projectile from '../projectiles/Projectile.js'; // Mantenemos import por si acaso, aunque no usamos 'new'
+import Projectile from '../projectiles/Projectile.js';
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -11,7 +10,7 @@ export default class Tower extends Phaser.GameObjects.Container {
 
         this.typeKey = typeKey;
         this.enemies = enemiesGroup;
-        this.projectiles = projectilesGroup; // Este es el Group de Phaser
+        this.projectiles = projectilesGroup; // Grupo de Phaser
         this.buildSite = buildSite; 
         this.baseCost = baseCost;
         this.totalInvestment = baseCost; 
@@ -93,13 +92,12 @@ export default class Tower extends Phaser.GameObjects.Container {
             let projectileType = this.typeKey;
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
-            // --- OBJECT POOLING CAMBIO CRÍTICO ---
-            // En lugar de new Projectile(), usamos get().
-            // get() busca uno inactivo (active=false) y lo devuelve. Si no hay, crea uno nuevo.
+            // --- OBJECT POOLING ---
+            // 'get' busca uno reciclado. Si no hay, crea uno nuevo.
             const p = this.projectiles.get(this.x, this.y);
             
             if (p) {
-                // Asegurarse de activarlo y visualizarlo
+                // Activar y mostrar
                 p.setActive(true);
                 p.setVisible(true);
 
@@ -109,7 +107,7 @@ export default class Tower extends Phaser.GameObjects.Container {
                     if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
                 }
 
-                // Llamar a fire() que ahora se encarga de resetear el proyectil reciclado
+                // Disparar (esto resetea las variables internas del proyectil)
                 p.fire(target, {
                     damage: finalDamage,
                     type: projectileType,
