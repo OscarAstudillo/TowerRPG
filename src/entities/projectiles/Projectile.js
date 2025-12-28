@@ -4,12 +4,23 @@ import Phaser from 'phaser';
 export default class Projectile extends Phaser.GameObjects.Container {
     constructor(scene, x, y) {
         super(scene, x, y);
-        scene.add.existing(this);
-        scene.physics.add.existing(this);
-
+        // NOTA: No agregamos a la escena aquí manualmente si usamos Group.get(), 
+        // pero por compatibilidad con la estructura actual lo dejamos.
+        // El Group de Phaser se encarga de la gestión.
+        
+        // Forma inicial (Círculo base)
         this.bodyShape = scene.add.circle(0, 0, 4, 0xffffff);
         this.add(this.bodyShape);
         
+        // Físicas
+        scene.physics.add.existing(this);
+        
+        // Inicializar propiedades (valores por defecto)
+        this.resetValues();
+    }
+
+    // Método auxiliar para limpiar variables al reciclar
+    resetValues() {
         this.speed = 600;
         this.damage = 10;
         this.target = null;
@@ -17,26 +28,44 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.aoeRadius = 0;
         this.effect = null;
         this.lifespan = 2000;
-        
-        // Propiedades Nuevas
-        this.chainCount = 0;   // Tesla
-        this.isPuddle = false; // Veneno
+        this.chainCount = 0;   
+        this.isPuddle = false; 
         this.puddleTick = 0;
         this.type = 'arrow';
-        
-        // Coordenadas de destino para precisión
         this.destX = 0;
         this.destY = 0;
+        this.timer = 0;
+        this.duration = 0;
+        
+        // Asegurar que el cuerpo físico esté quieto y habilitado
+        if (this.body) {
+            this.body.setVelocity(0, 0);
+            this.body.enable = true;
+        }
+        
+        this.alpha = 1;
+        this.scale = 1;
+        this.rotation = 0;
     }
 
     fire(target, options) {
+        // PASO 1: Resetear el objeto por si viene de la piscina de reciclaje
+        this.resetValues();
+        this.setActive(true);
+        this.setVisible(true);
+
+        // Asegurar forma base (por si era un charco antes)
+        if (this.bodyShape) this.bodyShape.destroy();
+        this.bodyShape = this.scene.add.circle(0, 0, 4, 0xffffff);
+        this.add(this.bodyShape);
+
+        // PASO 2: Configuración normal
         this.target = target;
         this.damage = options.damage || 10;
         this.aoeRadius = options.aoe || 0;
         this.effect = options.effect || null;
         this.type = options.type || 'arrow';
         
-        // Configurar Cadena si es Tesla
         if (this.effect && this.effect.type === 'chain') {
             this.chainCount = this.effect.val;
         }
@@ -55,7 +84,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             
             const dist = Phaser.Math.Distance.Between(this.x, this.y, this.destX, this.destY);
             this.duration = (dist / this.speed) * 1000;
-            this.timer = 0;
 
         } else if (this.type === 'mage') {
             this.bodyShape.setFillStyle(0x00ffff); 
@@ -64,26 +92,24 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.speed = 500;
             
         } else if (this.type === 'tesla') { 
-            this.bodyShape.setFillStyle(0xffff00); // Amarillo Rayo
+            this.bodyShape.setFillStyle(0xffff00); 
             this.bodyShape.setRadius(3);
             this.isParabolic = false;
             this.speed = 800; 
             
         } else if (this.type === 'poison') { 
-            this.bodyShape.setFillStyle(0x00ff00); // Verde Veneno
+            this.bodyShape.setFillStyle(0x00ff00); 
             this.bodyShape.setRadius(5);
             this.isParabolic = true; 
             this.speed = 400;
             
             this.startX = this.x;
             this.startY = this.y;
-            // Guardamos destino exacto
             this.destX = target.x;
             this.destY = target.y;
             
             const dist = Phaser.Math.Distance.Between(this.x, this.y, this.destX, this.destY);
             this.duration = (dist / this.speed) * 1000;
-            this.timer = 0;
             
         } else if (this.type === 'quake') { 
             this.hit(null); 
@@ -96,7 +122,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.speed = 700;
         }
 
-        // Iniciar movimiento si no es Quake
         if (!this.isParabolic && this.target && this.target.active) {
             const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
             this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
@@ -105,17 +130,19 @@ export default class Projectile extends Phaser.GameObjects.Container {
     }
 
     update(time, delta) {
+        // Importante: Si no está activo, no ejecutar lógica
+        if (!this.active) return;
+
         // --- LÓGICA CHARCO DE VENENO ---
         if (this.isPuddle) {
             this.lifespan -= delta;
             this.puddleTick += delta;
             
             if (this.lifespan <= 0) {
-                this.destroy();
+                this.recycle(); // CAMBIO: recycle en vez de destroy
                 return;
             }
 
-            // Daño por tick (cada 200ms)
             if (this.puddleTick >= 200) {
                 this.puddleTick = 0;
                 if (this.scene && this.scene.enemies) {
@@ -134,7 +161,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         // --- LÓGICA PROYECTIL NORMAL ---
         this.lifespan -= delta;
         if (this.lifespan <= 0) {
-            this.destroy();
+            this.recycle(); // CAMBIO
             return;
         }
 
@@ -154,7 +181,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             }
         } else {
             if (!this.target || !this.target.active) {
-                this.destroy();
+                this.recycle(); // CAMBIO: Si no hay target, reciclar
                 return;
             }
             const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
@@ -169,13 +196,12 @@ export default class Projectile extends Phaser.GameObjects.Container {
 
     hit(directTarget) {
         if (!this.scene || !this.scene.enemies) {
-            this.destroy();
+            this.recycle();
             return;
         }
 
-        // --- LÓGICA VENENO (CREAR CHARCO) ---
+        // --- VENENO (CHARCO) ---
         if (this.type === 'poison') {
-            // FIX: Forzar posición exacta al destino para que quede en el camino
             if (this.destX !== 0 && this.destY !== 0) {
                 this.x = this.destX;
                 this.y = this.destY;
@@ -186,9 +212,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.lifespan = 1500; 
             this.aoeRadius = this.aoeRadius || 60; 
             
-            // Reemplazar gráfico con elipse
             if (this.bodyShape) this.bodyShape.destroy(); 
-            
             this.bodyShape = this.scene.add.ellipse(0, 0, this.aoeRadius * 2, this.aoeRadius, 0x00ff00, 0.4);
             this.add(this.bodyShape);
             
@@ -196,7 +220,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return; 
         }
 
-        // --- DAÑO EN ÁREA (Cañón / Quake) ---
+        // --- AOE ---
         if (this.aoeRadius > 0) {
             const colorExplosion = (this.type === 'quake') ? 0x8b4513 : 0xffa500;
             this.createExplosion(colorExplosion); 
@@ -213,7 +237,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 }
             });
         } 
-        // --- IMPACTO DIRECTO ---
+        // --- DIRECTO ---
         else if (directTarget && directTarget.active) {
             directTarget.takeDamage(this.damage);
             if (this.effect) directTarget.applyStatus(this.effect);
@@ -233,13 +257,21 @@ export default class Projectile extends Phaser.GameObjects.Container {
                     
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, nextTarget.x, nextTarget.y);
                     this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
-                    
                     return; 
                 }
             }
         }
 
-        this.destroy();
+        this.recycle();
+    }
+
+    // MÉTODO DE POOLING: En lugar de destroy, ocultamos
+    recycle() {
+        this.setActive(false);
+        this.setVisible(false);
+        if (this.body) this.body.stop();
+        // Opcional: Sacarlo de la pantalla
+        this.setPosition(-1000, -1000);
     }
 
     findNextChainTarget(currentEnemy) {

@@ -2,7 +2,7 @@
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
 import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
-import Projectile from '../projectiles/Projectile.js';
+import Projectile from '../projectiles/Projectile.js'; // Mantenemos import por si acaso, aunque no usamos 'new'
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -11,7 +11,7 @@ export default class Tower extends Phaser.GameObjects.Container {
 
         this.typeKey = typeKey;
         this.enemies = enemiesGroup;
-        this.projectiles = projectilesGroup;
+        this.projectiles = projectilesGroup; // Este es el Group de Phaser
         this.buildSite = buildSite; 
         this.baseCost = baseCost;
         this.totalInvestment = baseCost; 
@@ -49,7 +49,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         if (time > this.lastAttackTime + this.attackSpeed) { 
             this.findTargetAndFire(time); 
         }
-        // Animación giratoria para torres mágicas/elementales
         if (['mage', 'tesla', 'ice', 'fire'].includes(this.typeKey) || this.evolutionKey) {
             this.turretGroup.angle += 1; 
         }
@@ -58,14 +57,10 @@ export default class Tower extends Phaser.GameObjects.Container {
     findTargetAndFire(time) {
         let target = null; 
         let maxProgress = -1;
-        
-        // Quake ataca si HAY alguien en rango, no necesita un "target" específico para disparar
-        // pero necesitamos saber si hay alguien para activar el cooldown.
         let enemyInRange = false;
 
         this.enemies.children.iterate(enemy => {
             if (enemy.active && !enemy.isDead) {
-                // Lógica de Vuelo: Cañones y Quake no atacan aire (a menos que quake evolucione, pero base no)
                 if ((this.typeKey === 'cannon' || this.typeKey === 'quake') && enemy.isFlying) return;
 
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
@@ -79,12 +74,10 @@ export default class Tower extends Phaser.GameObjects.Container {
             }
         });
 
-        // Si es Quake y hay enemigos, disparar (hit al suelo)
         if (this.typeKey === 'quake' && enemyInRange) {
-            this.fire(null); // No necesita target directo
+            this.fire(null); 
             this.lastAttackTime = time;
         } 
-        // Otras torres necesitan target
         else if (target) {
             if (this.typeKey !== 'mage' && this.typeKey !== 'tesla' && this.typeKey !== 'poison') { 
                 const angle = Phaser.Math.Angle.Between(this.x, this.y, target.x, target.y);
@@ -98,35 +91,40 @@ export default class Tower extends Phaser.GameObjects.Container {
     fire(target) {
         const fireProjectile = () => {
             let projectileType = this.typeKey;
-            // Manejo especial de evolución visual
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
-            const p = new Projectile(this.scene, this.x, this.y);
-            if (this.projectiles) this.projectiles.add(p);
+            // --- OBJECT POOLING CAMBIO CRÍTICO ---
+            // En lugar de new Projectile(), usamos get().
+            // get() busca uno inactivo (active=false) y lo devuelve. Si no hay, crea uno nuevo.
+            const p = this.projectiles.get(this.x, this.y);
             
-            let finalDamage = this.damage;
-            // Críticos
-            if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
-                finalDamage *= 2; 
-                if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
-            }
+            if (p) {
+                // Asegurarse de activarlo y visualizarlo
+                p.setActive(true);
+                p.setVisible(true);
 
-            p.fire(target, {
-                damage: finalDamage,
-                type: projectileType,
-                effect: this.currentEffect,
-                aoe: this.currentAoE || 0
-            });
+                let finalDamage = this.damage;
+                if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
+                    finalDamage *= 2; 
+                    if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
+                }
+
+                // Llamar a fire() que ahora se encarga de resetear el proyectil reciclado
+                p.fire(target, {
+                    damage: finalDamage,
+                    type: projectileType,
+                    effect: this.currentEffect,
+                    aoe: this.currentAoE || 0
+                });
+            }
         };
 
         fireProjectile();
         
-        // Doble ataque (Chance)
         if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance && target) {
             this.scene.time.delayedCall(150, fireProjectile); 
         }
         
-        // Animación de retroceso
         const recoil = (this.evolutionKey==='gatling') ? 2 : 5;
         this.scene.tweens.add({ targets: this.turretGroup, y: recoil, yoyo: true, duration: 50 });
     }

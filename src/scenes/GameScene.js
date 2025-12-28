@@ -56,7 +56,14 @@ export default class GameScene extends Phaser.Scene {
 
         // Grupos
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
-        this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: true });
+        
+        // --- OBJECT POOLING: Configuración del Grupo de Proyectiles ---
+        this.projectiles = this.physics.add.group({ 
+            classType: Projectile, 
+            runChildUpdate: true,
+            maxSize: 200 // Límite de seguridad para evitar fugas de memoria
+        });
+
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: false });
         this.buildSites = this.add.group();
         this.loots = this.physics.add.group({ classType: Loot });
@@ -109,10 +116,13 @@ export default class GameScene extends Phaser.Scene {
         // Inputs
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
+        
+        // Selección de Torres (1-3 Originales)
         this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
         this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
         this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
-        // NUEVAS TECLAS
+        
+        // --- NUEVAS TECLAS (4-6 Nuevas Torres) ---
         this.input.keyboard.on('keydown-FOUR', () => { if(!this.isPaused) { this.selectedTowerType = 'tesla'; this.updateUI(); }});
         this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
         this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
@@ -148,7 +158,8 @@ export default class GameScene extends Phaser.Scene {
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
             if(e.active && p.active) { 
                 if(p.hit) p.hit(e); 
-                else { e.takeDamage(p.damage||10); p.destroy(); } 
+                // Usamos recycle() en lugar de destroy() si el proyectil lo soporta (ver Projectile.js)
+                else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); } 
             } 
         });
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
@@ -163,7 +174,9 @@ export default class GameScene extends Phaser.Scene {
 
         if (this.player) this.player.update(time, delta);
         if (this.towers) { this.towers.children.iterate(t => { if (t && t.active) t.update(time, delta); }); }
-        if (this.projectiles) { this.projectiles.children.iterate(p => { if (p && p.active && p.update) p.update(time, delta); }); }
+        
+        // Los proyectiles se actualizan automáticamente gracias a runChildUpdate: true
+        // if (this.projectiles) { this.projectiles.children.iterate(p => { if (p && p.active && p.update) p.update(time, delta); }); }
 
         const hero = getCurrentHero();
         if (hero && hero.level > this.lastHeroLevel) {
@@ -186,9 +199,10 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // --- UTILS ---
+    // --- GAMEPLAY UTILS ---
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
+        
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
         gameState.materials[matKey][rarity] += qty;
         
@@ -224,10 +238,13 @@ export default class GameScene extends Phaser.Scene {
             if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
         }
         
+        // MÁS ENEMIGOS
         let baseCount = 8 + (this.currentWave * 3); 
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
+        
+        // MENOS TIEMPO ENTRE ELLOS (Para que el cañón sea útil)
         let spawnDelay = 1000 - (this.currentWave * 50); 
-        if (spawnDelay < 200) spawnDelay = 200; 
+        if (spawnDelay < 200) spawnDelay = 200; // Mínimo 200ms
 
         if (this.isBossWave) {
             this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
@@ -307,7 +324,7 @@ export default class GameScene extends Phaser.Scene {
         return null; 
     }
     
-    // --- UI METHODS (Desplegados para evitar errores) ---
+    // --- UI METHODS ---
     
     createUI() { 
         const w = this.scale.width; 
@@ -345,7 +362,7 @@ export default class GameScene extends Phaser.Scene {
         const contentY = botY; 
         this.add.text(40, contentY - 30, 'TESORO:', { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.economyText = this.add.text(40, contentY, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffffff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-3)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-6)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
         const buildBg = this.add.rectangle(400, contentY + 10, 250, 60, 0x222222).setStrokeStyle(2, accent).setScrollFactor(0).setDepth(uiDepth); 
         this.buildText = this.add.text(400, contentY + 10, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
@@ -469,12 +486,10 @@ export default class GameScene extends Phaser.Scene {
     }
     
     closeUpgradeMenu() { 
-        // CORRECCIÓN: Verificar que selectedTowerToUpgrade existe
         if (this.selectedTowerToUpgrade && this.selectedTowerToUpgrade.rangeCircle) {
             this.selectedTowerToUpgrade.rangeCircle.setVisible(false); 
         }
         this.selectedTowerToUpgrade = null; 
-        // CORRECCIÓN: Verificar que upgradeContainer existe
         if (this.upgradeContainer) {
             this.upgradeContainer.setVisible(false); 
         }
