@@ -1,6 +1,6 @@
 // src/scenes/HeroSelectScene.js
 import Phaser from 'phaser';
-import { gameState, initHero } from '../config/GameState.js';
+import { gameState, updatePlayerStats } from '../config/GameState.js';
 import SaveSystem from '../systems/SaveSystem.js';
 
 export default class HeroSelectScene extends Phaser.Scene {
@@ -11,57 +11,63 @@ export default class HeroSelectScene extends Phaser.Scene {
     create() {
         const w = this.scale.width;
         const h = this.scale.height;
+        const cx = w / 2;
+        const cy = h / 2;
 
-        // FONDO
-        this.add.image(w/2, h/2, 'bg_menu').setDisplaySize(w, h).setAlpha(0.8);
+        // Fondo
+        this.add.rectangle(cx, cy, w, h, 0x111111);
+        this.add.text(cx, h * 0.1, "ELIGE TU HÉROE", { fontSize: '40px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
 
-        this.add.text(w / 2, 80, 'ELIGE TU HÉROE', {
-            fontFamily: 'Cinzel', fontSize: '48px', color: '#ffd700', stroke: '#000', strokeThickness: 4
-        }).setOrigin(0.5);
-
-        const heroes = [
-            { id: 'guerrero', name: 'GUERRERO', desc: 'Tanque robusto.\nAlta vida y defensa.', color: 0xff0000, icon: 'hero_guerrero' },
-            { id: 'mago', name: 'MAGO', desc: 'Daño mágico.\nExplosiones de área.', color: 0x00ffff, icon: 'hero_mago' },
-            { id: 'arquero', name: 'ARQUERO', desc: 'Daño rápido.\nAlta velocidad de ataque.', color: 0x00ff00, icon: 'hero_arquero' },
-            { id: 'asesino', name: 'ASESINO', desc: 'Daño crítico letal.\nBaja vida, alto riesgo.', color: 0x800080, icon: 'hero_asesino' }
+        // Si ya hay una clase guardada y no venimos de "Cambiar Héroe", saltar (opcional, pero el usuario pidió que siempre aparezca o se pueda volver)
+        // Aquí asumimos que siempre se muestra si gameState.selectedClass es null, o si venimos forzados.
+        
+        const classes = [
+            { id: 'paladin', name: 'Paladín', color: 0xffff00, desc: 'Tanque y Curador. Alta supervivencia.' },
+            { id: 'guerrero', name: 'Guerrero', color: 0xff0000, desc: 'Daño en área y cuerpo a cuerpo.' },
+            { id: 'arquero', name: 'Arquero', color: 0x00ff00, desc: 'Daño rápido a distancia.' },
+            { id: 'mago', name: 'Mago', color: 0x00ffff, desc: 'Control de masas y daño mágico.' },
+            { id: 'asesino', name: 'Asesino', color: 0x550055, desc: 'Daño crítico explosivo.' }
         ];
 
-        const startX = w / 2 - 350;
-        const gap = 240;
+        let startX = w * 0.15;
+        const gap = w * 0.18;
 
-        heroes.forEach((hData, index) => {
-            const container = this.add.container(startX + (index * gap), h / 2);
+        classes.forEach((cls, i) => {
+            const x = startX + (i * gap);
+            const y = cy;
+
+            // Tarjeta
+            const card = this.add.container(x, y);
+            const bg = this.add.rectangle(0, 0, 180, 300, 0x222222).setStrokeStyle(2, cls.color).setInteractive({ useHandCursor: true });
             
-            // Fondo de tarjeta
-            const bg = this.add.rectangle(0, 0, 220, 350, 0x000000, 0.7).setStrokeStyle(2, hData.color).setInteractive({ useHandCursor: true });
+            // Icono simple
+            const icon = this.add.circle(0, -50, 40, cls.color);
             
-            // SPRITE DEL HÉROE
-            const sprite = this.add.sprite(0, -60, hData.icon).setScale(1.5);
-            
-            const title = this.add.text(0, 20, hData.name, { fontSize: '24px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
-            const desc = this.add.text(0, 80, hData.desc, { fontSize: '14px', align: 'center', color: '#ccc' }).setOrigin(0.5);
-            
+            // Texto
+            const name = this.add.text(0, 20, cls.name.toUpperCase(), { fontSize: '20px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
+            const desc = this.add.text(0, 80, cls.desc, { fontSize: '12px', color: '#aaa', align: 'center', wordWrap: { width: 160 } }).setOrigin(0.5);
+
+            card.add([bg, icon, name, desc]);
+
             // Efecto Hover
-            bg.on('pointerover', () => { 
-                this.tweens.add({ targets: container, scale: 1.1, duration: 100 });
-                bg.setFillStyle(0x222222, 0.9);
-            });
-            bg.on('pointerout', () => { 
-                this.tweens.add({ targets: container, scale: 1.0, duration: 100 });
-                bg.setFillStyle(0x000000, 0.7);
-            });
-            
-            bg.on('pointerdown', () => this.selectHero(hData.id));
+            bg.on('pointerover', () => this.tweens.add({ targets: card, scale: 1.1, duration: 100 }));
+            bg.on('pointerout', () => this.tweens.add({ targets: card, scale: 1.0, duration: 100 }));
 
-            container.add([bg, sprite, title, desc]);
+            // Selección
+            bg.on('pointerdown', () => {
+                this.selectHero(cls.id);
+            });
         });
     }
 
-    selectHero(classKey) {
-        initHero(classKey);
-        SaveSystem.save(); 
-        this.cameras.main.fadeOut(500);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
+    selectHero(classId) {
+        gameState.selectedClass = classId;
+        updatePlayerStats();
+        SaveSystem.save();
+        
+        // Transición bonita
+        this.cameras.main.fadeOut(500, 0, 0, 0);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
             this.scene.start('MainMenuScene');
         });
     }
