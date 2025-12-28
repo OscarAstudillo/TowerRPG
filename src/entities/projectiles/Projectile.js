@@ -4,15 +4,12 @@ import Phaser from 'phaser';
 export default class Projectile extends Phaser.GameObjects.Container {
     constructor(scene, x, y) {
         super(scene, x, y);
-        // El Group maneja la adición a la escena, no lo hacemos aquí.
-        
-        // Forma inicial
+        scene.add.existing(this);
+        scene.physics.add.existing(this);
+
         this.bodyShape = scene.add.circle(0, 0, 4, 0xffffff);
         this.add(this.bodyShape);
         
-        scene.physics.add.existing(this);
-        
-        // Valores por defecto
         this.speed = 600;
         this.damage = 10;
         this.target = null;
@@ -20,23 +17,29 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.aoeRadius = 0;
         this.effect = null;
         this.lifespan = 2000;
-        this.chainCount = 0;
-        this.isPuddle = false;
+        
+        // Propiedades
+        this.chainCount = 0;   // Tesla
+        this.isPuddle = false; // Veneno
         this.puddleTick = 0;
         this.type = 'arrow';
+        
+        // CORRECCIÓN TESLA: Lista de enemigos ya golpeados por este rayo
+        this.hitIds = []; 
+        
+        // Coordenadas de destino para precisión
         this.destX = 0;
         this.destY = 0;
         this.timer = 0;
         this.duration = 0;
         
-        // Asegurar cuerpo físico
         if (this.body) {
             this.body.setVelocity(0, 0);
             this.body.enable = true;
         }
     }
 
-    // Limpiar variables al reciclar
+    // Método auxiliar para limpiar variables al reciclar
     resetValues() {
         this.speed = 600;
         this.damage = 10;
@@ -54,6 +57,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.timer = 0;
         this.duration = 0;
         
+        // RESETEAR LISTA DE IMPACTOS
+        this.hitIds = [];
+        
         if (this.body) {
             this.body.setVelocity(0, 0);
             this.body.enable = true;
@@ -65,7 +71,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
     }
 
     fire(target, options) {
-        // 1. REVIVIR Y RESETEAR (Lógica de Pooling)
+        // 1. REVIVIR Y RESETEAR (Pooling)
         this.resetValues();
         this.setActive(true);
         this.setVisible(true);
@@ -75,7 +81,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.bodyShape = this.scene.add.circle(0, 0, 4, 0xffffff);
         this.add(this.bodyShape);
 
-        // 2. CONFIGURAR NUEVO DISPARO
+        // 2. CONFIGURACIÓN
         this.target = target;
         this.damage = options.damage || 10;
         this.aoeRadius = options.aoe || 0;
@@ -138,7 +144,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.speed = 700;
         }
 
-        // Iniciar movimiento si no es parabólico
         if (!this.isParabolic && this.target && this.target.active) {
             const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
             this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
@@ -147,9 +152,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
     }
 
     update(time, delta) {
-        if (!this.active) return; 
+        if (!this.active) return;
 
-        // --- CHARCO DE VENENO ---
+        // --- CHARCO VENENO ---
         if (this.isPuddle) {
             this.lifespan -= delta;
             this.puddleTick += delta;
@@ -182,9 +187,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         if (this.isParabolic) {
-            // --- CORRECCIÓN: SEGUIMIENTO DE OBJETIVO ---
-            // Si el objetivo sigue vivo, actualizamos el destino para que el proyectil lo persiga en el aire.
-            // Esto asegura que la parábola aterrice SIEMPRE sobre el enemigo (y por tanto en el camino).
+            // Seguimiento en tiempo real para puntería perfecta (Cañón)
             if (this.target && this.target.active) {
                 this.destX = this.target.x;
                 this.destY = this.target.y;
@@ -193,10 +196,9 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.timer += delta;
             const t = Math.min(this.timer / this.duration, 1);
 
-            // Interpolación Lineal hacia el destino (que puede haberse movido)
             const cx = Phaser.Math.Linear(this.startX, this.destX, t);
             const cy = Phaser.Math.Linear(this.startY, this.destY, t);
-            const height = 100 * Math.sin(t * Math.PI); 
+            const height = 100 * Math.sin(t * Math.PI);
             
             this.x = cx;
             this.y = cy - height;
@@ -225,14 +227,13 @@ export default class Projectile extends Phaser.GameObjects.Container {
             return;
         }
 
-        // Si es parabólico, forzamos la posición final al destino exacto para asegurar precisión en la explosión
-        if (this.isParabolic) {
-            this.x = this.destX;
-            this.y = this.destY;
-        }
-
         // --- VENENO (CREAR CHARCO) ---
         if (this.type === 'poison') {
+            if (this.destX !== 0 && this.destY !== 0) {
+                this.x = this.destX;
+                this.y = this.destY;
+            }
+
             this.isPuddle = true;
             this.body.setVelocity(0, 0); 
             this.lifespan = 1500; 
@@ -259,7 +260,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
                         let dmg = (this.type === 'poison') ? this.damage : this.damage * 0.5;
                         enemy.takeDamage(dmg);
                         
-                        // Chance Stun (Quake)
                         if (this.effect) {
                             if (this.effect.type === 'chance_stun') {
                                 if (Math.random() < this.effect.chance) {
@@ -275,15 +275,27 @@ export default class Projectile extends Phaser.GameObjects.Container {
         } 
         // --- IMPACTO DIRECTO ---
         else if (directTarget && directTarget.active) {
+            
+            // --- CORRECCIÓN TESLA: EVITAR GOLPES REPETIDOS ---
+            // Si este rayo ya le pegó a este enemigo, no hacer nada (ignorar colisión)
+            if (this.hitIds.includes(directTarget)) {
+                return;
+            }
+            // Registrar golpe
+            this.hitIds.push(directTarget);
+
             directTarget.takeDamage(this.damage);
             if (this.effect) directTarget.applyStatus(this.effect);
             
-            // Tesla Chain
+            // Lógica de Salto (Chain)
             if (this.chainCount > 0) {
-                const nextTarget = this.findNextChainTarget(directTarget);
+                // Buscar siguiente objetivo excluyendo a los que YA golpeamos (hitIds)
+                const nextTarget = this.findNextChainTarget(this.hitIds); 
+                
                 if (nextTarget) {
                     this.drawLightning(this.x, this.y, nextTarget.x, nextTarget.y);
 
+                    // Reutilizar mismo proyectil para el salto
                     this.x = directTarget.x;
                     this.y = directTarget.y;
                     this.target = nextTarget;
@@ -293,7 +305,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
                     
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, nextTarget.x, nextTarget.y);
                     this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
-                    return; 
+                    return; // MANTENER VIVO EL PROYECTIL
                 }
             }
         }
@@ -308,14 +320,18 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.setPosition(-1000, -1000);
     }
 
-    findNextChainTarget(currentEnemy) {
-        const range = 200; 
+    // Recibe un array de excluidos (ya golpeados)
+    findNextChainTarget(excludedEnemies) {
+        const range = 250; // Rango de salto
         let closest = null;
         let minDist = Infinity;
+        
         if (!this.scene || !this.scene.enemies) return null;
+
         this.scene.enemies.children.iterate(e => {
-            if (e !== currentEnemy && e.active && !e.isDead) { 
-                const dist = Phaser.Math.Distance.Between(currentEnemy.x, currentEnemy.y, e.x, e.y);
+            // Filtrar: Que esté vivo y NO esté en la lista de excluidos
+            if (e.active && !e.isDead && !excludedEnemies.includes(e)) { 
+                const dist = Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y);
                 if (dist < range && dist < minDist) {
                     minDist = dist;
                     closest = e;
