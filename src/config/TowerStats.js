@@ -24,18 +24,18 @@ export const TOWER_TYPES = {
         color: 0xff0000,
         type: 'physical',
         levels: [
-            { level: 1, damage: 25, range: 360, fireRate: 1500, aoe: 80, upgradeCost: 100 },
-            { level: 2, damage: 35, range: 390, fireRate: 1400, aoe: 90, upgradeCost: 150 },
-            { level: 3, damage: 50, range: 420, fireRate: 1300, aoe: 100, upgradeCost: 250 }
+            { level: 1, damage: 25, range: 360, fireRate: 1500, aoe: 60, upgradeCost: 100 },
+            { level: 2, damage: 35, range: 390, fireRate: 1400, aoe: 70, upgradeCost: 150 },
+            { level: 3, damage: 50, range: 420, fireRate: 1300, aoe: 80, upgradeCost: 250 }
         ],
         evolutions: {
-            pathA: { key: 'missile', name: "Lanzamisiles", cost: 450, color: 0x8b0000, stats: { damage: 100, range: 750, fireRate: 1800, aoe: 60 } },
+            pathA: { key: 'missile', name: "Lanzamisiles", cost: 450, color: 0x8b0000, stats: { damage: 100, range: 750, fireRate: 1800, aoe: 40 } }, 
             pathB: { key: 'bigbertha', name: "Gran Bertha", cost: 500, color: 0xff4500, stats: { damage: 80, range: 420, fireRate: 1500, aoe: 150 } } 
         }
     },
     mage: {
         name: "Torre Arcana",
-        description: "Lanza rayos mágicos.",
+        description: "Lanza rayos mágicos que atraviesan armadura ligera.",
         baseCost: 120,
         color: 0x0000ff,
         type: 'magic',
@@ -51,7 +51,7 @@ export const TOWER_TYPES = {
     },
     tesla: {
         name: "Torre Tesla",
-        description: "Lanza rayos que saltan.",
+        description: "Lanza rayos que saltan entre enemigos cercanos.",
         baseCost: 180,
         color: 0xffff00,
         type: 'magic',
@@ -67,7 +67,7 @@ export const TOWER_TYPES = {
     },
     poison: {
         name: "Alquimista",
-        description: "Crea charcos de ácido.",
+        description: "Lanza frascos de ácido que dañan en el tiempo.",
         baseCost: 130,
         color: 0x006400, 
         type: 'chemical',
@@ -83,18 +83,19 @@ export const TOWER_TYPES = {
     },
     quake: {
         name: "Torre Sísmica",
-        description: "Golpea el suelo (AOE Instantáneo).",
+        description: "Golpea el suelo dañando a todos los enemigos cercanos.",
         baseCost: 200,
         color: 0x8b4513, 
         type: 'physical',
         levels: [
-            { level: 1, damage: 40, range: 240, fireRate: 2000, aoe: 240, upgradeCost: 150 }, 
-            { level: 2, damage: 60, range: 255, fireRate: 1900, aoe: 255, upgradeCost: 200 },
-            { level: 3, damage: 90, range: 270, fireRate: 1800, aoe: 270, upgradeCost: 300 }
+            // AQUI AGREGAMOS LA PROBABILIDAD DE STUN (chance: 0.20 = 20%)
+            { level: 1, damage: 40, range: 240, fireRate: 2000, aoe: 240, upgradeCost: 150, effect: { type: 'chance_stun', chance: 0.20, duration: 1000 } }, 
+            { level: 2, damage: 60, range: 255, fireRate: 1900, aoe: 255, upgradeCost: 200, effect: { type: 'chance_stun', chance: 0.25, duration: 1200 } },
+            { level: 3, damage: 90, range: 270, fireRate: 1800, aoe: 270, upgradeCost: 300, effect: { type: 'chance_stun', chance: 0.30, duration: 1500 } }
         ],
         evolutions: {
-            pathA: { key: 'eruption', name: "Erupción", cost: 550, color: 0xff4500, stats: { damage: 150, range: 300, fireRate: 1800, aoe: 300, effect: { type: 'burn', val: 10, duration: 2000 } } },
-            pathB: { key: 'fissure', name: "Fisura", cost: 500, color: 0xcd853f, stats: { damage: 80, range: 330, fireRate: 1500, aoe: 330, effect: { type: 'slow', val: 0.5, duration: 1500 } } }
+            pathA: { key: 'eruption', name: "Erupción", cost: 550, color: 0xff4500, stats: { damage: 150, range: 300, fireRate: 1800, aoe: 300, effect: { type: 'burn', val: 10, duration: 2000 } } }, // Erupción cambia a Fuego
+            pathB: { key: 'fissure', name: "Fisura", cost: 500, color: 0xcd853f, stats: { damage: 80, range: 330, fireRate: 1500, aoe: 330, effect: { type: 'chance_stun', chance: 0.50, duration: 2000 } } } // Fisura mejora el Stun al 50%
         }
     }
 };
