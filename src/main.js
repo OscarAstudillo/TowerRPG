@@ -1,6 +1,7 @@
 // src/main.js
 import Phaser from 'phaser';
-import PreloadScene from './scenes/PreloadScene.js'; // IMPORTAR
+import PreloadScene from './scenes/PreloadScene.js'; // IMPORTANTE
+import SplashScreen from './scenes/SplashScreen.js'; // IMPORTANTE
 import MainMenuScene from './scenes/MainMenuScene.js';
 import HeroSelectScene from './scenes/HeroSelectScene.js';
 import GameScene from './scenes/GameScene.js';
@@ -24,8 +25,8 @@ const config = {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH
     },
-    // PreloadScene va PRIMERO
-    scene: [PreloadScene, MainMenuScene, HeroSelectScene, GameScene, ResultScene, WorldMapScene, ChestScene]
+    // ORDEN DE ESCENAS CRÍTICO: Preload -> Splash -> El resto
+    scene: [PreloadScene, SplashScreen, MainMenuScene, HeroSelectScene, GameScene, ResultScene, WorldMapScene, ChestScene]
 };
 
 const game = new Phaser.Game(config);
