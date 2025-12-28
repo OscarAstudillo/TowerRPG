@@ -42,18 +42,34 @@ export default class MainMenuScene extends Phaser.Scene {
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
 
+        // --- SISTEMA DE CARGA AUTOMÁTICA (SOLUCIÓN F5) ---
         if (!this.hasLoaded) {
-            SaveSystem.load();
+            // Intentamos cargar el archivo (ahora encriptado)
+            // Si devuelve true, es que recuperó el progreso anterior.
+            const loaded = SaveSystem.load();
+
+            if (loaded) {
+                console.log("✅ Progreso restaurado exitosamente.");
+            } else {
+                console.log("ℹ️ Nueva sesión o sin datos guardados.");
+            }
+
+            // Inicializaciones de seguridad por si es la primera vez
             if (!gameState.talents) gameState.talents = [];
             this.sanitizeData(); 
+            
+            // Marcamos como cargado para no repetir esto si volvemos del mapa
             this.hasLoaded = true;
         }
+        // --------------------------------------------------
 
+        // Si después de intentar cargar NO hay clase seleccionada, ir a selección
         if (!gameState.selectedClass) {
             this.scene.start('HeroSelectScene');
             return;
         }
 
+        // Si hay datos, recalculamos los stats del jugador con el equipo cargado
         updatePlayerStats();
 
         const w = this.scale.width;
@@ -63,6 +79,8 @@ export default class MainMenuScene extends Phaser.Scene {
 
         this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
+        
+        // El texto se crea con el oro cargado del SaveSystem
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { ...this.fontHeader, color: '#ffd700' }).setOrigin(1, 0.5);
 
         const tabY = h * 0.12; const tabW = 140; const startX = cx - (tabW * 2.5);
@@ -77,6 +95,8 @@ export default class MainMenuScene extends Phaser.Scene {
         const questBtn = this.add.rectangle(w - 150, h * 0.2, 120, 40, 0x800080).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xffffff);
         this.add.text(w - 150, h * 0.2, "MISIONES", this.fontBtn).setOrigin(0.5);
         questBtn.on('pointerdown', () => this.toggleQuestModal());
+        
+        // Generar misiones diarias si no existen (se guardan en el save, así que no se regeneran con F5 si ya estaban)
         RPGSystem.generateDailyQuests();
         this.createQuestModal(w, h, cx, cy);
 
@@ -116,7 +136,7 @@ export default class MainMenuScene extends Phaser.Scene {
             const hero = getCurrentHero();
             if (hero) {
                 RPGSystem.gainHeroXP(5000); 
-                SaveSystem.save();
+                SaveSystem.save(); // Importante: Guardar después del cheat
                 this.refreshHero();
                 this.refreshTalents();
                 this.showCentralAlert("¡TRUCO ACTIVADO: XP GANADA!", "#00ff00");
