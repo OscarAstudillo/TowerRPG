@@ -54,33 +54,28 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
-        // --- SISTEMA DE PARTÍCULAS (NUEVO) ---
-        // Creamos un manager de partículas global para la escena
-        this.particleManager = this.add.particles('pixel').setDepth(900); // Debajo de la UI (1000)
-
+        // --- SISTEMA DE PARTÍCULAS (CORREGIDO PARA PHASER 3.60+) ---
         // Emitter para Explosiones (Muerte, Cañón, Quake)
-        this.explosionEmitter = this.particleManager.createEmitter({
+        this.explosionEmitter = this.add.particles(0, 0, 'pixel', {
             speed: { min: 50, max: 300 },
             angle: { min: 0, max: 360 },
             scale: { start: 2, end: 0 },
             alpha: { start: 1, end: 0 },
             lifespan: 600,
             gravityY: 0,
-            quantity: 0, // Manual emission
-            on: false,
+            emitting: false, // Empieza apagado
             blendMode: 'ADD'
-        });
+        }).setDepth(900);
 
         // Emitter para Impactos (Golpes de flecha, ticks de daño)
-        this.hitEmitter = this.particleManager.createEmitter({
+        this.hitEmitter = this.add.particles(0, 0, 'pixel', {
             speed: { min: 20, max: 100 },
             angle: { min: 0, max: 360 },
             scale: { start: 1, end: 0 },
             lifespan: 300,
-            quantity: 0,
-            on: false,
+            emitting: false, // Empieza apagado
             blendMode: 'ADD'
-        });
+        }).setDepth(900);
         // -------------------------------------
 
         // Grupos
@@ -559,7 +554,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.spawnTimer) this.spawnTimer.remove(); 
         if (this.level >= (gameState.maxLevel || 1)) { gameState.maxLevel = this.level + 1; } 
         
-        SaveSystem.save(); // AUTOGUARDADO
+        SaveSystem.save(); 
 
         const rewardGold = 100 + (this.level * 50); 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); 
@@ -580,34 +575,28 @@ export default class GameScene extends Phaser.Scene {
                 this.showFloatingText(enemy.x, enemy.y, "¡BOSS DERROTADO!", "#ffd700"); 
                 RPGSystem.updateQuestProgress('boss', 'any', 1); 
             }
-            // --- NUEVO: EXPLOSIÓN DE PARTÍCULAS ---
             this.createExplosion(enemy.x, enemy.y, enemy.bodyShape.fillColor); 
-            // -------------------------------------
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); 
             this.updateUI(); 
         } catch (err) { console.warn("Error", err); } 
     }
     
-    // --- NUEVO SISTEMA DE EFECTOS VISUALES ---
+    // --- CORREGIDO: USAR NUEVA API DE PARTÍCULAS PHASER 3.60+ ---
     createExplosion(x, y, color) {
         if (!this.explosionEmitter) return;
-        
         this.explosionEmitter.setPosition(x, y);
-        this.explosionEmitter.setTint(color);
-        this.explosionEmitter.explode(20); // 20 partículas de golpe
-        
-        // Screen Shake suave para sentir el impacto
+        this.explosionEmitter.setParticleTint(color); // Phaser 3.60+ usa setParticleTint
+        this.explosionEmitter.explode(20); 
         this.cameras.main.shake(100, 0.005);
     }
 
     createHitEffect(x, y, color) {
         if (!this.hitEmitter) return;
-        
         this.hitEmitter.setPosition(x, y);
-        this.hitEmitter.setTint(color);
-        this.hitEmitter.explode(5); // Pequeño burst de 5 partículas
+        this.hitEmitter.setParticleTint(color); // Phaser 3.60+ usa setParticleTint
+        this.hitEmitter.explode(5); 
     }
-    // -----------------------------------------
+    // -------------------------------------------------------------
 
     spawnLoot(x, y) { if (Math.random() > 0.30) return; let type = 'wood'; let rarity = 'common'; const roll = Math.random(); if (roll < 0.15) type = 'potion_hp'; else if (roll < 0.25) type = 'coin_bag'; else { const m = Math.random(); if(m<0.25) type='wood'; else type='copper'; } const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
     collectLoot(lootItem) { if (lootItem.isConsumable) { if (lootItem.typeKey === 'potion_hp') { const heal = Math.floor(gameState.playerStats.maxHp * 0.25); gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); } else if (lootItem.typeKey === 'coin_bag') { const gold = Phaser.Math.Between(30, 60); this.coins += gold; this.updateUI(); this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); } } else { if(gameState.materials[lootItem.typeKey]) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; RPGSystem.updateQuestProgress('collect', lootItem.typeKey, 1); if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {common:0}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); } } lootItem.destroy(); }
