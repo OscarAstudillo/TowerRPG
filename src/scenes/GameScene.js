@@ -603,26 +603,35 @@ export default class GameScene extends Phaser.Scene {
     // --- CORRECCIÓN FINAL: PAUSAR TEMPORIZADORES Y GRUPOS ---
     togglePause() { 
         this.isPaused = !this.isPaused; 
+        
         if (this.isPaused) { 
+            // 1. Detener Física y Animaciones
             this.physics.pause(); 
             this.tweens.pauseAll(); 
-            this.time.paused = true; // PAUSAR RELOJ DE LA ESCENA
             
-            // CONGELAR LOGICA INTERNA DE LOS GRUPOS
+            // 2. DETENER EL RELOJ DE LA ESCENA (Vital para delayedCalls y spawns)
+            this.time.paused = true; 
+            
+            // 3. Congelar la lógica de actualización de los grupos (Enemigos/Proyectiles)
             if(this.enemies) this.enemies.runChildUpdate = false;
             if(this.projectiles) this.projectiles.runChildUpdate = false;
 
+            // Mostrar menú
             this.pauseContainer.setVisible(true); 
             this.children.bringToTop(this.pauseContainer); 
         } else { 
+            // 1. Reanudar Física y Animaciones
             this.physics.resume(); 
             this.tweens.resumeAll(); 
-            this.time.paused = false; // REANUDAR RELOJ
             
-            // REANUDAR LOGICA DE LOS GRUPOS
+            // 2. REANUDAR EL RELOJ
+            this.time.paused = false; 
+            
+            // 3. Reactivar la lógica de los grupos
             if(this.enemies) this.enemies.runChildUpdate = true;
             if(this.projectiles) this.projectiles.runChildUpdate = true;
 
+            // Ocultar menú
             this.pauseContainer.setVisible(false); 
         } 
     }
