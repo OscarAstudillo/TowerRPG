@@ -26,11 +26,16 @@ export const initialState = {
     inventory: [],
     equipment: { mainHand: null, offHand: null, armor: null, accessory: null },
     
+    // --- ACTUALIZADO: TODAS LAS TORRES ---
     towerEquipment: {
         archer: { slot1: null, slot2: null },
         cannon: { slot1: null, slot2: null },
-        mage:   { slot1: null, slot2: null }
+        mage:   { slot1: null, slot2: null },
+        tesla:  { slot1: null, slot2: null },
+        poison: { slot1: null, slot2: null },
+        quake:  { slot1: null, slot2: null }
     },
+    // -------------------------------------
 
     materials: {
         wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -81,16 +86,13 @@ export const initialState = {
     unlockedRecipes: [], 
     activeSets: [],
     
-    // --- CORRECCIÓN: NIVELES POR BIOMA INDEPENDIENTES ---
-    // Cada bioma empieza en nivel 1 desbloqueado.
     biomeLevels: {
         forest: 1,
         mountain: 1,
         volcano: 1
     },
-    // ----------------------------------------------------
     
-    maxLevel: 1, // Mantenido por compatibilidad
+    maxLevel: 1, 
     baseHp: 20
 };
 

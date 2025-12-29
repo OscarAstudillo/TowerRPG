@@ -46,6 +46,18 @@ export default class MainMenuScene extends Phaser.Scene {
             if (loaded) {
                 console.log("✅ Progreso restaurado.");
                 // --- FIX COMPATIBILIDAD: INICIALIZAR BIOMAS SI NO EXISTEN ---
+
+                // Si el save es viejo, no tiene las nuevas torres. Las agregamos aquí.
+                const allTowers = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
+                if (!gameState.towerEquipment) gameState.towerEquipment = {};
+                
+                allTowers.forEach(type => {
+                    if (!gameState.towerEquipment[type]) {
+                        console.log(`🛠️ Reparando save: Agregando slots para ${type}`);
+                        gameState.towerEquipment[type] = { slot1: null, slot2: null };
+                    }
+                });
+                
                 if (!gameState.biomeLevels) {
                     gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
                 }
@@ -1080,8 +1092,92 @@ export default class MainMenuScene extends Phaser.Scene {
         this.heroContainer.add(modal); 
     }
 
-    createTowersView(w, h, cx, cy) { const types = ['archer', 'cannon', 'mage']; const names = ['ARQUERO', 'CAÑÓN', 'MAGO']; const startX = w * 0.2; const gap = w * 0.3; types.forEach((type, i) => { const x = startX + (i * gap); const y = h * 0.25; const title = this.add.text(x, y, names[i], this.fontHeader).setOrigin(0.5); this.towersContainer.add(title); const statsText = this.add.text(x, y + 100, "Stats...", { ...this.fontBody, color: '#aaa', align: 'center' }).setOrigin(0.5); statsText.name = `stats_${type}`; this.towersContainer.add(statsText); for (let s = 1; s <= 2; s++) { const slotY = y + 200 + (s * 80); const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); const slotTxt = this.add.text(x, slotY, `Slot ${s}: Vacío`, { ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center' }).setOrigin(0.5); slotTxt.name = `txt_${type}_slot${s}`; slotBg.on('pointerdown', () => { const item = gameState.towerEquipment[type][`slot${s}`]; if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } }); this.towersContainer.add([slotBg, slotTxt]); } }); }
-    refreshTowersView() { const types = ['archer', 'cannon', 'mage']; types.forEach(type => { const eq = gameState.towerEquipment[type]; let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; [eq.slot1, eq.slot2].forEach(it => { if (it && it.stats) { if (it.stats.damage) bonuses.dmg += it.stats.damage; if (it.stats.range) bonuses.range += it.stats.range; if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; } }); const statObj = this.towersContainer.list.find(c => c.name === `stats_${type}`); if (statObj) { statObj.setText(`Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`); } for (let s = 1; s <= 2; s++) { const item = eq[`slot${s}`]; const txtObj = this.towersContainer.list.find(c => c.name === `txt_${type}_slot${s}`); if (txtObj) { if (item) { const col = '#' + (item.color || 0xffffff).toString(16).padStart(6, '0'); txtObj.setText(`${item.name} (+${item.enchant})`); txtObj.setColor(col); } else { txtObj.setText("Slot Vacío (Clic para equipar)"); txtObj.setColor('#aaaaaa'); } } } }); }
+    createTowersView(w, h, cx, cy) { 
+        // --- ACTUALIZADO: 6 TORRES CON PAGINACIÓN ---
+        this.towerViewPage = 0; // 0 = Básicas, 1 = Especiales
+        
+        // Contenedor para las torres
+        this.towersPageContainer = this.add.container(0, 0);
+        this.towersContainer.add(this.towersPageContainer);
+
+        // Botón de cambio de página
+        const toggleBtn = this.add.text(cx, h * 0.15, "VER MÁS TORRES >", { 
+            ...this.fontBtn, color: '#00ffff' 
+        }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
+        
+        toggleBtn.on('pointerdown', () => {
+            this.towerViewPage = (this.towerViewPage === 0) ? 1 : 0;
+            toggleBtn.setText(this.towerViewPage === 0 ? "VER MÁS TORRES >" : "< VOLVER");
+            this.refreshTowersView();
+        });
+        
+        this.towersContainer.add(toggleBtn);
+        this.refreshTowersView(); // Inicializar vista
+    }
+
+    refreshTowersView() { 
+        this.towersPageContainer.removeAll(true);
+        
+        const allTypes = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
+        const allNames = ['ARQUERO', 'CAÑÓN', 'MAGO', 'TESLA', 'VENENO', 'TERREMOTO'];
+        
+        const startIdx = this.towerViewPage * 3;
+        const endIdx = startIdx + 3;
+        
+        const currentTypes = allTypes.slice(startIdx, endIdx);
+        const currentNames = allNames.slice(startIdx, endIdx);
+        
+        const w = this.scale.width;
+        const h = this.scale.height;
+        const startX = w * 0.2; 
+        const gap = w * 0.3; 
+
+        currentTypes.forEach((type, i) => { 
+            const x = startX + (i * gap); 
+            const y = h * 0.25; 
+            
+            // Título Torre
+            const title = this.add.text(x, y, currentNames[i], this.fontHeader).setOrigin(0.5); 
+            
+            // Stats
+            const eq = gameState.towerEquipment[type]; 
+            let bonuses = { dmg: 0, range: 0, speed: 0, dbl: 0 }; 
+            [eq.slot1, eq.slot2].forEach(it => { 
+                if (it && it.stats) { 
+                    if (it.stats.damage) bonuses.dmg += it.stats.damage; 
+                    if (it.stats.range) bonuses.range += it.stats.range; 
+                    if (it.stats.attackSpeed) bonuses.speed += it.stats.attackSpeed; 
+                    if (it.stats.doubleAttack) bonuses.dbl += it.stats.doubleAttack; 
+                } 
+            }); 
+            
+            const statsText = this.add.text(x, y + 100, 
+                `Daño Extra: +${bonuses.dmg}\nRango: +${bonuses.range}\nVelocidad: +${bonuses.speed}ms\nDoble Atq: ${bonuses.dbl}%`, 
+                { ...this.fontBody, color: '#aaa', align: 'center' }
+            ).setOrigin(0.5); 
+            
+            this.towersPageContainer.add([title, statsText]); 
+            
+            // Slots
+            for (let s = 1; s <= 2; s++) { 
+                const slotY = y + 200 + (s * 80); 
+                const slotBg = this.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); 
+                
+                const item = eq[`slot${s}`]; 
+                const slotTxt = this.add.text(x, slotY, item ? `${item.name} (+${item.enchant})` : `Slot ${s}: Vacío`, { 
+                    ...this.fontBody, fontSize: '12px', wordWrap: {width: 220}, align: 'center', 
+                    color: item ? ('#' + (item.color || 0xffffff).toString(16).padStart(6, '0')) : '#aaaaaa'
+                }).setOrigin(0.5); 
+                
+                slotBg.on('pointerdown', () => { 
+                    if (item) { this.showTowerUnequipModal(item, type, `slot${s}`); } 
+                    else { this.inventoryCategory = 'tower_part'; this.switchTab('inventory'); } 
+                }); 
+                
+                this.towersPageContainer.add([slotBg, slotTxt]); 
+            } 
+        }); 
+    }
     
     showTowerUnequipModal(item, towerType, slotKey) { 
         const modal = this.add.container(this.scale.width/2, this.scale.height/2).setDepth(2000); 
