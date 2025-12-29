@@ -1,4 +1,5 @@
-import { gameState, RARITY, updatePlayerStats } from '../config/GameState.js';
+// src/ui/InventoryPanel.js
+import { gameState, RARITY, updatePlayerStats, canEquipItem, CLASS_RESTRICTIONS } from '../config/GameState.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { ITEM_SETS } from '../config/ItemSets.js';
 import SaveSystem from '../systems/SaveSystem.js';
@@ -14,11 +15,7 @@ export default class InventoryPanel {
         
         // Elementos UI
         this.gridContainer = scene.add.container(width * 0.28, height * 0.3);
-        
-        // --- AJUSTE 1: Posición del Panel de Detalle (Más abajo y a la derecha) ---
         this.detailContainer = scene.add.container(width * 0.81, height * 0.50).setVisible(false);
-        // --------------------------------------------------------------------------
-
         this.infoText = scene.add.text(50, height * 0.25, '', { fontFamily: 'Roboto', fontSize: '14px', color: '#fff' });
 
         // Botones Categoría
@@ -108,7 +105,7 @@ export default class InventoryPanel {
             
             let iconKey = 'mat_wood';
             if (k.includes('ore') || k.includes('iron')) iconKey = 'mat_ore';
-            else if (k.includes('cloth') || k.includes('cotton')) iconKey = 'mat_cloth';
+            else if (k.includes('cloth')) iconKey = 'mat_cloth';
             else if (k.includes('leather')) iconKey = 'mat_leather';
 
             if (this.scene.textures.exists(iconKey)) {
@@ -138,15 +135,12 @@ export default class InventoryPanel {
         this.detailContainer.setVisible(true);
         this.selectedItem = item;
 
-        // --- AJUSTE 2: Diseño del panel ampliado ---
-        const panelWidth = 360; // Más ancho para que quepa todo
+        const panelWidth = 360; 
         
-        // 1. TÍTULO (Arriba)
         const title = this.scene.add.text(0, -220, item.name, { 
             fontFamily: 'Cinzel', fontSize: '20px', color: '#' + item.color.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 320} 
         }).setOrigin(0.5, 0);
 
-        // 2. TEXTO DE STATS
         const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
         let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\n\n-- STATS --\n${statsStr}`;
         
@@ -164,8 +158,6 @@ export default class InventoryPanel {
             fontFamily: 'Roboto', fontSize: '14px', align: 'left', wordWrap: {width: 320}, color: '#dddddd', lineHeight: 20
         }).setOrigin(0.5, 0);
 
-        // 3. POSICIONAMIENTO DE BOTONES
-        // Calculamos Y basándonos en la altura real del texto para que no se solapen
         let currentY = statsTxt.y + statsTxt.height + 40;
 
         const equipLabel = item.type === 'tower_part' ? "EQUIPAR (Torre)" : "EQUIPAR";
@@ -177,8 +169,6 @@ export default class InventoryPanel {
         currentY += 55;
         const sellBtn = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
 
-        // 4. FONDO DINÁMICO
-        // Calculamos la altura total necesaria
         const totalContentHeight = (currentY + 60) - (-250); 
         const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95).setStrokeStyle(3, item.color);
         
@@ -194,21 +184,29 @@ export default class InventoryPanel {
         return container;
     }
 
-    // Método interno para evitar el crash de "scene.safeAddItemToInventory is not a function"
     safeAddItemToInventory(item) {
         if (!item) return;
         const exists = gameState.inventory.some(i => i.id === item.id);
         if (!exists) gameState.inventory.push(item);
         else {
-            item.id = RPGSystem.getUniqueId(); // Generar nuevo ID si hay conflicto
+            item.id = RPGSystem.getUniqueId(); 
             gameState.inventory.push(item);
         }
     }
 
     actionEquip(item) {
+        // --- VALIDACIÓN DE CLASE ---
+        if (item.type !== 'tower_part' && !canEquipItem(gameState.selectedClass, item)) {
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Clase incorrecta!", '#ff0000');
+            else console.log("Clase incorrecta");
+            return;
+        }
+        // --------------------------
+
         const idx = gameState.inventory.findIndex(i => String(i.id) === String(item.id));
         if (idx === -1) return;
         
+        // Quitar del inventario (provisionalmente)
         gameState.inventory.splice(idx, 1);
         
         if (item.type === 'tower_part') {
@@ -224,20 +222,48 @@ export default class InventoryPanel {
             }
             this.scene.switchTab('towers');
         } else {
-            const slotMap = { weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', dagger: 'mainHand', sword: 'mainHand', offhand: 'offHand', shield: 'offHand', armor: 'armor', plate: 'armor', cloth: 'armor', leather: 'armor', accessory: 'accessory', ring: 'accessory' };
-            const slot = slotMap[item.type] || slotMap[item.subType];
+            // --- LÓGICA ROBUSTA DE EQUIPAMIENTO DE HÉROE ---
+            const slotMap = { 
+                weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', sword: 'mainHand', dagger: 'mainHand',
+                offhand: 'offHand', shield: 'offHand', 
+                armor: 'armor', plate: 'armor', cloth: 'armor', leather: 'armor', 
+                accessory: 'accessory', ring: 'accessory' 
+            };
             
-            if (slot) {
-                if (item.twoHanded && slot === 'mainHand') {
+            let targetSlot = slotMap[item.type] || slotMap[item.subType];
+            
+            // Lógica Dual Wield (Guerrero/Asesino)
+            const classRules = CLASS_RESTRICTIONS[gameState.selectedClass];
+            if (item.type === 'weapon' && classRules && classRules.canDualWield) {
+                // Si la mano principal ya tiene un arma y es de 1 mano, intenta poner en offhand
+                if (gameState.equipment.mainHand && !gameState.equipment.offHand) {
+                    if (!gameState.equipment.mainHand.twoHanded && !item.twoHanded) {
+                        targetSlot = 'offHand';
+                    }
+                }
+            }
+
+            if (targetSlot) {
+                // Manejo de Armas de 2 Manos
+                if (item.twoHanded && targetSlot === 'mainHand') {
+                     // Si nos ponemos un arco/bastón, el offhand debe vaciarse
                      if (gameState.equipment.offHand) {
                          this.safeAddItemToInventory(gameState.equipment.offHand);
                          gameState.equipment.offHand = null;
                      }
                 }
-                if (gameState.equipment[slot]) {
-                    this.safeAddItemToInventory(gameState.equipment[slot]);
+                
+                // Si intentamos poner algo en offhand pero tenemos un arma de 2 manos puesta, quitamos la de 2 manos
+                if (targetSlot === 'offHand' && gameState.equipment.mainHand && gameState.equipment.mainHand.twoHanded) {
+                    this.safeAddItemToInventory(gameState.equipment.mainHand);
+                    gameState.equipment.mainHand = null;
                 }
-                gameState.equipment[slot] = item;
+
+                // Intercambio normal
+                if (gameState.equipment[targetSlot]) {
+                    this.safeAddItemToInventory(gameState.equipment[targetSlot]);
+                }
+                gameState.equipment[targetSlot] = item;
             }
             this.scene.switchTab('hero');
         }
@@ -285,18 +311,13 @@ export default class InventoryPanel {
     populateFusionList() {
         this.fusionList.removeAll(true);
         
-        // --- AJUSTE 3: FILTRO DE FUSIÓN ESTRICTO ---
-        // 1. Diferente ID (no fusionar consigo mismo)
-        // 2. Mismo tipo/nombre exacto (recipeId)
-        // 3. Misma rareza
-        // 4. Mismo nivel de encantamiento (+0 con +0, +1 con +1)
+        // Filtro estricto: Mismo ID de receta, misma rareza y mismo nivel de encantamiento
         const candidates = gameState.inventory.filter(i => 
             String(i.id) !== String(this.itemToFuse1.id) && 
             i.recipeId === this.itemToFuse1.recipeId &&
             i.rarity === this.itemToFuse1.rarity &&
             i.enchant === this.itemToFuse1.enchant
         );
-        // -------------------------------------------
         
         if (candidates.length === 0) {
             this.fusionList.add(this.scene.add.text(0, 0, "No hay items idénticos (+nivel) para fusionar", { fontFamily: 'Roboto', color:'#aaa' }).setOrigin(0.5));
