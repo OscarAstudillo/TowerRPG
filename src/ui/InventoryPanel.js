@@ -1,4 +1,3 @@
-// src/ui/InventoryPanel.js
 import { gameState, RARITY, updatePlayerStats, canEquipItem, CLASS_RESTRICTIONS } from '../config/GameState.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { ITEM_SETS } from '../config/ItemSets.js';
@@ -12,6 +11,8 @@ export default class InventoryPanel {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         this.category = 'all'; 
+        this.page = 0;
+        this.itemsPerPage = 9; // 3x3 Grid
         
         // Elementos UI
         this.gridContainer = scene.add.container(width * 0.28, height * 0.3);
@@ -24,7 +25,18 @@ export default class InventoryPanel {
         this.createCategoryBtn(width/2, catY, "TORRES", 'tower_part');
         this.createCategoryBtn(width/2 + 300, catY, "MATERIALES", 'mats');
 
-        this.container.add([this.gridContainer, this.detailContainer, this.infoText]);
+        // Botones de Paginación
+        this.prevBtn = scene.add.text(width * 0.25, height * 0.5, "<", { fontFamily: 'Cinzel', fontSize: '40px', color: '#ffd700', fontStyle: 'bold' })
+            .setInteractive({ useHandCursor: true }).setOrigin(0.5).setVisible(false);
+        this.prevBtn.on('pointerdown', () => this.changePage(-1));
+
+        this.nextBtn = scene.add.text(width * 0.65, height * 0.5, ">", { fontFamily: 'Cinzel', fontSize: '40px', color: '#ffd700', fontStyle: 'bold' })
+            .setInteractive({ useHandCursor: true }).setOrigin(0.5).setVisible(false);
+        this.nextBtn.on('pointerdown', () => this.changePage(1));
+
+        this.pageText = scene.add.text(width * 0.45, height * 0.85, "Página 1", { fontFamily: 'Roboto', fontSize: '16px', color: '#aaa' }).setOrigin(0.5);
+
+        this.container.add([this.gridContainer, this.detailContainer, this.infoText, this.prevBtn, this.nextBtn, this.pageText]);
         
         // Inicializar Modales de Fusión
         this.createFusionModals(width/2, height/2);
@@ -35,9 +47,10 @@ export default class InventoryPanel {
             .setInteractive({ useHandCursor: true }).setOrigin(0.5);
         btn.on('pointerdown', () => {
             this.category = cat;
+            this.page = 0; // Resetear página al cambiar categoría
             this.detailContainer.setVisible(false);
             this.refresh();
-            this.container.list.forEach(c => { if(c.setColor && c.text && c !== this.infoText) c.setColor('#888'); });
+            this.container.list.forEach(c => { if(c.setColor && c.text && c !== this.infoText && c !== this.pageText && c !== this.prevBtn && c !== this.nextBtn) c.setColor('#888'); });
             btn.setColor('#fff');
         });
         this.container.add(btn);
@@ -45,6 +58,11 @@ export default class InventoryPanel {
 
     show() { this.container.setVisible(true); this.refresh(); }
     hide() { this.container.setVisible(false); }
+
+    changePage(delta) {
+        this.page += delta;
+        this.refresh();
+    }
 
     refresh() {
         this.gridContainer.removeAll(true);
@@ -57,15 +75,25 @@ export default class InventoryPanel {
     }
 
     renderEquipment() {
-        const filtered = gameState.inventory.filter(i => {
+        const allItems = gameState.inventory.filter(i => {
             if (!i) return false;
             if (this.category === 'all') return i.type !== 'tower_part';
             if (this.category === 'tower_part') return i.type === 'tower_part';
             return false;
         });
 
+        // Lógica de Paginación
+        const totalPages = Math.ceil(allItems.length / this.itemsPerPage) || 1;
+        if (this.page < 0) this.page = 0;
+        if (this.page >= totalPages) this.page = totalPages - 1;
+
+        this.updatePaginationUI(totalPages);
+
+        const startIndex = this.page * this.itemsPerPage;
+        const pageItems = allItems.slice(startIndex, startIndex + this.itemsPerPage);
+
         let col = 0, row = 0;
-        filtered.forEach(item => {
+        pageItems.forEach(item => {
             const itemCont = this.scene.add.container(col * 180, row * 50);
             const bg = this.scene.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, item.color);
             
@@ -92,21 +120,37 @@ export default class InventoryPanel {
     }
 
     renderMaterials() {
-        let col = 0, row = 0;
         const allMatKeys = Object.keys(gameState.materials).sort();
-        for(const k of allMatKeys) {
+        
+        // Filtrar solo los materiales que tenemos (>0)
+        const activeMats = allMatKeys.filter(k => {
             const matCounts = gameState.materials[k];
             const total = Object.values(matCounts).reduce((a, b) => a + b, 0);
-            if (total === 0) continue;
+            return total > 0;
+        });
 
+        // Lógica de Paginación
+        const totalPages = Math.ceil(activeMats.length / this.itemsPerPage) || 1;
+        if (this.page < 0) this.page = 0;
+        if (this.page >= totalPages) this.page = totalPages - 1;
+
+        this.updatePaginationUI(totalPages);
+
+        const startIndex = this.page * this.itemsPerPage;
+        const pageMats = activeMats.slice(startIndex, startIndex + this.itemsPerPage);
+
+        let col = 0, row = 0;
+        pageMats.forEach(k => {
+            const matCounts = gameState.materials[k];
             const matName = (RAW_MATERIALS[k] || REFINED_MATERIALS[k] || {name:k}).name;
+            
             const card = this.scene.add.container(col * 185, row * 115);
             const bg = this.scene.add.rectangle(85, 50, 170, 100, 0x222222).setStrokeStyle(1, 0x555555);
             
             let iconKey = 'mat_wood';
             if (k.includes('ore') || k.includes('iron')) iconKey = 'mat_ore';
-            else if (k.includes('cloth')) iconKey = 'mat_cloth';
-            else if (k.includes('leather')) iconKey = 'mat_leather';
+            else if (k.includes('cloth') || k.includes('cotton')) iconKey = 'mat_cloth';
+            else if (k.includes('leather') || k.includes('hide')) iconKey = 'mat_leather';
 
             if (this.scene.textures.exists(iconKey)) {
                 const icon = this.scene.add.sprite(30, 30, iconKey).setScale(0.8);
@@ -127,7 +171,13 @@ export default class InventoryPanel {
             });
             this.gridContainer.add(card);
             col++; if (col >= 3) { col = 0; row++; }
-        }
+        });
+    }
+
+    updatePaginationUI(totalPages) {
+        this.pageText.setText(`Página ${this.page + 1}/${totalPages}`);
+        this.prevBtn.setVisible(this.page > 0);
+        this.nextBtn.setVisible(this.page < totalPages - 1);
     }
 
     showItemDetail(item) {
@@ -195,18 +245,16 @@ export default class InventoryPanel {
     }
 
     actionEquip(item) {
-        // --- VALIDACIÓN DE CLASE ---
+        // Validación de Clase
         if (item.type !== 'tower_part' && !canEquipItem(gameState.selectedClass, item)) {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Clase incorrecta!", '#ff0000');
             else console.log("Clase incorrecta");
             return;
         }
-        // --------------------------
 
         const idx = gameState.inventory.findIndex(i => String(i.id) === String(item.id));
         if (idx === -1) return;
         
-        // Quitar del inventario (provisionalmente)
         gameState.inventory.splice(idx, 1);
         
         if (item.type === 'tower_part') {
@@ -222,20 +270,17 @@ export default class InventoryPanel {
             }
             this.scene.switchTab('towers');
         } else {
-            // --- LÓGICA ROBUSTA DE EQUIPAMIENTO DE HÉROE ---
             const slotMap = { 
-                weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', sword: 'mainHand', dagger: 'mainHand',
+                weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', dagger: 'mainHand', sword: 'mainHand',
                 offhand: 'offHand', shield: 'offHand', 
                 armor: 'armor', plate: 'armor', cloth: 'armor', leather: 'armor', 
                 accessory: 'accessory', ring: 'accessory' 
             };
-            
             let targetSlot = slotMap[item.type] || slotMap[item.subType];
             
-            // Lógica Dual Wield (Guerrero/Asesino)
+            // Dual Wield
             const classRules = CLASS_RESTRICTIONS[gameState.selectedClass];
             if (item.type === 'weapon' && classRules && classRules.canDualWield) {
-                // Si la mano principal ya tiene un arma y es de 1 mano, intenta poner en offhand
                 if (gameState.equipment.mainHand && !gameState.equipment.offHand) {
                     if (!gameState.equipment.mainHand.twoHanded && !item.twoHanded) {
                         targetSlot = 'offHand';
@@ -244,22 +289,17 @@ export default class InventoryPanel {
             }
 
             if (targetSlot) {
-                // Manejo de Armas de 2 Manos
                 if (item.twoHanded && targetSlot === 'mainHand') {
-                     // Si nos ponemos un arco/bastón, el offhand debe vaciarse
                      if (gameState.equipment.offHand) {
                          this.safeAddItemToInventory(gameState.equipment.offHand);
                          gameState.equipment.offHand = null;
                      }
                 }
-                
-                // Si intentamos poner algo en offhand pero tenemos un arma de 2 manos puesta, quitamos la de 2 manos
                 if (targetSlot === 'offHand' && gameState.equipment.mainHand && gameState.equipment.mainHand.twoHanded) {
                     this.safeAddItemToInventory(gameState.equipment.mainHand);
                     gameState.equipment.mainHand = null;
                 }
 
-                // Intercambio normal
                 if (gameState.equipment[targetSlot]) {
                     this.safeAddItemToInventory(gameState.equipment[targetSlot]);
                 }
@@ -310,8 +350,6 @@ export default class InventoryPanel {
 
     populateFusionList() {
         this.fusionList.removeAll(true);
-        
-        // Filtro estricto: Mismo ID de receta, misma rareza y mismo nivel de encantamiento
         const candidates = gameState.inventory.filter(i => 
             String(i.id) !== String(this.itemToFuse1.id) && 
             i.recipeId === this.itemToFuse1.recipeId &&
