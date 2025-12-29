@@ -106,7 +106,7 @@ export default class HeroPanel {
             slotBg.on('pointerdown', () => { 
                 if (!item) { 
                     // Cambiar a pestaña de inventario y filtrar
-                    this.scene.inventoryPanel.category = slot.cat; 
+                    if(this.scene.inventoryPanel) this.scene.inventoryPanel.category = slot.cat; 
                     this.scene.switchTab('inventory'); 
                 } 
                 else { this.showUnequipModal(item, slot.key); } 
@@ -131,6 +131,18 @@ export default class HeroPanel {
         this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); 
     }
 
+    // --- FUNCIÓN SEGURA DE GUARDADO EN INVENTARIO (Local) ---
+    safeAddItemToInventory(item) { 
+        if (!item) return; 
+        const exists = gameState.inventory.some(i => i.id === item.id); 
+        if (!exists) gameState.inventory.push(item); 
+        else { 
+            item.id = RPGSystem.getUniqueId(); 
+            gameState.inventory.push(item); 
+        } 
+    }
+    // --------------------------------------------------------
+
     showUnequipModal(item, slotKey) { 
         const modal = this.scene.add.container(this.scene.scale.width/2, this.scene.scale.height/2).setDepth(2000); 
         const bg = this.scene.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); 
@@ -144,15 +156,20 @@ export default class HeroPanel {
         const btnClose = this.scene.add.text(0, 130, "Cancelar", { fontFamily: 'Roboto', fontSize: '14px', color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
         
         btnUnequip.on('pointerdown', () => { 
-            if (gameState.equipment[slotKey] && gameState.equipment[slotKey].id === item.id) { 
+            // Verificar si el slot tiene algo, sin ser tan estricto con el ID por seguridad
+            const equippedItem = gameState.equipment[slotKey];
+            if (equippedItem) { 
                 gameState.equipment[slotKey] = null; 
-                this.scene.safeAddItemToInventory(item); 
+                // Usamos la función interna para asegurar que se guarde
+                this.safeAddItemToInventory(equippedItem); 
+                
                 SaveSystem.save(); 
                 updatePlayerStats(); 
                 this.refresh(); 
                 modal.destroy(); 
+                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Equipo guardado en mochila", "#00ff00");
             } else { 
-                this.scene.showCentralAlert("Error: Item no equipado", "#ff0000"); 
+                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Error: Slot vacío", "#ff0000"); 
                 modal.destroy(); 
             } 
         }); 
