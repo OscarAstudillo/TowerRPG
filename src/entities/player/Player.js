@@ -1,10 +1,8 @@
-
-    
-
 // src/entities/player/Player.js
 import Phaser from 'phaser';
 import { gameState, getCurrentHero } from '../../config/GameState.js';
-import SoundManager from '../../systems/SoundManager.js'; // Opcional: Si ya tienes el SoundManager
+import { TALENTS } from '../../config/Talents.js'; // <--- AGREGADO: Import faltante
+import SoundManager from '../../systems/SoundManager.js'; 
 
 export default class Player extends Phaser.GameObjects.Container {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
@@ -15,11 +13,12 @@ export default class Player extends Phaser.GameObjects.Container {
         this.charClass = charClass;
         this.enemies = enemiesGroup;
         this.projectiles = projectilesGroup;
-
+        
         // --- VISUALIZACIÓN: SPRITE ---
         const textureKey = `hero_${charClass}`; 
         
         if (scene.textures.exists(textureKey)) {
+            // Usamos el sprite generado
             this.bodySprite = scene.add.sprite(0, 0, textureKey);
             this.bodySprite.setDisplaySize(32, 32);
         } else {
@@ -34,14 +33,14 @@ export default class Player extends Phaser.GameObjects.Container {
         // Configuración Física
         this.body.setSize(32, 32);
         this.body.setCollideWorldBounds(true);
-        // Ajustamos el offset para que la caja de colisión esté centrada en el container
+        // Ajustamos el offset para que la caja de colisión esté centrada
         this.body.setOffset(-16, -16); 
 
         this.attackTimer = 0;
         this.skillCooldown = 0;
         this.skillMaxCooldown = 5000; 
 
-        // Barra de vida (Ahora como hijos del contenedor para que sigan al jugador automáticamente)
+        // Barra de vida
         this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -25, 38, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
@@ -148,7 +147,8 @@ export default class Player extends Phaser.GameObjects.Container {
 
         if (target) {
             this.fireProjectile(target);
-            if (stats.doubleAttack > 0 && Math.random() * 100 < stats.doubleAttack) {
+            // Doble ataque
+            if (Math.random() * 100 < stats.doubleAttack) {
                 this.scene.time.delayedCall(150, () => {
                     if(target.active) this.fireProjectile(target);
                 });
