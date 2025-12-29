@@ -99,11 +99,12 @@ export const initialState = {
 export const gameState = JSON.parse(JSON.stringify(initialState));
 
 export const RARITY = {
-    common: { id: 'common', name: 'Común', color: 0xffffff, mult: 1.0, statCount: 0 },
-    uncommon: { id: 'uncommon', name: 'Poco Común', color: 0x00ff00, mult: 1.2, statCount: 1 },
-    rare: { id: 'rare', name: 'Raro', color: 0x0000ff, mult: 1.5, statCount: 2 },
-    epic: { id: 'epic', name: 'Épico', color: 0x800080, mult: 2.0, statCount: 3 },
-    legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 4 }
+    common:    { id: 'common',    name: 'Común',      color: 0xffffff, mult: 1.0, statCount: 0 }, // Blanco
+    uncommon:  { id: 'uncommon',  name: 'Poco Común', color: 0x00ff00, mult: 1.2, statCount: 1 }, // Verde
+    rare:      { id: 'rare',      name: 'Raro',       color: 0x0000ff, mult: 1.5, statCount: 2 }, // Azul
+    epic:      { id: 'epic',      name: 'Épico',      color: 0x800080, mult: 2.0, statCount: 3 }, // Morado
+    mythic:    { id: 'mythic',    name: 'Mítico',     color: 0xff0000, mult: 2.5, statCount: 4 }, // Rojo (NUEVO)
+    legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 5 }  // Naranja
 };
 
 export function initHero(classId) { if (!classId) return null; if (!gameState.heroes[classId]) { gameState.heroes[classId] = { level: 100, xp: 0, maxXp: 100, statPoints: 201, talentPoints: 10, talents: [], baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 } }; } gameState.selectedClass = classId; updatePlayerStats(); return gameState.heroes[classId]; }

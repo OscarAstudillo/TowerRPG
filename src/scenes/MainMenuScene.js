@@ -650,7 +650,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     createForgeView(w, h, cx, cy) {
-        this.profText = this.add.text(cx, h * 0.15, '', { ...this.fontBody, color: '#00ff00', align: 'center' }).setOrigin(0.5);
+        this.profText = this.add.text(cx, h * 0.17, '', { ...this.fontBody, fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
         
         const catY = h * 0.22;
@@ -665,11 +665,136 @@ export default class MainMenuScene extends Phaser.Scene {
         this.recipesContainer = this.add.container(0, 0);
         this.forgeContainer.add(this.recipesContainer);
         
-        const detailX = w * 0.78; 
-        const detailY = h * 0.35;
+        // --- NUEVO CONTENEDOR MODAL PARA CRAFTEO ---
+        const detailX = w * 0.5; // Centrado
+        const detailY = h * 0.55;
         this.recipeDetailContainer = this.add.container(detailX, detailY); 
-        this.recipeDetailContainer.setVisible(false);
+        this.recipeDetailContainer.setVisible(false).setDepth(2000); // Mayor profundidad
         this.forgeContainer.add(this.recipeDetailContainer); 
+        // -------------------------------------------
+    }
+
+    // --- NUEVO: Crea la estructura de la modal de crafteo ---
+    selectRecipeForCrafting(recipe) {
+        this.recipeDetailContainer.removeAll(true);
+        this.recipeDetailContainer.setVisible(true);
+        
+        this.selectedRecipe = recipe;
+        // Por defecto empezamos en común, pero el jugador puede cambiarlo
+        this.selectedCraftRarity = 'common';
+
+        // 1. FONDO MODAL
+        this.craftModalBg = this.add.rectangle(0, 0, 400, 500, 0x111111, 0.98).setStrokeStyle(3, 0xffffff);
+        
+        // 2. TÍTULO ITEM
+        this.craftItemTitle = this.add.text(0, -220, recipe.name.toUpperCase(), { ...this.fontHeader, fontSize: '24px' }).setOrigin(0.5);
+
+        // 3. SELECTOR DE RAREZA (BOTONES DE COLOR)
+        this.rarityButtonsContainer = this.add.container(0, -170);
+        const rarities = ['common', 'uncommon', 'rare', 'epic', 'mythic', 'legendary'];
+        let btnX = -125;
+        this.raritySelectBtns = {};
+
+        rarities.forEach(rKey => {
+            const rData = RARITY[rKey];
+            const btn = this.add.rectangle(btnX, 0, 40, 40, rData.color).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x000000);
+            
+            // Efecto de selección visual
+            const indicator = this.add.rectangle(btnX, 0, 46, 46, rData.color, 0).setStrokeStyle(3, 0xffffff).setVisible(rKey === this.selectedCraftRarity);
+            this.raritySelectBtns[rKey] = indicator;
+
+            btn.on('pointerdown', () => {
+                // Actualizar selección
+                for(let key in this.raritySelectBtns) this.raritySelectBtns[key].setVisible(false);
+                indicator.setVisible(true);
+                this.selectedCraftRarity = rKey;
+                
+                // ACTUALIZAR LA VISTA EN TIEMPO REAL
+                this.updateCraftingModalView();
+            });
+
+            this.rarityButtonsContainer.add([btn, indicator]);
+            btnX += 50;
+        });
+
+        // 4. ÁREA DE STATS Y MATERIALES (Textos dinámicos)
+        this.craftStatsText = this.add.text(0, -80, "", { ...this.fontBody, fontSize: '16px', align: 'center', wordWrap: {width: 360} }).setOrigin(0.5, 0);
+        this.craftMatsText = this.add.text(0, 80, "", { ...this.fontBody, fontSize: '16px', align: 'center' }).setOrigin(0.5, 0);
+
+        // 5. BOTÓN DE ACCIÓN
+        this.craftActionBtn = this.createActionButton(0, 180, "FORJAR", () => this.handleCraftButton());
+        this.craftActionBtnText = this.craftActionBtn.list[1]; // Referencia al texto del botón
+        this.craftActionBtnBg = this.craftActionBtn.list[0];   // Referencia al fondo del botón
+
+        // 6. BOTÓN CERRAR
+        const closeBtn = this.add.text(180, -230, "X", { fontSize:'24px', fontStyle:'bold', color:'#ff0000'}).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        closeBtn.on('pointerdown', () => this.recipeDetailContainer.setVisible(false));
+
+        this.recipeDetailContainer.add([this.craftModalBg, this.craftItemTitle, this.rarityButtonsContainer, this.craftStatsText, this.craftMatsText, this.craftActionBtn, closeBtn]);
+
+        // Inicializar la vista con la rareza por defecto
+        this.updateCraftingModalView();
+    }
+
+    // --- NUEVO: Actualiza el contenido de la modal según la rareza seleccionada ---
+    updateCraftingModalView() {
+        if (!this.selectedRecipe || !this.selectedCraftRarity) return;
+
+        const recipe = this.selectedRecipe;
+        const rarityKey = this.selectedCraftRarity;
+        const rarityData = RARITY[rarityKey];
+        const hexColor = '#' + rarityData.color.toString(16).padStart(6, '0');
+
+        // A. Actualizar Título y Borde
+        this.craftItemTitle.setColor(hexColor);
+        this.craftModalBg.setStrokeStyle(3, rarityData.color);
+
+        // B. Calcular Stats Base Visuales
+        let statsStr = `Rareza: ${rarityData.name.toUpperCase()} (x${rarityData.mult})\n\n-- STATS BASE ESTIMADOS --\n`;
+        for (let key in recipe.baseStats) {
+            const baseVal = recipe.baseStats[key];
+            const finalVal = Math.floor(baseVal * rarityData.mult);
+            statsStr += `${key.charAt(0).toUpperCase() + key.slice(1)}: ${finalVal}\n`;
+        }
+
+        // C. Mostrar Potencial de Bonus
+        if (rarityData.statCount > 0) {
+             statsStr += `\n✨ POTENCIAL: +${rarityData.statCount} Atributos Extra Aleatorios ✨`;
+        } else {
+             statsStr += `\n(Sin atributos extra)`;
+        }
+        this.craftStatsText.setText(statsStr);
+
+        // D. Verificar Materiales y Costo
+        const matName = (RAW_MATERIALS[recipe.mat] || {name: recipe.mat}).name;
+        // ASUMIMOS que se usan materiales COMUNES para craftear. Ajusta si es diferente.
+        const ownedMats = gameState.materials[recipe.mat]?.common || 0;
+        const requiredMats = 3; // Cantidad fija por ahora
+        const cost = Math.floor(recipe.cost * rarityData.mult);
+        
+        const matColor = ownedMats >= requiredMats ? '#00ff00' : '#ff0000';
+        const goldColor = gameState.gold >= cost ? '#ffd700' : '#ff0000';
+
+        let matsStr = `-- REQUISITOS --\nMaterial: ${matName.toUpperCase()}\n`;
+        matsStr += `Tienes: ${ownedMats} / Pide: ${requiredMats}\n`;
+        
+        this.craftMatsText.setText(matsStr);
+        // Colorear solo la línea de cantidad (truco usando arrays de colores en Phaser text es complejo, simplificamos coloreando todo el bloque si falla algo)
+        this.craftMatsText.setColor(ownedMats >= requiredMats ? '#ffffff' : '#ff5555');
+
+        // E. Actualizar Botón de Forjar
+        const canCraft = (ownedMats >= requiredMats) && (gameState.gold >= cost);
+        
+        this.craftActionBtnText.setText(`FORJAR ($${cost})`);
+        this.craftActionBtnText.setColor(goldColor);
+        this.craftActionBtnBg.setFillStyle(canCraft ? 0x006400 : 0x333333);
+        
+        // Deshabilitar interacción si no se puede craftear
+        if (canCraft) {
+             this.craftActionBtnBg.setInteractive();
+        } else {
+             this.craftActionBtnBg.disableInteractive();
+        }
     }
 
     createForgeCatBtn(x, y, label, cat) { 
@@ -695,7 +820,7 @@ export default class MainMenuScene extends Phaser.Scene {
         
         let subX = this.scale.width * 0.2;
         subs.forEach(s => {
-            const btn = this.add.text(subX, this.scale.height * 0.28, s[0], { ...this.fontSmall, fontSize: '16px', color: this.forgeSubFilter === s[1] ? '#fff' : '#666' })
+            const btn = this.add.text(subX, this.scale.height * 0.28, s[0], { ...this.fontSmall, fontSize: '20px', color: this.forgeSubFilter === s[1] ? '#fff' : '#666' })
                 .setInteractive({useHandCursor:true}).setOrigin(0.5);
             btn.on('pointerdown', () => { this.forgeSubFilter = s[1]; this.refreshForge(); });
             this.forgeSubFilterContainer.add(btn);
@@ -707,13 +832,11 @@ export default class MainMenuScene extends Phaser.Scene {
         this.profText.setText(`Niveles: Armas ${p.weaponsmith.level} | Armaduras ${p.armorsmith.level} | Joyas ${p.jewelry.level}`);
         
         this.recipesContainer.removeAll(true);
-        let startX = this.scale.width * 0.15; let startY = this.scale.height * 0.35; let col = 0;
+        // Ajuste de posición para dar espacio a la nueva modal centrada
+        let startX = this.scale.width * 0.15; let startY = this.scale.height * 0.38; let col = 0;
         
         const categoryRecipes = RECIPES.filter(r => {
-            if (r.isLocked && (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id))) {
-                return false; 
-            }
-
+            if (r.isLocked && (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id))) return false; 
             if (this.forgeCategory === 'tower_part') return r.type === 'tower_part';
             if (this.forgeCategory === 'accessory') return r.type === 'accessory';
             if (this.forgeCategory === 'weapon') {
@@ -732,25 +855,22 @@ export default class MainMenuScene extends Phaser.Scene {
 
         categoryRecipes.forEach(recipe => {
             const isSpecial = recipe.isLocked; 
-            const strokeColor = isSpecial ? 0x00ffff : 0xffffff;
+            const strokeColor = isSpecial ? 0x00ffff : 0x555555;
 
-            const btn = this.add.rectangle(startX + (col * 250), startY, 220, 45, 0x222222).setInteractive({useHandCursor:true}).setStrokeStyle(isSpecial ? 2 : 1, strokeColor);
-            const txt = this.add.text(startX + (col * 250), startY, recipe.name, { ...this.fontBody, color: isSpecial ? '#00ffff' : '#fff'}).setOrigin(0.5);
-            btn.on('pointerdown', () => { this.expandedRecipeId = (this.expandedRecipeId === recipe.id) ? null : recipe.id; this.refreshForge(); });
-            this.recipesContainer.add([btn, txt]); startY += 55;
+            // Botones más compactos
+            const btn = this.add.rectangle(startX + (col * 210), startY, 200, 40, 0x222222).setInteractive({useHandCursor:true}).setStrokeStyle(isSpecial ? 2 : 1, strokeColor);
+            const txt = this.add.text(startX + (col * 210), startY, recipe.name, { ...this.fontBody, fontSize: '14px', color: isSpecial ? '#00ffff' : '#fff', wordWrap:{width:190}, align:'center'}).setOrigin(0.5);
             
-            if (this.expandedRecipeId === recipe.id) {
-                ['common', 'uncommon', 'rare'].forEach(rarity => { 
-                    const rData = RARITY[rarity]; 
-                    const rBtn = this.add.rectangle(startX + (col * 250) + 20, startY, 180, 35, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rData.color); 
-                    const rTxt = this.add.text(startX + (col * 250) + 20, startY, rData.name, { ...this.fontBody, fontSize:'12px' }).setOrigin(0.5).setColor('#' + rData.color.toString(16).padStart(6,'0'));
-                    rBtn.on('pointerdown', () => this.selectNormalRecipe(recipe, rarity)); 
-                    this.recipesContainer.add([rBtn, rTxt]); 
-                    startY += 40;
-                }); 
-                startY += 10;
-            }
-            if (startY > this.scale.height * 0.8) { col++; startY = this.scale.height * 0.35; }
+            // --- CAMBIO PRINCIPAL: ABRIR MODAL DIRECTAMENTE ---
+            btn.on('pointerdown', () => { 
+                this.selectRecipeForCrafting(recipe);
+            });
+            // --------------------------------------------------
+
+            this.recipesContainer.add([btn, txt]); 
+            
+            col++;
+            if (col >= 4) { col = 0; startY += 50; } // 4 columnas
         });
     }
 
@@ -788,21 +908,48 @@ export default class MainMenuScene extends Phaser.Scene {
         this.recipeDetailContainer.add([bg, title, stats, craftBtn]);
     }
 
-    handleCraftButton() { const sel = this.craftSelection; if (!sel.type) return; this.executeCraftItem(sel.recipe, sel.rarity); }
+    handleCraftButton() { 
+        if (!this.selectedRecipe || !this.selectedCraftRarity) return; 
+        // La lógica de verificación de materiales y oro ya la hace updateCraftingModalView visualmente,
+        // y executeCraftItem la hace lógicamente.
+        this.executeCraftItem(this.selectedRecipe, this.selectedCraftRarity); 
+    }
     
     executeCraftItem(recipe, rarityKey) {
-        const rarity = RARITY[rarityKey]; const cost = Math.floor(recipe.cost * rarity.mult);
+        const rarity = RARITY[rarityKey]; 
+        const cost = Math.floor(recipe.cost * rarity.mult);
+        // ASUNCIÓN: Se piden 3 materiales COMUNES.
+        const requiredMats = 3;
+        const matKey = recipe.mat;
+        const ownedMats = gameState.materials[matKey]?.common || 0;
+
+        // Verificación doble (aunque el botón se deshabilita, es seguridad)
         if (gameState.gold < cost) { 
             this.showCentralAlert("¡Falta Oro!", '#ff0000'); 
             return; 
         }
+        if (ownedMats < requiredMats) {
+             this.showCentralAlert("¡Faltan Materiales!", '#ff0000');
+             return;
+        }
+
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         if (result.success) { 
+            // --- CONSUMIR RECURSOS ---
             gameState.gold -= cost; 
+            gameState.materials[matKey].common -= requiredMats;
+            // -------------------------
+
             this.safeAddItemToInventory(result.item); 
             this.goldText.setText(`ORO: ${gameState.gold}`); 
-            SaveSystem.save(); // GUARDADO AUTOMÁTICO
-            this.showCentralAlert(`¡CREADO: ${result.item.name}!`, '#' + RARITY[rarityKey].color.toString(16).padStart(6,'0')); 
+            SaveSystem.save(); 
+            
+            // Actualizar la modal por si quiere seguir crafteando
+            this.updateCraftingModalView();
+            // Actualizar inventario si estaba visible (opcional)
+            // this.refreshInventory();
+
+            this.showCentralAlert(`¡FORJADO: ${result.item.name}!`, '#' + RARITY[rarityKey].color.toString(16).padStart(6,'0')); 
         } else { 
             this.showCentralAlert(`ERROR: ${result.error}`, '#ff0000'); 
         } 
