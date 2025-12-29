@@ -51,7 +51,7 @@ export const initialState = {
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         ingot_mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
-        plank_wood: { common: 0, uncommon: 0, rare: 1200, epic: 0, legendary: 0 },
+        plank_wood: { common: 0, uncommon: 0, rare: 1201, epic: 0, legendary: 0 },
         plank_cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         plank_ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
         cloth_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 },
@@ -80,7 +80,17 @@ export const initialState = {
     completedLevels: {}, 
     unlockedRecipes: [], 
     activeSets: [],
-    maxLevel: 1,
+    
+    // --- CORRECCIÓN: NIVELES POR BIOMA INDEPENDIENTES ---
+    // Cada bioma empieza en nivel 1 desbloqueado.
+    biomeLevels: {
+        forest: 1,
+        mountain: 1,
+        volcano: 1
+    },
+    // ----------------------------------------------------
+    
+    maxLevel: 1, // Mantenido por compatibilidad
     baseHp: 20
 };
 
@@ -240,11 +250,7 @@ export function updatePlayerStats() {
         }
     }
 
-    // --- SEGURIDAD: LÍMITES HARDCODED ---
-    // 200ms = 5 disparos por segundo. Más rápido que eso empieza a lagear.
     if (stats.attackSpeed < 200) stats.attackSpeed = 200; 
-    
-    // Rango máximo para no disparar fuera de la pantalla
     if (stats.range > 1200) stats.range = 1200;
 
     if (gameState.playerStats.hp > stats.maxHp) gameState.playerStats.hp = stats.maxHp;

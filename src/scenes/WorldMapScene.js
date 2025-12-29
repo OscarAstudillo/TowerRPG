@@ -24,16 +24,12 @@ export default class WorldMapScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
-        // --- FONDO (Placeholder inicial, se actualiza en updateBiomeView) ---
         this.bgImage = this.add.image(w/2, h/2, 'bg_forest').setDisplaySize(w, h).setDepth(-10);
-        // --------------------------------------------------------------------
         
-        // Título
         this.add.text(w/2, 50, "MAPA DEL MUNDO", {
             fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
         }).setOrigin(0.5);
 
-        // Panel de información (Tu código original)
         this.infoPanelContainer = this.add.container(w * 0.76, h * 0.5);
         this.add.existing(this.infoPanelContainer);
         
@@ -41,7 +37,6 @@ export default class WorldMapScene extends Phaser.Scene {
         this.createBiomeInfoPanel();
         this.updateBiomeView();
 
-        // Botón Volver
         const backBtn = this.add.rectangle(100, h - 50, 150, 50, 0x8b0000)
             .setInteractive({ useHandCursor: true })
             .setStrokeStyle(2, 0xffffff);
@@ -69,33 +64,12 @@ export default class WorldMapScene extends Phaser.Scene {
 
     createBiomeInfoPanel() {
         const bg = this.add.rectangle(0, 0, 400, 600, 0x000000, 0.85).setStrokeStyle(2, 0xffd700);
-        
-        const title = this.add.text(0, -260, "INFORMACIÓN DE ZONA", {
-            fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700'
-        }).setOrigin(0.5);
-
-        this.loreText = this.add.text(0, -180, "", {
-            fontFamily: 'Roboto', fontSize: '16px', color: '#ffffff', align: 'center',
-            wordWrap: { width: 360 }
-        }).setOrigin(0.5);
-
-        const enemiesHeader = this.add.text(0, -80, "-- ENEMIGOS --", {
-            fontFamily: 'Cinzel', fontSize: '20px', color: '#ffaaaa'
-        }).setOrigin(0.5);
-        
-        this.enemiesListText = this.add.text(0, 0, "", {
-            fontFamily: 'Roboto', fontSize: '15px', color: '#dddddd', align: 'center',
-            wordWrap: { width: 360 }
-        }).setOrigin(0.5);
-
-        const dropsHeader = this.add.text(0, 100, "-- RECURSOS --", {
-            fontFamily: 'Cinzel', fontSize: '20px', color: '#aaffaa'
-        }).setOrigin(0.5);
-
-        this.dropsListText = this.add.text(0, 180, "", {
-            fontFamily: 'Roboto', fontSize: '15px', color: '#dddddd', align: 'center',
-            wordWrap: { width: 360 }
-        }).setOrigin(0.5);
+        const title = this.add.text(0, -260, "INFORMACIÓN DE ZONA", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700' }).setOrigin(0.5);
+        this.loreText = this.add.text(0, -180, "", { fontFamily: 'Roboto', fontSize: '16px', color: '#ffffff', align: 'center', wordWrap: { width: 360 } }).setOrigin(0.5);
+        const enemiesHeader = this.add.text(0, -80, "-- ENEMIGOS --", { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffaaaa' }).setOrigin(0.5);
+        this.enemiesListText = this.add.text(0, 0, "", { fontFamily: 'Roboto', fontSize: '15px', color: '#dddddd', align: 'center', wordWrap: { width: 360 } }).setOrigin(0.5);
+        const dropsHeader = this.add.text(0, 100, "-- RECURSOS --", { fontFamily: 'Cinzel', fontSize: '20px', color: '#aaffaa' }).setOrigin(0.5);
+        this.dropsListText = this.add.text(0, 180, "", { fontFamily: 'Roboto', fontSize: '15px', color: '#dddddd', align: 'center', wordWrap: { width: 360 } }).setOrigin(0.5);
 
         this.infoPanelContainer.add([bg, title, this.loreText, enemiesHeader, this.enemiesListText, dropsHeader, this.dropsListText]);
     }
@@ -111,36 +85,26 @@ export default class WorldMapScene extends Phaser.Scene {
         const biomeKey = this.biomeKeys[this.currentBiomeIndex];
         const biomeData = BIOMES[biomeKey];
 
-        // --- ACTUALIZAR FONDO (Nuevo) ---
-        // Usa las texturas generadas: bg_forest, bg_mountain, bg_volcano
         const bgKey = `bg_${biomeKey}`;
-        if (this.textures.exists(bgKey)) {
-            this.bgImage.setTexture(bgKey);
-        } else {
-            this.bgImage.setTexture('bg_menu'); // Fallback
-        }
-        // --------------------------------
+        if (this.textures.exists(bgKey)) this.bgImage.setTexture(bgKey);
+        else this.bgImage.setTexture('bg_forest');
 
         if (this.biomeTitle) this.biomeTitle.destroy();
-        
         this.biomeTitle = this.add.text(this.scale.width / 2, 100, `ZONA: ${biomeData.name.toUpperCase()}`, {
             fontFamily: 'Cinzel', fontSize: '40px', color: '#ffffff', stroke: '#000', strokeThickness: 4
         }).setOrigin(0.5);
 
         this.levelsContainer.removeAll(true);
         this.createLevelButtons(biomeKey);
-
         this.updateInfoPanelContent(biomeKey);
     }
 
     updateInfoPanelContent(biomeKey) {
-        // Tu lógica original de mostrar enemigos y drops
         const lore = BIOME_LORE[biomeKey] || "Una zona misteriosa e inexplorada.";
         this.loreText.setText(lore);
 
         const biomeConfig = BIOME_ENEMIES[biomeKey];
         let uniqueEnemies = new Set();
-        
         if (biomeConfig) {
             biomeConfig.tiers.forEach(tier => tier.forEach(k => uniqueEnemies.add(k)));
             biomeConfig.miniBosses.forEach(k => uniqueEnemies.add(k));
@@ -149,14 +113,11 @@ export default class WorldMapScene extends Phaser.Scene {
 
         let enemyNames = [];
         let uniqueDrops = new Set();
-
         uniqueEnemies.forEach(key => {
             const data = ENEMY_DB[key];
             if (data) {
                 enemyNames.push(data.name);
-                if (data.drops) {
-                    data.drops.forEach(d => uniqueDrops.add(d[0]));
-                }
+                if (data.drops) data.drops.forEach(d => uniqueDrops.add(d[0]));
             }
         });
 
@@ -179,9 +140,17 @@ export default class WorldMapScene extends Phaser.Scene {
         let x = startX;
         let y = startY;
         
+        // --- CORRECCIÓN: USAR PROGRESO POR BIOMA ---
+        if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
+        const maxLevelForThisBiome = gameState.biomeLevels[biomeKey] || 1;
+        // -------------------------------------------
+
         for (let i = 1; i <= 10; i++) {
             const levelId = i;
-            const isUnlocked = levelId <= (gameState.maxLevel || 1);
+            
+            // --- CORRECCIÓN: COMPARAR SOLO CON EL BIOMA ACTUAL ---
+            const isUnlocked = levelId <= maxLevelForThisBiome;
+            // -----------------------------------------------------
             
             const btn = this.add.rectangle(x, y, 80, 80, isUnlocked ? 0x222222 : 0x111111)
                 .setStrokeStyle(2, isUnlocked ? 0x00ff00 : 0x550000);
@@ -206,12 +175,7 @@ export default class WorldMapScene extends Phaser.Scene {
 
             this.levelsContainer.add([btn, txt]);
 
-            if (i % 2 === 0) {
-                x = startX;
-                y += 100;
-            } else {
-                x += 150;
-            }
+            if (i % 2 === 0) { x = startX; y += 100; } else { x += 150; }
         }
     }
 }

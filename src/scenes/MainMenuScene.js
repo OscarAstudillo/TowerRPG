@@ -45,6 +45,10 @@ export default class MainMenuScene extends Phaser.Scene {
             const loaded = SaveSystem.load();
             if (loaded) {
                 console.log("✅ Progreso restaurado.");
+                // --- FIX COMPATIBILIDAD: INICIALIZAR BIOMAS SI NO EXISTEN ---
+                if (!gameState.biomeLevels) {
+                    gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
+                }
             } else {
                 console.log("ℹ️ Nueva sesión.");
                 if (!gameState.talents) gameState.talents = [];

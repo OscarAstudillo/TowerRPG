@@ -549,8 +549,11 @@ export default class GameScene extends Phaser.Scene {
     victory() { 
         this.physics.pause(); 
         if (this.spawnTimer) this.spawnTimer.remove(); 
-        if (this.level >= (gameState.maxLevel || 1)) { gameState.maxLevel = this.level + 1; } 
-        
+        if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
+        // Si ganamos el nivel actual y es el último desbloqueado, abrimos el siguiente
+        if (this.level >= gameState.biomeLevels[this.biome]) {
+            gameState.biomeLevels[this.biome] = this.level + 1;
+        }
         SaveSystem.save(); 
 
         const rewardGold = 100 + (this.level * 50); 
