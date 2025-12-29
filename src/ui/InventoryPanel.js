@@ -1,5 +1,5 @@
 // src/ui/InventoryPanel.js
-import { gameState, RARITY } from '../config/GameState.js';
+import { gameState, RARITY, updatePlayerStats } from '../config/GameState.js'; // AGREGADO updatePlayerStats
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { ITEM_SETS } from '../config/ItemSets.js';
 import SaveSystem from '../systems/SaveSystem.js';
@@ -11,11 +11,11 @@ export default class InventoryPanel {
         this.width = width;
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
-        this.category = 'all'; // 'all', 'tower_part', 'mats'
+        this.category = 'all'; 
         
         // Elementos UI
         this.gridContainer = scene.add.container(width * 0.28, height * 0.3);
-        this.detailContainer = scene.add.container(width * 0.78, height * 0.3).setVisible(false);
+        this.detailContainer = scene.add.container(width * 0.78, height * 0.35).setVisible(false); // Bajado un poco el centro
         this.infoText = scene.add.text(50, height * 0.25, '', { fontFamily: 'Roboto', fontSize: '14px', color: '#fff' });
 
         // Botones Categoría
@@ -104,9 +104,9 @@ export default class InventoryPanel {
             const bg = this.scene.add.rectangle(85, 50, 170, 100, 0x222222).setStrokeStyle(1, 0x555555);
             
             let iconKey = 'mat_wood';
-            if (k.includes('ore') || k.includes('iron') || k.includes('copper')) iconKey = 'mat_ore';
+            if (k.includes('ore') || k.includes('iron')) iconKey = 'mat_ore';
             else if (k.includes('cloth') || k.includes('cotton')) iconKey = 'mat_cloth';
-            else if (k.includes('leather') || k.includes('hide')) iconKey = 'mat_leather';
+            else if (k.includes('leather')) iconKey = 'mat_leather';
 
             if (this.scene.textures.exists(iconKey)) {
                 const icon = this.scene.add.sprite(30, 30, iconKey).setScale(0.8);
@@ -135,77 +135,116 @@ export default class InventoryPanel {
         this.detailContainer.setVisible(true);
         this.selectedItem = item;
 
-        const bg = this.scene.add.rectangle(0, 150, 320, 400, 0x000000, 0.95).setStrokeStyle(2, item.color);
-        const title = this.scene.add.text(0, -20, item.name, { fontFamily: 'Cinzel', fontSize: '18px', color: '#' + item.color.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} }).setOrigin(0.5, 0);
-        
+        // 1. TÍTULO
+        const title = this.scene.add.text(0, -220, item.name, { 
+            fontFamily: 'Cinzel', fontSize: '18px', color: '#' + item.color.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 280} 
+        }).setOrigin(0.5, 0);
+
+        // 2. TEXTO DE STATS (Contenido dinámico)
         const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
-        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\nStats:\n${statsStr}`;
+        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\n\n-- STATS --\n${statsStr}`;
         
-        // Info de Sets
         if (ITEM_SETS) {
             for (let setKey in ITEM_SETS) {
                 const set = ITEM_SETS[setKey];
                 if (set.items.includes(item.recipeId)) {
-                    infoText += `\n✨ SET: ${set.name} ✨\n`;
+                    infoText += `\n\n✨ SET: ${set.name} ✨\n`;
                     set.bonuses.forEach(b => infoText += ` (${b.count}) ${b.desc}\n`);
                 }
             }
         }
 
-        const statsTxt = this.scene.add.text(0, title.height + 10, infoText, { fontFamily: 'Roboto', fontSize: '13px', align: 'left', wordWrap: {width: 280} }).setOrigin(0.5, 0);
-        
-        let btnY = 220;
-        const equipLabel = item.type === 'tower_part' ? "EQUIPAR (Torre)" : "EQUIPAR";
-        const equipBtn = this.createActionBtn(0, btnY, equipLabel, 0x006400, () => this.actionEquip(item));
-        
-        btnY += 50;
-        const fuseBtn = this.createActionBtn(0, btnY, "FUSIONAR...", 0x00008b, () => this.initiateFusion(item));
-        
-        btnY += 50;
-        const sellBtn = this.createActionBtn(0, btnY, "VENDER", 0x8b0000, () => this.actionSell(item));
+        const statsTxt = this.scene.add.text(0, title.y + title.height + 20, infoText, { 
+            fontFamily: 'Roboto', fontSize: '13px', align: 'left', wordWrap: {width: 300}, color: '#dddddd' 
+        }).setOrigin(0.5, 0);
 
+        // 3. POSICIONAMIENTO DINÁMICO DE BOTONES
+        // Calculamos dónde termina el texto para poner los botones abajo
+        let currentY = statsTxt.y + statsTxt.height + 30;
+
+        const equipLabel = item.type === 'tower_part' ? "EQUIPAR (Torre)" : "EQUIPAR";
+        const equipBtn = this.createActionBtn(0, currentY, equipLabel, 0x006400, () => this.actionEquip(item));
+        
+        currentY += 50;
+        const fuseBtn = this.createActionBtn(0, currentY, "FUSIONAR...", 0x00008b, () => this.initiateFusion(item));
+        
+        currentY += 50;
+        const sellBtn = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
+
+        // 4. FONDO AJUSTABLE
+        // El fondo crece según hasta donde lleguen los botones
+        const totalHeight = (currentY + 50) - (-250); // Desde arriba hasta el último botón
+        const bg = this.scene.add.rectangle(0, -250 + (totalHeight/2), 340, totalHeight + 40, 0x000000, 0.95).setStrokeStyle(2, item.color);
+        
+        // Aseguramos que el fondo se dibuje primero
         this.detailContainer.add([bg, title, statsTxt, equipBtn, fuseBtn, sellBtn]);
     }
 
     createActionBtn(x, y, text, color, callback) {
         const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 200, 35, color).setInteractive({ useHandCursor: true });
+        const bg = this.scene.add.rectangle(0, 0, 220, 40, color).setInteractive({ useHandCursor: true });
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);
         return container;
     }
 
+    // --- NUEVA FUNCIÓN INTERNA PARA EVITAR ERRORES ---
+    safeAddItemToInventory(item) {
+        if (!item) return;
+        const exists = gameState.inventory.some(i => i.id === item.id);
+        if (!exists) gameState.inventory.push(item);
+        else {
+            item.id = RPGSystem.getUniqueId(); // Generar nuevo ID si hay conflicto
+            gameState.inventory.push(item);
+        }
+    }
+    // -------------------------------------------------
+
     actionEquip(item) {
-        // Lógica de equipamiento
         const idx = gameState.inventory.findIndex(i => String(i.id) === String(item.id));
         if (idx === -1) return;
         
+        // Quitar del inventario
         gameState.inventory.splice(idx, 1);
         
         if (item.type === 'tower_part') {
             const type = item.towerType || item.subType;
-            if (!gameState.towerEquipment[type].slot1) gameState.towerEquipment[type].slot1 = item;
-            else if (!gameState.towerEquipment[type].slot2) gameState.towerEquipment[type].slot2 = item;
-            else {
-                // Swap slot 1
+            // Lógica de slots de torre
+            if (!gameState.towerEquipment[type].slot1) {
+                gameState.towerEquipment[type].slot1 = item;
+            } else if (!gameState.towerEquipment[type].slot2) {
+                gameState.towerEquipment[type].slot2 = item;
+            } else {
+                // Swap Slot 1 por defecto
                 const old = gameState.towerEquipment[type].slot1;
-                this.scene.safeAddItemToInventory(old);
+                this.safeAddItemToInventory(old);
                 gameState.towerEquipment[type].slot1 = item;
             }
             this.scene.switchTab('towers');
         } else {
-            // Lógica héroe simplificada para no extender demasiado
-            const slotMap = { weapon: 'mainHand', offhand: 'offHand', armor: 'armor', accessory: 'accessory' };
-            const slot = slotMap[item.type];
+            // Lógica de héroe
+            const slotMap = { weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', dagger: 'mainHand', sword: 'mainHand', offhand: 'offHand', shield: 'offHand', armor: 'armor', plate: 'armor', cloth: 'armor', leather: 'armor', accessory: 'accessory', ring: 'accessory' };
+            const slot = slotMap[item.type] || slotMap[item.subType];
             
             if (slot) {
-                if (gameState.equipment[slot]) this.scene.safeAddItemToInventory(gameState.equipment[slot]);
+                // Arma 2 Manos
+                if (item.twoHanded && slot === 'mainHand') {
+                     if (gameState.equipment.offHand) {
+                         this.safeAddItemToInventory(gameState.equipment.offHand);
+                         gameState.equipment.offHand = null;
+                     }
+                }
+
+                if (gameState.equipment[slot]) {
+                    this.safeAddItemToInventory(gameState.equipment[slot]);
+                }
                 gameState.equipment[slot] = item;
             }
             this.scene.switchTab('hero');
         }
         
+        updatePlayerStats();
         SaveSystem.save();
         this.detailContainer.setVisible(false);
         this.refresh();
@@ -215,14 +254,16 @@ export default class InventoryPanel {
         const idx = gameState.inventory.findIndex(i => i.id === item.id);
         if(idx === -1) return;
         
-        const price = 50; // Podrías usar GAME_CONSTANTS aquí
+        const price = 50; // O usar config
         gameState.gold += price;
         gameState.inventory.splice(idx, 1);
         
         SaveSystem.save();
         this.detailContainer.setVisible(false);
         this.refresh();
-        this.scene.showCentralAlert(`Vendido por ${price} oro`, '#ffff00');
+        
+        if(this.scene.updateGoldText) this.scene.updateGoldText();
+        if(this.scene.showCentralAlert) this.scene.showCentralAlert(`Vendido por ${price} oro`, '#ffff00');
     }
 
     // --- FUSIÓN UI ---
@@ -268,13 +309,14 @@ export default class InventoryPanel {
         if (res.success) {
             // Eliminar items viejos
             gameState.inventory = gameState.inventory.filter(i => i.id !== this.itemToFuse1.id && i.id !== item2.id);
-            this.scene.safeAddItemToInventory(res.item);
+            this.safeAddItemToInventory(res.item);
             
             this.fusionListModal.setVisible(false);
             this.detailContainer.setVisible(false);
             this.refresh();
             SaveSystem.save();
-            this.scene.showCentralAlert(`FUSIÓN EXITOSA: ${res.item.name}`, '#00ff00');
+            
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(`FUSIÓN EXITOSA: ${res.item.name}`, '#00ff00');
         }
     }
 }
