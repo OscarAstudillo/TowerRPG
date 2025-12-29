@@ -26,9 +26,10 @@ export default class MainMenuScene extends Phaser.Scene {
         this.fusionPage = 0;
         this.fusionItemsPerPage = 7; 
 
-        this.expandedRecipeId = null; 
         this.craftSelection = { type: null, recipe: null, rarity: null };
         this.hasLoaded = false;
+        
+        this.towerViewPage = 0;
 
         this.fontTitle = { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000000', strokeThickness: 4 };
         this.fontHeader = { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
@@ -40,35 +41,28 @@ export default class MainMenuScene extends Phaser.Scene {
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
 
-        // --- SISTEMA DE CARGA AUTOMÁTICA (SOLUCIÓN F5) ---
         if (!this.hasLoaded) {
             const loaded = SaveSystem.load();
+            
+            const allTowers = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
+            if (!gameState.towerEquipment) gameState.towerEquipment = {};
+            
+            allTowers.forEach(type => {
+                if (!gameState.towerEquipment[type]) {
+                    gameState.towerEquipment[type] = { slot1: null, slot2: null };
+                }
+            });
+
             if (loaded) {
                 console.log("✅ Progreso restaurado.");
-                // --- FIX COMPATIBILIDAD: INICIALIZAR BIOMAS SI NO EXISTEN ---
-
-                // Si el save es viejo, no tiene las nuevas torres. Las agregamos aquí.
-                const allTowers = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
-                if (!gameState.towerEquipment) gameState.towerEquipment = {};
-                
-                allTowers.forEach(type => {
-                    if (!gameState.towerEquipment[type]) {
-                        console.log(`🛠️ Reparando save: Agregando slots para ${type}`);
-                        gameState.towerEquipment[type] = { slot1: null, slot2: null };
-                    }
-                });
-                
-                if (!gameState.biomeLevels) {
-                    gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
-                }
             } else {
                 console.log("ℹ️ Nueva sesión.");
                 if (!gameState.talents) gameState.talents = [];
+                if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
                 this.sanitizeData(); 
             }
             this.hasLoaded = true;
         }
-        // --------------------------------------------------
 
         if (!gameState.selectedClass) {
             this.scene.start('HeroSelectScene');
@@ -82,7 +76,9 @@ export default class MainMenuScene extends Phaser.Scene {
         const cx = w / 2;
         const cy = h / 2;
 
-        this.add.rectangle(cx, cy, w, h, 0x1a1a1a);
+        this.add.image(cx, cy, 'bg_menu').setDisplaySize(w, h);
+        this.add.rectangle(cx, cy, w, h, 0x1a1a1a, 0.5); 
+        
         this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { ...this.fontHeader, color: '#ffd700' }).setOrigin(1, 0.5);
 
@@ -94,10 +90,10 @@ export default class MainMenuScene extends Phaser.Scene {
         this.createTabButton(startX + tabW*4, tabY, 'CREACIÓN', 'forge', tabW); 
         this.createTabButton(startX + tabW*5, tabY, 'TORRES', 'towers', tabW);
 
-        // Botón Misiones
         const questBtn = this.add.rectangle(w - 150, h * 0.2, 120, 40, 0x800080).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xffffff);
         this.add.text(w - 150, h * 0.2, "MISIONES", this.fontBtn).setOrigin(0.5);
         questBtn.on('pointerdown', () => this.toggleQuestModal());
+        
         RPGSystem.generateDailyQuests();
         this.createQuestModal(w, h, cx, cy);
 
@@ -128,29 +124,17 @@ export default class MainMenuScene extends Phaser.Scene {
         const resetBtn = this.add.text(w - 50, botY, 'BORRAR DATOS', { ...this.fontBtn, color: '#ff5555' }).setInteractive({ useHandCursor: true }).setOrigin(1, 0.5);
         resetBtn.on('pointerdown', () => { if(confirm("¿Borrar todo el progreso?")) { SaveSystem.reset(); } });
 
-        // BOTÓN DE TRUCO (CHEAT)
-        const cheatBtn = this.add.text(w - 20, 90, "¡LEVEL UP PARA PRUEBAS!", { 
-            fontSize: '20px', fontStyle: 'bold', color: '#00ff00' 
-        }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
-
+        const cheatBtn = this.add.text(w - 20, 90, "¡LEVEL UP!", { fontSize: '20px', fontStyle: 'bold', color: '#00ff00' }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
         cheatBtn.on('pointerdown', () => {
             const hero = getCurrentHero();
-            if (hero) {
-                RPGSystem.gainHeroXP(5000); 
-                SaveSystem.save(); // GUARDADO AUTOMÁTICO
-                this.refreshHero();
-                this.refreshTalents();
-                this.showCentralAlert("¡TRUCO ACTIVADO: XP GANADA!", "#00ff00");
-            }
+            if (hero) { RPGSystem.gainHeroXP(5000); SaveSystem.save(); this.refreshHero(); this.refreshTalents(); this.showCentralAlert("¡TRUCO ACTIVADO!", "#00ff00"); }
         });
     }
 
     createMenuButton(x, y, text, callback) {
         const btn = this.add.container(x, y);
         const bg = this.add.rectangle(0, 0, 180, 40, 0x000000).setStrokeStyle(2, 0xffd700);
-        const label = this.add.text(0, 0, text, {
-            fontFamily: 'Cinzel', fontSize: '16px', color: '#ffffff'
-        }).setOrigin(0.5);
+        const label = this.add.text(0, 0, text, { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
         bg.setInteractive({ useHandCursor: true })
             .on('pointerover', () => { bg.setFillStyle(0x333333); this.tweens.add({ targets: btn, scale: 1.1, duration: 100 }); })
             .on('pointerout', () => { bg.setFillStyle(0x000000); this.tweens.add({ targets: btn, scale: 1.0, duration: 100 }); })
@@ -233,7 +217,6 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    // --- UTILS ---
     sanitizeData() {
         const equippedIds = new Set();
         const getId = (i) => i && i.id ? String(i.id) : null;
@@ -265,7 +248,6 @@ export default class MainMenuScene extends Phaser.Scene {
         return text;
     }
 
-    // --- VISTA INVENTARIO ---
     createInventoryView(w, h, cx, cy) {
         const catY = h * 0.18;
         this.createInvCategoryBtn(cx - 300, catY, "EQUIPO", 'all'); 
@@ -287,7 +269,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.createFusionModals(cx, cy);
     }
     
-    // --- UI FUSIÓN CON PAGINACIÓN ---
+    // --- UI FUSIÓN ---
     createFusionModals(cx, cy) {
         this.fusionListModal = this.add.container(cx, cy).setVisible(false).setDepth(2000);
         const fBg = this.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
@@ -354,6 +336,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 const card = this.add.container(col * (cardWidth + gapX), row * (cardHeight + gapY));
                 const bg = this.add.rectangle(cardWidth/2, cardHeight/2, cardWidth, cardHeight, 0x222222).setStrokeStyle(1, 0x555555);
                 
+                // Icono
                 let iconKey = 'mat_wood';
                 if (k.includes('ore') || k.includes('iron') || k.includes('copper')) iconKey = 'mat_ore';
                 else if (k.includes('cloth') || k.includes('cotton')) iconKey = 'mat_cloth';
@@ -613,6 +596,7 @@ export default class MainMenuScene extends Phaser.Scene {
         } 
     }
 
+    // --- SECCIÓN FORJA ACTUALIZADA ---
     createForgeView(w, h, cx, cy) {
         this.profText = this.add.text(cx, h * 0.17, '', { ...this.fontBody, fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.forgeContainer.add(this.profText);
@@ -630,7 +614,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.forgeContainer.add(this.recipesContainer);
         
         // --- MEJORA: MODAL A LA DERECHA Y MÁS ALTA ---
-        const detailX = w * 0.72; // Movido a la derecha
+        const detailX = w * 0.72; 
         const detailY = h * 0.55;
         this.recipeDetailContainer = this.add.container(detailX, detailY); 
         this.recipeDetailContainer.setVisible(false).setDepth(2000); 
@@ -734,7 +718,7 @@ export default class MainMenuScene extends Phaser.Scene {
                 this.recipesContainer.add([btn, txt]); 
                 
                 col++;
-                if (col >= 3) { col = 0; currentY += 50; } // 3 columnas para no chocar con el panel derecho
+                if (col >= 3) { col = 0; currentY += 50; } // 3 columnas
             });
             if (col > 0) currentY += 50; // Salto de linea final
             currentY += 20; // Espacio entre tiers
@@ -754,8 +738,9 @@ export default class MainMenuScene extends Phaser.Scene {
         this.craftItemTitle = this.add.text(0, -280, recipe.name.toUpperCase(), { ...this.fontHeader, fontSize: '24px' }).setOrigin(0.5);
 
         this.rarityButtonsContainer = this.add.container(0, -230);
-        const rarities = ['common', 'uncommon', 'rare', 'epic', 'mythic', 'legendary'];
-        let btnX = -125;
+        // Si no tienes 'mythic' en tu GameState, se ignorará
+        const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+        let btnX = -100;
         this.raritySelectBtns = {};
 
         rarities.forEach(rKey => {
@@ -816,20 +801,20 @@ export default class MainMenuScene extends Phaser.Scene {
         }
         this.craftStatsText.setText(statsStr);
 
-        // --- CORRECCIÓN: NOMBRE REAL DEL MATERIAL ---
-        // Buscamos en RAW y REFINED para asegurar el nombre correcto
+        // --- CORRECCIÓN: NOMBRE REAL DEL MATERIAL Y LÓGICA DE RAREZA ---
         const matKey = recipe.mat;
         const matDef = RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey] || {name: matKey};
         const matNameDisplay = matDef.name;
-        // --------------------------------------------
         
-        const ownedMats = gameState.materials[recipe.mat]?.common || 0;
+        // Verifica si existe el material en esa rareza, si no usa common
+        const matSource = gameState.materials[matKey];
+        const ownedMats = matSource ? (matSource[rarityKey] !== undefined ? matSource[rarityKey] : 0) : 0;
+        
         const requiredMats = 3; 
         const cost = Math.floor(recipe.cost * rarityData.mult);
-        
         const goldColor = gameState.gold >= cost ? '#ffd700' : '#ff0000';
 
-        let matsStr = `-- REQUISITOS --\n\nMaterial Requerido:\n${matNameDisplay.toUpperCase()}\n`;
+        let matsStr = `-- REQUISITOS --\n\nMaterial Requerido:\n${matNameDisplay.toUpperCase()} (${rarityData.name})\n`;
         matsStr += `(Tienes: ${ownedMats} / Pide: ${requiredMats})\n`;
         
         this.craftMatsText.setText(matsStr);
@@ -858,7 +843,9 @@ export default class MainMenuScene extends Phaser.Scene {
         const cost = Math.floor(recipe.cost * rarity.mult);
         const requiredMats = 3;
         const matKey = recipe.mat;
-        const ownedMats = gameState.materials[matKey]?.common || 0;
+        
+        const matSource = gameState.materials[matKey];
+        const ownedMats = matSource ? (matSource[rarityKey] !== undefined ? matSource[rarityKey] : 0) : 0;
 
         if (gameState.gold < cost) { 
             this.showCentralAlert("¡Falta Oro!", '#ff0000'); 
@@ -872,7 +859,9 @@ export default class MainMenuScene extends Phaser.Scene {
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         if (result.success) { 
             gameState.gold -= cost; 
-            gameState.materials[matKey].common -= requiredMats;
+            // CONSUMIR MATERIAL DE LA RAREZA CORRECTA
+            gameState.materials[matKey][rarityKey] -= requiredMats;
+            
             this.safeAddItemToInventory(result.item); 
             this.goldText.setText(`ORO: ${gameState.gold}`); 
             SaveSystem.save(); 
@@ -941,7 +930,7 @@ export default class MainMenuScene extends Phaser.Scene {
     learnTalent(talent) { 
         if (RPGSystem.spendTalentPoint(talent.id, 1)) { 
             updatePlayerStats(); 
-            SaveSystem.save(); // GUARDADO AUTOMÁTICO
+            SaveSystem.save(); // Autoguardado al aprender
             this.refreshTalents(); 
             this.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); 
         } 
