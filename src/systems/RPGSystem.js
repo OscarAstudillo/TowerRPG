@@ -1,9 +1,9 @@
-// src/systems/RPGSystem.js
 import { gameState, RARITY, getCurrentHero, updatePlayerStats } from '../config/GameState.js';
 import { RECIPES } from '../config/Recipes.js';
 import { REFINING_RECIPES } from '../config/RefiningRecipes.js';
 import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
+import { GAME_CONSTANTS } from '../config/GameConstants.js'; // Importamos constantes
 import SaveSystem from './SaveSystem.js';
 
 class RPGSystem {
@@ -12,24 +12,13 @@ class RPGSystem {
         return "ITEM_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
     }
 
-    // --- NUEVO: CÁLCULO DE RAREZA DE DROP POR NIVEL ---
-    // Nivel 1: 95% Common, 5% Uncommon
-    // Nivel 10: 35% Common, 20% Unc, 15% Rare, 12% Epic, 9% Leg, 9% Mythic (aprox)
+    // --- RAREZA DINÁMICA (Tu lógica original) ---
     getDynamicRarity(level) {
-        // Asegurar límites
         const lvl = Math.max(1, Math.min(level, 10));
-        
-        // Probabilidades base (acumuladas para el check) en Nivel 1
-        // Común es el resto. Aquí definimos umbrales para NO COMUNES.
-        // Ejemplo Nivel 1: >95 es Uncommon.
-        
-        // Definimos los pesos para Nivel 1 y Nivel 10
         const p1 =  { common: 95, uncommon: 5, rare: 0, epic: 0, legendary: 0 };
-        const p10 = { common: 35, uncommon: 20, rare: 15, epic: 12, legendary: 18 }; // 18% para Leg+Mythic (9+6+3)
+        const p10 = { common: 35, uncommon: 20, rare: 15, epic: 12, legendary: 18 }; 
         
-        // Interpolación lineal
-        const t = (lvl - 1) / 9; // 0 en lvl 1, 1 en lvl 10
-        
+        const t = (lvl - 1) / 9; 
         const getChance = (key) => Math.floor(p1[key] + (p10[key] - p1[key]) * t);
         
         const chances = {
@@ -43,31 +32,60 @@ class RPGSystem {
         const roll = Math.random() * 100;
         let cumulative = 0;
 
-        // Comprobamos de menor a mayor probabilidad (Legendario primero para priorizar si toca)
-        // O mejor: sistema de pesos acumulados estándar
-        
-        // Orden: Common -> Uncommon -> Rare -> Epic -> Legendary
-        // 0..35 -> Common
-        // 35..55 -> Uncommon (35+20)
-        // etc.
-        
         cumulative += chances.common;
         if (roll < cumulative) return 'common';
-        
         cumulative += chances.uncommon;
         if (roll < cumulative) return 'uncommon';
-        
         cumulative += chances.rare;
         if (roll < cumulative) return 'rare';
-        
         cumulative += chances.epic;
         if (roll < cumulative) return 'epic';
         
-        return 'legendary'; // Si pasa todo, es legendario
+        return 'legendary'; 
+    }
+
+    // --- CRAFTEO (FORJA) - LÓGICA CORREGIDA PARA CANTIDAD ---
+    craftItem(recipeId, rarityKey) {
+        const recipe = RECIPES.find(r => r.id === recipeId);
+        if (!recipe) return { success: false, error: "Receta no encontrada" };
+        
+        const rarity = RARITY[rarityKey];
+        // Calcular costo
+        const costMult = (GAME_CONSTANTS && GAME_CONSTANTS.CRAFTING) ? GAME_CONSTANTS.CRAFTING.GOLD_COST_MULTIPLIER : 1;
+        const goldCost = Math.floor(recipe.cost * rarity.mult * costMult);
+        
+        // CORRECCIÓN: Usar qty de la receta o 3 por defecto
+        const matReq = recipe.qty || 3;
+
+        if (gameState.gold < goldCost) return { success: false, error: "Falta Oro" };
+
+        // Verificar Materiales con la cantidad correcta
+        if (!this.checkMaterials(recipe.mat, matReq, rarityKey)) {
+            return { success: false, error: `Faltan materiales (${matReq})` };
+        }
+        
+        // Consumir Recursos (Solo aquí)
+        gameState.gold -= goldCost;
+        this.consumeMaterials(recipe.mat, matReq, rarityKey);
+        
+        // Generar Item
+        let profKey = recipe.prof || 'weaponsmith';
+        if (!recipe.prof && recipe.type === 'tower_part') profKey = 'engineering';
+
+        const profLevel = this.getProfessionLevel(profKey);
+        const bonusEnchant = Math.floor(profLevel / 10);
+        
+        const item = this.generateItem(recipe, rarity, bonusEnchant);
+        
+        this.gainProfessionXP(profKey, rarityKey);
+        this.updateQuestProgress('craft', recipe.type, 1);
+        
+        return { success: true, item: item };
     }
 
     // --- REFINACIÓN ---
     refineMaterial(recipeId) {
+        // Nota: RefiningPanel ahora maneja la lógica de colores, este es el fallback
         const recipe = REFINING_RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta inválida" };
 
@@ -89,7 +107,7 @@ class RPGSystem {
             outputRarity = 'uncommon'; 
         }
 
-        if (!gameState.materials[recipe.output]) gameState.materials[recipe.output] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
+        if (!gameState.materials[recipe.output]) gameState.materials[recipe.output] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
         gameState.materials[recipe.output][outputRarity]++;
 
         this.gainProfessionXP('refining', 'common');
@@ -97,7 +115,49 @@ class RPGSystem {
         return { success: true, item: recipe.output, rarity: outputRarity };
     }
 
-    // --- DROP INTELIGENTE ---
+    // --- MÉTODOS DE MATERIALES (Restaurados) ---
+    checkMaterials(mat, amount, rarity) { 
+        return gameState.materials[mat] && (gameState.materials[mat][rarity] || 0) >= amount; 
+    }
+    
+    consumeMaterials(mat, amount, rarity) { 
+        if (gameState.materials[mat]) gameState.materials[mat][rarity] -= amount; 
+    }
+
+    // --- DROP Y COFRES ---
+    getChestLoot(biomeKey, levelId) {
+        const biome = BIOMES[biomeKey];
+        if (!biome) return [];
+
+        const lootList = [];
+        const baseQty = 2 + levelId; 
+        const tier = LEVEL_CONFIG[levelId]?.tier || 1;
+        
+        let possibleMats = biome.materials[tier] || biome.materials[1];
+        if (tier > 1) {
+            possibleMats = possibleMats.concat(biome.materials[tier - 1]);
+        }
+
+        for (let i = 0; i < baseQty; i++) {
+            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
+            const rarity = this.getDynamicRarity(levelId);
+            
+            if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
+            gameState.materials[matKey][rarity]++;
+            
+            lootList.push({ key: matKey, rarity: rarity, amount: 1 });
+        }
+        
+        if (levelId >= 5) {
+            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
+            const bonusRarity = this.getDynamicRarity(levelId + 2); 
+            gameState.materials[matKey][bonusRarity]++;
+            lootList.push({ key: matKey, rarity: bonusRarity, amount: 1, bonus: true });
+        }
+
+        return lootList;
+    }
+
     getDropForLevel(biomeKey, levelId) {
         const biome = BIOMES[biomeKey];
         const config = LEVEL_CONFIG[levelId];
@@ -108,10 +168,58 @@ class RPGSystem {
         const possibleMaterials = biome.materials[tier] || biome.materials[1];
         const matKey = possibleMaterials[Math.floor(Math.random() * possibleMaterials.length)];
         
-        // USAR LA NUEVA LÓGICA DE RAREZA
         const rarity = this.getDynamicRarity(levelId);
 
         return { key: matKey, rarity: rarity, amount: 1 };
+    }
+
+    // --- GENERACIÓN DE ITEMS ---
+    generateItem(recipe, rarity, initialEnchant = 0) {
+        const stats = { ...recipe.baseStats };
+        
+        for(let k in stats) {
+            if (k !== 'attackSpeed' && k !== 'cdr') {
+                stats[k] = Math.floor(stats[k] * rarity.mult);
+            }
+        }
+        
+        const pool = this.getStatPool(recipe);
+        for (let i = 0; i < rarity.statCount; i++) {
+            const stat = pool[Math.floor(Math.random() * pool.length)];
+            const rawVal = (Math.random() * (stat.max - stat.min) + stat.min);
+            const val = Math.ceil(rawVal * rarity.mult);
+            
+            if(stat.key === 'attackSpeed') {
+                 if(stats[stat.key]) stats[stat.key] -= val; 
+                 else stats[stat.key] = -val;
+            } else {
+                 if(stats[stat.key]) stats[stat.key] += val; 
+                 else stats[stat.key] = val;
+            }
+        }
+
+        if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
+        
+        return { 
+            id: this.getUniqueId(),
+            recipeId: recipe.id, 
+            name: `${recipe.name}`, 
+            type: recipe.type, 
+            subType: recipe.subType, 
+            towerType: (recipe.type === 'tower_part' ? recipe.subType : null),
+            twoHanded: recipe.twoHanded || false, 
+            rarity: rarity.id, 
+            enchant: initialEnchant, 
+            stats: stats, 
+            color: rarity.color 
+        };
+    }
+
+    getStatPool(recipe) {
+        if (recipe.type === 'weapon') return [ { key: 'damage', min: 2, max: 5 }, { key: 'critChance', min: 1, max: 3 }, { key: 'critDamage', min: 5, max: 15 }, { key: 'lifesteal', min: 1, max: 2 } ];
+        if (recipe.type === 'armor') return [ { key: 'hp', min: 10, max: 30 }, { key: 'defense', min: 1, max: 3 }, { key: 'thorns', min: 1, max: 3 }, { key: 'regenHp', min: 1, max: 2 } ];
+        if (recipe.type === 'tower_part') return [ { key: 'damage', min: 2, max: 5 }, { key: 'range', min: 10, max: 20 }, { key: 'attackSpeed', min: 20, max: 50 }, { key: 'doubleAttack', min: 2, max: 5 } ];
+        return [ { key: 'attackSpeed', min: 10, max: 50 }, { key: 'moveSpeed', min: 5, max: 15 }, { key: 'damage', min: 1, max: 3 } ];
     }
 
     applyEnchantStats(statsObj, levels) { 
@@ -129,6 +237,45 @@ class RPGSystem {
             } 
         } 
         return statsObj; 
+    }
+
+    // --- FUSIÓN ---
+    fuseSpecificItems(item1, item2) {
+        if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Deben ser misma rareza y nivel (+)" };
+        if (item1.type !== item2.type) return { success: false, error: "Deben ser del mismo tipo" };
+        if (item1.subType !== item2.subType) return { success: false, error: "Deben ser del mismo subtipo" };
+        
+        const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
+        this.applyEnchantStats(baseStats, 1);
+        
+        const newItem = { 
+            ...item1, 
+            id: this.getUniqueId(),
+            name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, 
+            enchant: item1.enchant + 1, 
+            stats: baseStats 
+        };
+        
+        return { success: true, item: newItem };
+    }
+
+    // --- PROFESIONES Y XP ---
+    getProfessionLevel(profKey) {
+        if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
+        return gameState.professions[profKey].level;
+    }
+
+    gainProfessionXP(profKey, rarityKey) {
+        let xp = 10 * (RARITY[rarityKey] ? RARITY[rarityKey].mult : 1);
+        const prof = gameState.professions[profKey];
+        if (prof) {
+            prof.xp += Math.floor(xp);
+            if (prof.xp >= prof.maxXp) { 
+                prof.level++; 
+                prof.xp = 0; 
+                prof.maxXp = Math.floor(prof.maxXp * 1.5); 
+            }
+        }
     }
 
     gainHeroXP(amount) {
@@ -181,155 +328,7 @@ class RPGSystem {
         return false;
     }
 
-    getProfessionLevel(profKey) {
-        if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
-        return gameState.professions[profKey].level;
-    }
-    
-    craftItem(recipeId, rarityKey) {
-        const recipe = RECIPES.find(r => r.id === recipeId);
-        if (!recipe) return { success: false, error: "Receta no encontrada" };
-        
-        const rarity = RARITY[rarityKey];
-        if (!this.checkMaterials(recipe.mat, 3, rarityKey)) return { success: false, error: `Faltan materiales` };
-        
-        this.consumeMaterials(recipe.mat, 3, rarityKey);
-        
-        let profKey = recipe.prof || 'weaponsmith';
-        if (!recipe.prof) {
-             if (recipe.type === 'tower_part') profKey = 'engineering';
-        }
-
-        const profLevel = this.getProfessionLevel(profKey);
-        const bonusEnchant = Math.floor(profLevel / 10);
-        
-        const item = this.generateItem(recipe, rarity, bonusEnchant);
-        
-        this.gainProfessionXP(profKey, rarityKey);
-        this.updateQuestProgress('craft', recipe.type, 1);
-        return { success: true, item: item };
-    }
-
-    fuseSpecificItems(item1, item2) {
-        if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Deben ser misma rareza y nivel (+)" };
-        if (item1.type !== item2.type) return { success: false, error: "Deben ser del mismo tipo" };
-        if (item1.subType !== item2.subType) return { success: false, error: "Deben ser del mismo subtipo" };
-        
-        const baseStats = (Math.random() > 0.5) ? JSON.parse(JSON.stringify(item1.stats)) : JSON.parse(JSON.stringify(item2.stats));
-        this.applyEnchantStats(baseStats, 1);
-        
-        const newItem = { 
-            ...item1, 
-            id: this.getUniqueId(),
-            name: `${item1.name.split('+')[0].trim()} +${item1.enchant + 1}`, 
-            enchant: item1.enchant + 1, 
-            stats: baseStats 
-        };
-        
-        return { success: true, item: newItem };
-    }
-
-    generateItem(recipe, rarity, initialEnchant = 0) {
-        const stats = { ...recipe.baseStats };
-        
-        for(let k in stats) {
-            if (k !== 'attackSpeed' && k !== 'cdr') {
-                stats[k] = Math.floor(stats[k] * rarity.mult);
-            }
-        }
-        
-        const pool = this.getStatPool(recipe);
-        for (let i = 0; i < rarity.statCount; i++) {
-            const stat = pool[Math.floor(Math.random() * pool.length)];
-            const rawVal = (Math.random() * (stat.max - stat.min) + stat.min);
-            const val = Math.ceil(rawVal * rarity.mult);
-            
-            if(stat.key === 'attackSpeed') {
-                 if(stats[stat.key]) stats[stat.key] -= val; 
-                 else stats[stat.key] = -val;
-            } else {
-                 if(stats[stat.key]) stats[stat.key] += val; 
-                 else stats[stat.key] = val;
-            }
-        }
-
-        if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
-        
-        return { 
-            id: this.getUniqueId(),
-            recipeId: recipe.id, 
-            name: `${recipe.name}`, 
-            type: recipe.type, 
-            subType: recipe.subType, 
-            towerType: (recipe.type === 'tower_part' ? recipe.subType : null),
-            twoHanded: recipe.twoHanded || false, 
-            rarity: rarity.id, 
-            enchant: initialEnchant, 
-            stats: stats, 
-            color: rarity.color 
-        };
-    }
-
-    getStatPool(recipe) {
-        if (recipe.type === 'weapon') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'critChance', min: 1, max: 3, label: '% Crítico' }, { key: 'critDamage', min: 5, max: 15, label: 'Daño Crítico' }, { key: 'lifesteal', min: 1, max: 2, label: 'Robo Vida' } ];
-        if (recipe.type === 'armor') return [ { key: 'hp', min: 10, max: 30, label: 'Vida' }, { key: 'defense', min: 1, max: 3, label: 'Defensa' }, { key: 'thorns', min: 1, max: 3, label: 'Espinas' }, { key: 'regenHp', min: 1, max: 2, label: 'Regen HP' } ];
-        if (recipe.type === 'tower_part') return [ { key: 'damage', min: 2, max: 5, label: 'Daño' }, { key: 'range', min: 10, max: 20, label: 'Rango' }, { key: 'attackSpeed', min: 20, max: 50, label: 'Velocidad' }, { key: 'doubleAttack', min: 2, max: 5, label: 'Doble Ataque' } ];
-        return [ { key: 'attackSpeed', min: 10, max: 50, label: 'Vel. Ataque' }, { key: 'moveSpeed', min: 5, max: 15, label: 'Vel. Movimiento' }, { key: 'damage', min: 1, max: 3, label: 'Daño' } ];
-    }
-
-    gainProfessionXP(profKey, rarityKey) {
-        let xp = 10 * (RARITY[rarityKey] ? RARITY[rarityKey].mult : 1);
-        if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
-        gameState.professions[profKey].xp += Math.floor(xp);
-        if (gameState.professions[profKey].xp >= gameState.professions[profKey].maxXp) { 
-            gameState.professions[profKey].level++; 
-            gameState.professions[profKey].xp = 0; 
-            gameState.professions[profKey].maxXp = Math.floor(gameState.professions[profKey].maxXp * 1.5); 
-        }
-    }
-
-    checkMaterials(mat, amount, rarity) { 
-        return gameState.materials[mat] && gameState.materials[mat][rarity] >= amount; 
-    }
-    consumeMaterials(mat, amount, rarity) { if (gameState.materials[mat]) gameState.materials[mat][rarity] -= amount; }
-
-    getChestLoot(biomeKey, levelId) {
-        const biome = BIOMES[biomeKey];
-        if (!biome) return [];
-
-        const lootList = [];
-        const baseQty = 2 + levelId; 
-        const tier = LEVEL_CONFIG[levelId]?.tier || 1;
-        
-        let possibleMats = biome.materials[tier] || biome.materials[1];
-        if (tier > 1) {
-            possibleMats = possibleMats.concat(biome.materials[tier - 1]);
-        }
-
-        for (let i = 0; i < baseQty; i++) {
-            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            
-            // USAR NUEVA LÓGICA RAREZA
-            const rarity = this.getDynamicRarity(levelId);
-            
-            if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
-            gameState.materials[matKey][rarity]++;
-            
-            lootList.push({ key: matKey, rarity: rarity, amount: 1 });
-        }
-        
-        if (levelId >= 5) {
-            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            const bonusRarity = this.getDynamicRarity(levelId + 2); // Bonus de mejor calidad
-            gameState.materials[matKey][bonusRarity]++;
-            lootList.push({ key: matKey, rarity: bonusRarity, amount: 1, bonus: true });
-        }
-
-        return lootList;
-    }
-
-    // --- NUEVO: SISTEMA DE MISIONES ---
-    
+    // --- MISIONES (Restaurado AddRandomQuest) ---
     generateDailyQuests() {
         if (gameState.quests.active.length > 0) return;
 

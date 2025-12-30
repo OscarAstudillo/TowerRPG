@@ -1,3 +1,4 @@
+// src/ui/ForgePanel.js
 import { gameState, RARITY } from '../config/GameState.js';
 import { RECIPES } from '../config/Recipes.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
@@ -14,16 +15,13 @@ export default class ForgePanel {
         this.category = 'weapon';
         this.subFilter = 'all';
         
-        // Título Profesión
         this.profText = scene.add.text(width/2, height * 0.17, '', { fontFamily: 'Roboto', fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.container.add(this.profText);
 
-        // Contenedores
         this.recipesContainer = scene.add.container(0, 0);
         this.detailContainer = scene.add.container(width * 0.72, height * 0.55).setVisible(false).setDepth(2000);
         this.forgeSubFilterContainer = scene.add.container(0, 0);
         
-        // Botones Categoría
         const catY = height * 0.22;
         this.createCatBtn(width * 0.2, catY, "ARMAS", 'weapon');
         this.createCatBtn(width * 0.4, catY, "ARMADURAS", 'armor');
@@ -51,11 +49,9 @@ export default class ForgePanel {
     hide() { this.container.setVisible(false); }
 
     refresh() {
-        // Actualizar Profesión
         const p = gameState.professions;
         this.profText.setText(`Niveles: Armas ${p.weaponsmith.level} | Armaduras ${p.armorsmith.level} | Joyas ${p.jewelry.level}`);
 
-        // Subfiltros
         this.forgeSubFilterContainer.removeAll(true);
         let subs = [];
         if (this.category === 'weapon') subs = [['TODAS','all'], ['ESPADAS','sword'], ['ARCOS','bow'], ['BASTONES','staff'], ['DAGAS','dagger']];
@@ -70,12 +66,10 @@ export default class ForgePanel {
             subX += 150;
         });
 
-        // Recetas
         this.recipesContainer.removeAll(true);
         let startX = this.width * 0.15; 
         let currentY = this.height * 0.35; 
 
-        // Filtrado
         const filtered = RECIPES.filter(r => {
             if (r.isLocked && (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id))) return false;
             if (this.category === 'tower_part') return r.type === 'tower_part';
@@ -85,12 +79,8 @@ export default class ForgePanel {
             return false;
         });
 
-        // Agrupación por Tier
         const grouped = {};
-        filtered.forEach(r => {
-            if (!grouped[r.tier]) grouped[r.tier] = [];
-            grouped[r.tier].push(r);
-        });
+        filtered.forEach(r => { if (!grouped[r.tier]) grouped[r.tier] = []; grouped[r.tier].push(r); });
 
         Object.keys(grouped).sort((a,b)=>a-b).forEach(tier => {
             const title = this.scene.add.text(startX, currentY, `--- TIER ${tier} ---`, { fontFamily: 'Cinzel', fontSize: '22px', color: '#ffaa00', fontStyle: 'bold' }).setOrigin(0, 0.5);
@@ -118,11 +108,9 @@ export default class ForgePanel {
         this.selectedRecipe = recipe;
         this.selectedRarity = 'common';
 
-        // Modal Fondo (Más alto)
         const bg = this.scene.add.rectangle(0, 0, 450, 650, 0x111111, 0.98).setStrokeStyle(3, 0xffffff);
         this.modalTitle = this.scene.add.text(0, -280, recipe.name.toUpperCase(), { fontFamily: 'Cinzel', fontSize: '24px' }).setOrigin(0.5);
 
-        // Selector Rareza
         this.rarityContainer = this.scene.add.container(0, -230);
         const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
         let btnX = -125;
@@ -143,16 +131,13 @@ export default class ForgePanel {
             btnX += 50;
         });
 
-        // Textos
         this.statsText = this.scene.add.text(0, -120, "", { fontFamily: 'Roboto', fontSize: '16px', align: 'center', wordWrap: {width: 400} }).setOrigin(0.5, 0);
         this.matsText = this.scene.add.text(0, 100, "", { fontFamily: 'Roboto', fontSize: '16px', align: 'center' }).setOrigin(0.5, 0);
 
-        // Botón Forjar
         this.craftBtn = this.createActionBtn(0, 240, "FORJAR", () => this.handleCraft());
         this.craftBtnText = this.craftBtn.list[1];
         this.craftBtnBg = this.craftBtn.list[0];
 
-        // Cerrar
         const close = this.scene.add.text(200, -300, "X", { fontSize:'28px', color:'#ff0000', fontStyle:'bold'}).setInteractive({useHandCursor:true}).setOrigin(0.5);
         close.on('pointerdown', () => this.detailContainer.setVisible(false));
 
@@ -171,14 +156,16 @@ export default class ForgePanel {
         for (let k in recipe.baseStats) {
             statsStr += `${k.toUpperCase()}: ${Math.floor(recipe.baseStats[k] * rarity.mult)}\n`;
         }
-        statsStr += `\n✨ POTENCIAL: +${rarity.statCount} Atributos Extra ✨`;
         this.statsText.setText(statsStr);
 
+        // --- MANEJO CORRECTO DE CANTIDAD (RECIPE.QTY) ---
         const matKey = recipe.mat;
         const matDef = RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey] || {name: matKey};
-        // Buscar si tenemos el material de esa rareza
         const owned = gameState.materials[matKey] ? (gameState.materials[matKey][this.selectedRarity] || 0) : 0;
-        const req = GAME_CONSTANTS.CRAFTING.MATERIAL_REQ_AMOUNT;
+        
+        // Aquí leemos la cantidad de la receta (por defecto 3 si no existe)
+        const req = recipe.qty || 3; 
+        
         const cost = Math.floor(recipe.cost * rarity.mult);
 
         let matsStr = `-- REQUISITOS --\nMaterial: ${matDef.name.toUpperCase()} (${rarity.name})\n`;
@@ -192,45 +179,44 @@ export default class ForgePanel {
         if(canCraft) this.craftBtnBg.setInteractive(); else this.craftBtnBg.disableInteractive();
     }
 
+    // --- FUNCIÓN HELPER PARA INVENTARIO SEGURO ---
+    safeAddItemToInventory(item) {
+        if (!item) return;
+        const exists = gameState.inventory.some(i => i.id === item.id);
+        if (!exists) gameState.inventory.push(item);
+        else {
+            item.id = RPGSystem.getUniqueId();
+            gameState.inventory.push(item);
+        }
+    }
+
     handleCraft() {
         const recipe = this.selectedRecipe;
         const rarityKey = this.selectedRarity;
         const rarity = RARITY[rarityKey];
         const cost = Math.floor(recipe.cost * rarity.mult);
-        const req = GAME_CONSTANTS.CRAFTING.MATERIAL_REQ_AMOUNT;
         
+        // Validación solo de oro aquí, RPGSystem valida materiales
         if(gameState.gold < cost) { 
             if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Falta Oro!", '#ff0000'); 
             return; 
         }
         
+        // Llamada a RPGSystem (él descontará materiales y oro)
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
+        
         if (result.success) {
-            gameState.gold -= cost;
-            gameState.materials[recipe.mat][rarityKey] -= req;
-            
-            // --- CORRECCIÓN: AGREGAR ITEM DIRECTAMENTE ---
             this.safeAddItemToInventory(result.item);
-            // ---------------------------------------------
             
             if(this.scene.updateGoldText) this.scene.updateGoldText();
             SaveSystem.save();
-            this.updateDetailView();
+            this.updateDetailView(); // Refrescar vista (materiales bajan)
+            
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(`¡FORJADO: ${result.item.name}!`, '#00ff00');
+        } else {
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(result.error, '#ff0000');
         }
     }
-
-    // --- NUEVO MÉTODO INTERNO PARA EVITAR ERROR ---
-    safeAddItemToInventory(item) { 
-        if (!item) return; 
-        const exists = gameState.inventory.some(i => i.id === item.id); 
-        if (!exists) gameState.inventory.push(item); 
-        else { 
-            item.id = RPGSystem.getUniqueId(); 
-            gameState.inventory.push(item); 
-        } 
-    }
-    // ----------------------------------------------
 
     createActionBtn(x, y, text, callback) {
         const container = this.scene.add.container(x, y);
