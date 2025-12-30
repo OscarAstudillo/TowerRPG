@@ -12,7 +12,7 @@ export default class TowersPanel {
         this.towersPageContainer = scene.add.container(0, 0);
         this.container.add(this.towersPageContainer);
 
-        const toggleBtn = scene.add.text(width/2, height * 0.15, "VER MÁS TORRES >", { 
+        const toggleBtn = scene.add.text(width/2, height * 0.18, "VER MÁS TORRES >", { 
             fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#00ffff' 
         }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
         
