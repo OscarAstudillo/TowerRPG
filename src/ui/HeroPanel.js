@@ -63,22 +63,35 @@ export default class HeroPanel {
         const hero = getCurrentHero(); 
         const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); 
         
-        const atkSpeedTxt = `${s.attackSpeed}ms`; 
-        const rangeTxt = `${s.range}m`; 
+        // --- FORMATEO DE DATOS "PLAYER FRIENDLY" ---
         
+        // Velocidad de Ataque: Convertir Delay (ms) a Ataques/Segundo
+        // 1000ms = 1.00 Atk/s, 500ms = 2.00 Atk/s
+        const attacksPerSecond = (1000 / s.attackSpeed).toFixed(2);
+        const atkSpeedTxt = `${attacksPerSecond} Atk/s (${s.attackSpeed}ms)`; 
+        
+        // Defensa: Mostrar % estimado de reducción (ej: 1 def = 0.25% aprox)
+        const dmgReduction = (s.defense * 0.25).toFixed(1); // Fórmula visual simple
+        const defTxt = `${s.defense} (${dmgReduction}% Reducción)`;
+
         const statsBlock = 
 `CLASE: [ ${clsName} ]
 
--- ATRIBUTOS BASE --
-❤️ Vida: ${Math.floor(s.hp)}/${s.maxHp}  |  🛡️ Defensa: ${s.defense}
-⚔️ Daño: ${s.damage}             |  ⚡ Vel. Ataque: ${atkSpeedTxt}
-📏 Alcance: ${rangeTxt}     |  🏃 Movimiento: ${s.moveSpeed}
+-- ATRIBUTOS PRINCIPALES --
+⚔️ Daño: ${s.damage}             |  ❤️ Vida: ${Math.floor(s.hp)} / ${s.maxHp}
+⚡ Velocidad: ${atkSpeedTxt}
+🛡️ Defensa: ${defTxt}
 
--- ATRIBUTOS SECUNDARIOS --
-🎯 Prob. Crítica: ${s.critChance}%       |  💥 Daño Crítico: ${s.critDamage}%
-🩸 Robo de Vida: ${s.lifesteal}%     |  💖 Regeneración: ${s.regenHp}/s
-⚔️⚔️ Golpe Doble: ${s.doubleAttack}%  |  🌵 Espinas: ${s.thorns}
-⏳ Reducción CD: ${s.cdr}%    |  🛡️ Bloqueo: ${s.blockChance}%`;
+-- COMBATE --
+📏 Alcance: ${s.range}m         |  🏃 Movimiento: ${s.moveSpeed}
+🎯 Crítico: ${s.critChance}%           |  💥 Daño Crítico: ${s.critDamage}%
+🩸 Robo Vida: ${s.lifesteal}%          |  🛡️ Bloqueo: ${s.blockChance}%
+
+-- OTROS --
+💖 Regeneración: ${s.regenHp} Hp/s
+⚔️⚔️ Golpe Doble: ${s.doubleAttack}%
+🌵 Espinas: ${s.thorns}% Daño devuelto
+⏳ Reducción CD: ${s.cdr}%`;
 
         this.heroStatsText.setText(statsBlock); 
 
@@ -87,7 +100,7 @@ export default class HeroPanel {
         const startX = this.heroStatsText.x; 
         const equipY = this.heroStatsText.y + 280; 
 
-        this.equippedTextContainer.add(this.scene.add.text(startX, equipY, "-- EQUIPAMIENTO --", { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffffff', fontStyle: 'italic'})); 
+        this.equippedTextContainer.add(this.scene.add.text(startX, equipY, "-- EQUIPAMIENTO ACTUAL --", { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffffff', fontStyle: 'italic'})); 
         
         let slotY = equipY + 30; 
         const slots = [ { key: 'mainHand', label: '🗡️ Arma', cat: 'weapon' }, { key: 'offHand', label: '🛡️ Off', cat: 'armor' }, { key: 'armor', label: '👕 Ropa', cat: 'armor' }, { key: 'accessory', label: '💍 Joya', cat: 'accessory' } ]; 
@@ -105,7 +118,6 @@ export default class HeroPanel {
             
             slotBg.on('pointerdown', () => { 
                 if (!item) { 
-                    // Cambiar a pestaña de inventario y filtrar
                     if(this.scene.inventoryPanel) this.scene.inventoryPanel.category = slot.cat; 
                     this.scene.switchTab('inventory'); 
                 } 
@@ -116,19 +128,19 @@ export default class HeroPanel {
             slotY += 40; 
         }); 
         
-        let setsText = "-- SETS ACTIVOS --\n"; 
+        let setsText = "-- BONIFICACIONES DE SET --\n"; 
         if (gameState.activeSets && gameState.activeSets.length > 0) { 
             gameState.activeSets.forEach(set => { 
                 setsText += `★ ${set.name}\n`; 
                 set.bonuses.forEach(b => setsText += `   ${b}\n`); 
             }); 
         } else {
-            setsText += "(Ninguno)";
+            setsText += "(Ninguno activado)";
         }
         this.heroSetsText.setText(setsText);
 
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); 
-        this.pointsText.setText(`PUNTOS DE STAT: ${hero.statPoints}`); 
+        this.pointsText.setText(`PUNTOS DISPONIBLES: ${hero.statPoints}`); 
     }
 
     // --- FUNCIÓN SEGURA DE GUARDADO EN INVENTARIO (Local) ---
@@ -141,14 +153,14 @@ export default class HeroPanel {
             gameState.inventory.push(item); 
         } 
     }
-    // --------------------------------------------------------
 
     showUnequipModal(item, slotKey) { 
         const modal = this.scene.add.container(this.scene.scale.width/2, this.scene.scale.height/2).setDepth(2000); 
         const bg = this.scene.add.rectangle(0, 0, 400, 300, 0x000000, 0.95).setStrokeStyle(2, item.color); 
         const title = this.scene.add.text(0, -100, item.name, { fontFamily: 'Cinzel', fontSize: '22px', fontStyle:'bold', color: '#' + item.color.toString(16).padStart(6,'0') }).setOrigin(0.5); 
-        const statsStr = JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, ''); 
-        const info = this.scene.add.text(0, -20, statsStr, { fontFamily: 'Roboto', fontSize: '14px', color: '#fff' }).setOrigin(0.5); 
+        
+        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
+        const info = this.scene.add.text(0, -20, statsStr, { fontFamily: 'Roboto', fontSize: '14px', color: '#fff', align: 'center', wordWrap:{width:350} }).setOrigin(0.5); 
         
         const btnUnequip = this.scene.add.rectangle(0, 80, 200, 40, 0x8b0000).setInteractive({useHandCursor:true}); 
         const txtUnequip = this.scene.add.text(0, 80, "DESEQUIPAR", { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5); 
@@ -156,20 +168,18 @@ export default class HeroPanel {
         const btnClose = this.scene.add.text(0, 130, "Cancelar", { fontFamily: 'Roboto', fontSize: '14px', color: '#aaa' }).setInteractive({useHandCursor:true}).setOrigin(0.5); 
         
         btnUnequip.on('pointerdown', () => { 
-            // Verificar si el slot tiene algo, sin ser tan estricto con el ID por seguridad
             const equippedItem = gameState.equipment[slotKey];
             if (equippedItem) { 
                 gameState.equipment[slotKey] = null; 
-                // Usamos la función interna para asegurar que se guarde
                 this.safeAddItemToInventory(equippedItem); 
                 
                 SaveSystem.save(); 
                 updatePlayerStats(); 
                 this.refresh(); 
                 modal.destroy(); 
-                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Equipo guardado en mochila", "#00ff00");
+                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Equipo guardado", "#00ff00");
             } else { 
-                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Error: Slot vacío", "#ff0000"); 
+                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Error", "#ff0000"); 
                 modal.destroy(); 
             } 
         }); 
