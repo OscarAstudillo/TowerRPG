@@ -9,32 +9,55 @@ export default class HeroPanel {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         
-        // --- FONDO EXPANDIDO (900px ancho) ---
-        const panelWidth = 900; 
-        const panelHeight = 650; 
-        const panelX = width / 2; // Centrado
-        const panelY = height / 2 + 20;
+        // ============================================================
+        // 1. PANEL PRINCIPAL (IZQUIERDA) - STATS Y EQUIPO
+        // ============================================================
+        const panelWidth = 750; 
+        const panelHeight = 600; 
+        const panelX = width * 0.38; // Movido a la izquierda
+        const panelY = height / 2 + 30;
 
+        // Fondo del Panel Principal
         const statsBg = scene.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(3, 0xffd700); 
         this.container.add(statsBg); 
         
-        // Título Principal (Arriba del todo)
-        this.heroLevelText = scene.add.text(width/2, height * 0.12, '', { fontFamily: 'Cinzel', fontSize: '32px', color: '#00ffff', fontStyle:'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
+        // Título Nivel (Arriba del panel principal)
+        this.heroLevelText = scene.add.text(panelX, panelY - panelHeight/2 + 40, '', { fontFamily: 'Cinzel', fontSize: '28px', color: '#00ffff', fontStyle:'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
         this.container.add(this.heroLevelText);
 
-        // --- COLUMNA IZQUIERDA (STATS) ---
-        const col1X = panelX - 220;
-        const startY = panelY - 280;
+        // --- COLUMNA 1: ATRIBUTOS (Dentro del panel, lado izquierdo) ---
+        const col1X = panelX - 180;
+        const startY = panelY - 200;
 
-        // Texto de Stats
-        this.heroStatsText = scene.add.text(col1X - 200, startY, '', { fontFamily: 'Roboto', fontSize: '15px', lineHeight: 24, color: '#fff' }); 
+        this.heroStatsText = scene.add.text(col1X - 160, startY, '', { fontFamily: 'Roboto', fontSize: '15px', lineHeight: 24, color: '#fff' }); 
         this.container.add(this.heroStatsText); 
+
+        // --- COLUMNA 2: EQUIPAMIENTO (Dentro del panel, lado derecho) ---
+        const col2X = panelX + 180;
         
-        // Botones de Mejora (Ahora dentro del panel, abajo a la izquierda)
-        this.pointsText = scene.add.text(col1X, panelY + 120, "PUNTOS: 0", { fontFamily: 'Cinzel', fontSize: '22px', color: '#ffd700', fontStyle:'bold' }).setOrigin(0.5); 
+        const equipTitle = scene.add.text(col2X, startY, "-- EQUIPAMIENTO --", { fontFamily: 'Cinzel', fontSize: '18px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        this.container.add(equipTitle);
+
+        this.equippedTextContainer = scene.add.container(col2X, startY + 40); 
+        this.container.add(this.equippedTextContainer); 
+        
+        this.heroSetsText = scene.add.text(col2X, panelY + 120, '', { fontFamily: 'Roboto', fontSize: '13px', color: '#ffff00', lineHeight: 20, align: 'center' }).setOrigin(0.5, 0);
+        this.container.add(this.heroSetsText);
+
+
+        // ============================================================
+        // 2. PANEL DE MEJORAS (DERECHA) - Debajo del botón Misiones
+        // ============================================================
+        const upgradeX = width - 180; // Alineado a la derecha
+        const upgradeY = height * 0.25; // Debajo del botón de misiones (aprox)
+
+        // Fondo para la zona de mejoras
+        const upgradeBg = scene.add.rectangle(upgradeX, upgradeY + 200, 300, 450, 0x000000, 0.8).setStrokeStyle(2, 0x00ff00);
+        this.container.add(upgradeBg);
+
+        this.pointsText = scene.add.text(upgradeX, upgradeY + 30, "PUNTOS: 0", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5); 
         this.container.add(this.pointsText); 
 
-        // Contenedor para botones de stats
         this.statButtonsContainer = scene.add.container(0, 0);
         this.container.add(this.statButtonsContainer);
         
@@ -45,32 +68,17 @@ export default class HeroPanel {
             { label: "Defensa (+1)", key: 'defense' } 
         ]; 
         
-        // Crear botones x1 y x10
-        let btnY = panelY + 170;
+        let btnY = upgradeY + 90;
         statsToUpgrade.forEach((s) => { 
-            this.createUpgradeRow(col1X, btnY, s.label, s.key); 
-            btnY += 55;
+            this.createUpgradeRow(upgradeX, btnY, s.label, s.key); 
+            btnY += 60; // Espaciado vertical
         });
-
-        // --- COLUMNA DERECHA (EQUIPO) ---
-        const col2X = panelX + 220;
-        
-        // Título Equipo
-        const equipTitle = scene.add.text(col2X, startY, "-- EQUIPAMIENTO --", { fontFamily: 'Cinzel', fontSize: '18px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
-        this.container.add(equipTitle);
-
-        this.equippedTextContainer = scene.add.container(col2X, startY + 40); 
-        this.container.add(this.equippedTextContainer); 
-        
-        // Texto de Sets (Abajo a la derecha)
-        this.heroSetsText = scene.add.text(col2X, panelY + 100, '', { fontFamily: 'Roboto', fontSize: '13px', color: '#ffff00', lineHeight: 20, align: 'center' }).setOrigin(0.5, 0);
-        this.container.add(this.heroSetsText);
     }
 
     createUpgradeRow(x, y, label, statKey) {
-        // Botón x1
-        const btn1 = this.scene.add.rectangle(x - 60, y, 180, 40, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00);
-        const txt1 = this.scene.add.text(x - 60, y, label, { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
+        // Botón x1 (Izquierda)
+        const btn1 = this.scene.add.rectangle(x - 50, y, 160, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00);
+        const txt1 = this.scene.add.text(x - 50, y, label, { fontFamily: 'Roboto', fontSize: '15px', fontStyle: 'bold' }).setOrigin(0.5);
         
         btn1.on('pointerdown', () => { 
             if (RPGSystem.spendStatPoint(statKey)) { 
@@ -79,22 +87,21 @@ export default class HeroPanel {
             } 
         });
 
-        // Botón x10
-        const btn10 = this.scene.add.rectangle(x + 100, y, 80, 40, 0x8b0000).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xff5555);
-        const txt10 = this.scene.add.text(x + 100, y, "+10", { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
+        // Botón x10 (Derecha, pequeño)
+        const btn10 = this.scene.add.rectangle(x + 90, y, 60, 45, 0x8b0000).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xff5555);
+        const txt10 = this.scene.add.text(x + 90, y, "+10", { fontFamily: 'Roboto', fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
 
         btn10.on('pointerdown', () => {
             const hero = getCurrentHero();
             if (hero.statPoints >= 10) {
-                // Bucle seguro para gastar 10 puntos
                 for(let i=0; i<10; i++) {
                     RPGSystem.spendStatPoint(statKey);
                 }
                 this.refresh();
                 SaveSystem.save();
-                if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Mejora x10 Aplicada!", "#00ff00");
+                if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Mejora x10!", "#00ff00");
             } else {
-                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Necesitas 10 Puntos", "#ff0000");
+                if(this.scene.showCentralAlert) this.scene.showCentralAlert("Faltan Puntos", "#ff0000");
             }
         });
 
@@ -142,7 +149,7 @@ export default class HeroPanel {
 
         this.heroStatsText.setText(statsBlock); 
 
-        // --- EQUIPAMIENTO (Columna Derecha) ---
+        // --- EQUIPAMIENTO ---
         this.equippedTextContainer.removeAll(true); 
         
         let slotY = 0; 
@@ -155,13 +162,13 @@ export default class HeroPanel {
         
         slots.forEach(slot => { 
             const item = eq[slot.key]; 
-            const slotBg = this.scene.add.rectangle(0, slotY, 380, 50, 0x222222).setInteractive({useHandCursor: true}).setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); 
+            const slotBg = this.scene.add.rectangle(0, slotY, 340, 50, 0x222222).setInteractive({useHandCursor: true}).setStrokeStyle(1, item ? RARITY[item.rarity].color : 0x555555); 
             
             const name = item ? `${item.name} (+${item.enchant})` : '- VACÍO -'; 
             const color = item ? '#' + item.color.toString(16).padStart(6, '0') : '#888'; 
             
-            const txtLabel = this.scene.add.text(-170, slotY, slot.label, { fontFamily: 'Roboto', fontSize: '14px', color: '#aaa' }).setOrigin(0, 0.5);
-            const valTxt = this.scene.add.text(-80, slotY, name, { fontFamily: 'Roboto', fontSize: '15px', color: color, fontStyle: 'bold', wordWrap: {width: 250} }).setOrigin(0, 0.5);
+            const txtLabel = this.scene.add.text(-150, slotY, slot.label, { fontFamily: 'Roboto', fontSize: '14px', color: '#aaa' }).setOrigin(0, 0.5);
+            const valTxt = this.scene.add.text(-60, slotY, name, { fontFamily: 'Roboto', fontSize: '14px', color: color, fontStyle: 'bold', wordWrap: {width: 220} }).setOrigin(0, 0.5);
             
             slotBg.on('pointerdown', () => { 
                 if (!item) { 
@@ -188,12 +195,10 @@ export default class HeroPanel {
         }
         this.heroSetsText.setText(setsText);
 
-        // Header Info
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); 
-        this.pointsText.setText(`PUNTOS DISPONIBLES: ${hero.statPoints}`); 
+        this.pointsText.setText(`PUNTOS: ${hero.statPoints}`); 
     }
 
-    // --- FUNCIÓN SEGURA DE GUARDADO ---
     safeAddItemToInventory(item) { 
         if (!item) return; 
         const exists = gameState.inventory.some(i => i.id === item.id); 
