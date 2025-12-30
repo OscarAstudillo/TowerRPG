@@ -102,17 +102,6 @@ export default class ForgePanel {
         });
     }
 
-    // --- FUNCIÓN HELPER PARA INVENTARIO SEGURO ---
-    safeAddItemToInventory(item) {
-        if (!item) return;
-        const exists = gameState.inventory.some(i => i.id === item.id);
-        if (!exists) gameState.inventory.push(item);
-        else {
-            item.id = RPGSystem.getUniqueId();
-            gameState.inventory.push(item);
-        }
-    }
-
     selectRecipe(recipe) {
         this.detailContainer.removeAll(true);
         this.detailContainer.setVisible(true);
@@ -169,7 +158,6 @@ export default class ForgePanel {
         }
         this.statsText.setText(statsStr);
 
-        // --- ACTUALIZADO: LISTAR MÚLTIPLES INGREDIENTES ---
         let matsStr = `-- REQUISITOS (${rarity.name}) --\n`;
         let canCraft = true;
         const ingredients = recipe.ingredients || {};
@@ -180,9 +168,8 @@ export default class ForgePanel {
             
             const owned = gameState.materials[matKey] ? (gameState.materials[matKey][this.selectedRarity] || 0) : 0;
             
-            // Colorear verde si tenemos suficiente, rojo si no
             const colorLine = (owned >= reqQty) ? "#ffffff" : "#ff5555";
-            matsStr += `${matDef.name}: ${owned} / ${reqQty}\n`; // Nota: Phaser Text no soporta colores por línea fácil sin BBCode, así que coloreamos el bloque global si falla
+            matsStr += `${matDef.name}: ${owned} / ${reqQty}\n`; 
             
             if (owned < reqQty) canCraft = false;
         }
@@ -199,15 +186,26 @@ export default class ForgePanel {
         if(canCraft) this.craftBtnBg.setInteractive(); else this.craftBtnBg.disableInteractive();
     }
 
+    // --- FUNCIÓN LOCAL PARA EVITAR ERROR ---
+    safeAddItemToInventory(item) {
+        if (!item) return;
+        const exists = gameState.inventory.some(i => i.id === item.id);
+        if (!exists) gameState.inventory.push(item);
+        else {
+            item.id = RPGSystem.getUniqueId(); 
+            gameState.inventory.push(item);
+        }
+    }
+
     handleCraft() {
         const recipe = this.selectedRecipe;
         const rarityKey = this.selectedRarity;
         
-        // Llamada al sistema (él valida todo)
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         
         if (result.success) {
-            this.scene.safeAddItemToInventory(result.item);
+            // USAMOS LA FUNCIÓN LOCAL
+            this.safeAddItemToInventory(result.item);
             
             if(this.scene.updateGoldText) this.scene.updateGoldText();
             SaveSystem.save();
@@ -228,5 +226,3 @@ export default class ForgePanel {
         return container;
     }
 }
-
-    
