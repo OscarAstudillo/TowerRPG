@@ -85,7 +85,7 @@ export const initialState = {
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         scale: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
 
-        ingot_copper: { common: 0, uncommon: 0, rare: 1000, epic: 0, legendary: 0, mythic: 0 },
+        ingot_copper: { common: 0, uncommon: 0, rare: 1001, epic: 0, legendary: 0, mythic: 0 },
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         ingot_mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
