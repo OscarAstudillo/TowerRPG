@@ -29,7 +29,53 @@ class RPGSystem {
         return 'legendary'; 
     }
 
-    // --- CRAFTEO (FORJA) - SOPORTE MÚLTIPLES INGREDIENTES ---
+    // --- SISTEMA DE COFRES (Método Agregado) ---
+    getChestLoot(biomeKey, levelId) {
+        const loot = [];
+        const biome = BIOMES[biomeKey] || BIOMES['forest'];
+        
+        // Determinar cantidad de items (3 a 5 items aleatorios)
+        const itemCount = Phaser.Math.Between(3, 5); 
+        const levelData = LEVEL_CONFIG[levelId] || { tier: 1 };
+        const tier = levelData.tier || 1;
+
+        // Materiales posibles según el Tier del nivel
+        const possibleMats = biome.materials[tier] || biome.materials[1];
+
+        for (let i = 0; i < itemCount; i++) {
+            // Elegir material al azar
+            const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
+            // Calcular rareza basada en el nivel
+            const rarity = this.getDynamicRarity(levelId);
+            // Cantidad aleatoria (1 a 3 unidades)
+            const amount = Phaser.Math.Between(1, 3);
+
+            // Agregar al inventario del juego inmediatamente
+            if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
+            gameState.materials[matKey][rarity] += amount;
+
+            // Guardar para mostrar en el cofre
+            // Agrupamos si sale el mismo item dos veces en el mismo cofre
+            const existing = loot.find(l => l.key === matKey && l.rarity === rarity);
+            if (existing) {
+                existing.amount += amount;
+            } else {
+                loot.push({ key: matKey, rarity: rarity, amount: amount });
+            }
+        }
+
+        // Posibilidad de Bonus (Oro extra o Poción)
+        if (Math.random() < 0.3) {
+            const goldBonus = 50 * levelId;
+            gameState.gold += goldBonus;
+            loot.push({ key: 'Oro Extra', rarity: 'common', amount: goldBonus, bonus: true });
+        }
+
+        SaveSystem.save();
+        return loot;
+    }
+
+    // --- CRAFTEO (FORJA) ---
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
@@ -40,8 +86,7 @@ class RPGSystem {
         
         if (gameState.gold < goldCost) return { success: false, error: "Falta Oro" };
 
-        // 1. VERIFICAR MATERIALES (Loop sobre objeto ingredients)
-        const ingredients = recipe.ingredients || {}; // Fallback por si acaso
+        const ingredients = recipe.ingredients || {}; 
         
         for (let matKey in ingredients) {
             const reqQty = ingredients[matKey];
@@ -49,13 +94,11 @@ class RPGSystem {
             const owned = playerMats ? (playerMats[rarityKey] || 0) : 0;
             
             if (owned < reqQty) {
-                // Obtener nombre bonito para el error
                 const matName = (RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey] || {name: matKey}).name;
                 return { success: false, error: `Falta: ${matName} (${reqQty - owned})` };
             }
         }
 
-        // 2. CONSUMIR RECURSOS
         gameState.gold -= goldCost;
         
         for (let matKey in ingredients) {
@@ -63,7 +106,6 @@ class RPGSystem {
             gameState.materials[matKey][rarityKey] -= reqQty;
         }
 
-        // 3. GENERAR ITEM
         let profKey = recipe.prof || 'weaponsmith';
         if (!recipe.prof && recipe.type === 'tower_part') profKey = 'engineering';
 
@@ -256,7 +298,7 @@ class RPGSystem {
         if (Math.random() > config.dropRate) return null;
         const tier = config.tier || 1;
         const possibleMats = biome.materials[tier] || biome.materials[1];
-        const matKey = possibleMaterials[Math.floor(Math.random() * possibleMaterials.length)];
+        const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
         const rarity = this.getDynamicRarity(levelId);
         return { key: matKey, rarity: rarity, amount: 1 };
     }

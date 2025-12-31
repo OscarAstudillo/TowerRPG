@@ -12,7 +12,7 @@ import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import { BIOMES, getLevelData } from '../config/Levels.js'; 
 import { BIOME_ENEMIES } from '../config/Enemies.js';
-import SoundManager from '../systems/SoundManager.js'; // IMPORTAR AUDIO
+import SoundManager from '../systems/SoundManager.js'; 
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -30,18 +30,31 @@ export default class GameScene extends Phaser.Scene {
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
         this.config = data.config || {}; 
+        
+        // Obtenemos los datos (ahora incluyen mapGrid)
         this.currentLevelData = getLevelData(this.biome, this.level);
-        this.theme = BIOMES[this.biome] ? BIOMES[this.biome].theme : { bg: 0x333333, path: 0x555555, accent: 0x00ffff, grid: 0x444444 };
+        
+        // Tema visual
+        const biomeInfo = BIOMES[this.biome] || BIOMES.forest;
+        this.theme = { 
+            bg: biomeInfo.color, 
+            path: biomeInfo.pathColor, 
+            accent: 0xffffff, 
+            grid: 0x000000 
+        };
+
         if (!gameState.playerStats) updatePlayerStats();
         const hero = getCurrentHero();
         this.lastHeroLevel = hero ? hero.level : 1;
         this.isSceneReady = false; 
         this.isPaused = false;
-        this.totalWaves = this.config.waves || 3;
-        this.hpMultiplier = this.config.hpMult || 1;
-        this.spawnMult = this.currentLevelData.spawnMultiplier || 1;
+        this.totalWaves = this.currentLevelData.waves || 3;
+        this.hpMultiplier = this.currentLevelData.hpMult || 1;
+        this.spawnMult = 1;
         this.isBossWave = false;
         this.bossSpawned = false;
+        
+        this.path = null;
     }
 
     create() {
@@ -54,7 +67,6 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
-        // --- SISTEMA DE PARTÍCULAS ---
         this.explosionEmitter = this.add.particles(0, 0, 'pixel', {
             speed: { min: 50, max: 300 },
             angle: { min: 0, max: 360 },
@@ -74,63 +86,40 @@ export default class GameScene extends Phaser.Scene {
             emitting: false,
             blendMode: 'ADD'
         }).setDepth(900);
-        // -----------------------------
 
-        // Grupos
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
-        
-        this.projectiles = this.physics.add.group({ 
-            classType: Projectile, 
-            runChildUpdate: true,
-            maxSize: 200 
-        });
-
+        this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: true, maxSize: 200 });
         this.towers = this.physics.add.group({ classType: Tower, runChildUpdate: false });
         this.buildSites = this.add.group();
         this.loots = this.physics.add.group({ classType: Loot });
 
-        // Mundo
         this.cameras.main.setBackgroundColor(this.theme.bg);
         const w = this.scale.width;
         const h = this.scale.height;
-        this.physics.world.setBounds(0, 120, w, h - 240); 
+        this.physics.world.setBounds(0, 0, w, h); 
 
         this.coins = 500 + (this.level * 50); 
         this.currentWave = 0; 
         this.waveInProgress = false;
         this.sessionLoot = {}; 
-        this.bossLootLog = []; 
         gameState.baseHp = 20;
 
-        const graphics = this.add.graphics();
-        if (this.theme.grid) {
-            graphics.lineStyle(2, this.theme.grid, 0.3);
-            for(let i=0; i<w; i+=100) { graphics.moveTo(i,0); graphics.lineTo(i,h); }
-            for(let j=0; j<h; j+=100) { graphics.moveTo(0,j); graphics.lineTo(w,j); }
-            graphics.strokePath();
-        }
-        
-        if (this.currentLevelData.paths) {
-            this.currentLevelData.paths.forEach(path => {
-                graphics.lineStyle(60, this.theme.path, 1);
-                graphics.beginPath();
-                if(path.length > 0) graphics.moveTo(path[0].x, path[0].y);
-                for (let i = 1; i < path.length; i++) graphics.lineTo(path[i].x, path[i].y);
-                graphics.strokePath();
-                graphics.lineStyle(4, 0x000000, 0.5);
-                graphics.strokePath();
-                if(path.length > 0) this.createSpawnIndicator(path[0].x, path[0].y);
-            });
-        }
+        // --- CREAR MAPA DESDE GRILLA ---
+        this.createMapFromGrid();
+        // -------------------------------
 
-        this.createBuildSlots();
-
-        // UI
         this.createUpgradeUI(); 
         this.createUI();
         this.createPauseMenu();
 
-        this.player = new Player(this, w/2, h/2, gameState.selectedClass, this.enemies, this.projectiles);
+        let startX = w/2, startY = h/2;
+        if (this.path) {
+            const start = this.path.getStartPoint();
+            startX = start.x;
+            startY = start.y;
+        }
+        
+        this.player = new Player(this, startX, startY, gameState.selectedClass, this.enemies, this.projectiles);
         
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
@@ -153,16 +142,22 @@ export default class GameScene extends Phaser.Scene {
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
-            if (!this.upgradeContainer) return;
+            if (this.upgradeContainer && this.upgradeContainer.visible) {
+                const clickedOnUI = currentlyOver.some(obj => 
+                    obj === this.upgradeContainer || 
+                    (obj.parentContainer && obj.parentContainer === this.upgradeContainer)
+                );
+                const clickedOnTower = currentlyOver.some(obj => this.getTowerFromObject(obj) !== null);
 
-            const clickedOnUI = currentlyOver.some(obj => 
-                obj === this.upgradeContainer || 
-                (obj.parentContainer && obj.parentContainer === this.upgradeContainer)
-            );
-            const clickedOnTower = currentlyOver.some(obj => this.getTowerFromObject(obj) !== null);
-
-            if (!clickedOnUI && !clickedOnTower) {
-                this.closeUpgradeMenu();
+                if (!clickedOnUI && !clickedOnTower) {
+                    this.closeUpgradeMenu();
+                }
+            }
+            if (pointer.y > 120 && pointer.y < (this.scale.height - 120)) { 
+                const clickedOnInteractive = currentlyOver.length > 0;
+                if (!clickedOnInteractive && this.player && this.player.setTarget) {
+                    this.player.setTarget(pointer.x, pointer.y);
+                }
             }
         });
 
@@ -177,6 +172,82 @@ export default class GameScene extends Phaser.Scene {
         this.startWaveTimer(20); 
         this.updateUI();
         this.isSceneReady = true;
+    }
+
+    createMapFromGrid() {
+        const grid = this.currentLevelData.mapGrid;
+        if (!grid) return;
+
+        const TILE_SIZE = 64;
+        const offsetX = (this.scale.width - (grid[0].length * TILE_SIZE)) / 2;
+        const offsetY = 120; 
+
+        const graphics = this.add.graphics();
+        let startPoint = null;
+
+        for (let row = 0; row < grid.length; row++) {
+            for (let col = 0; col < grid[row].length; col++) {
+                const cell = grid[row][col];
+                const x = col * TILE_SIZE + (TILE_SIZE/2) + offsetX;
+                const y = row * TILE_SIZE + (TILE_SIZE/2) + offsetY;
+
+                if (cell === 1) { 
+                    graphics.fillStyle(this.theme.path, 1);
+                    graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    
+                    if (!startPoint && col === 0) startPoint = {c: col, r: row, x, y};
+                    if (!startPoint) startPoint = {c: col, r: row, x, y};
+                } 
+                else if (cell === 2) { 
+                    const site = new BuildSite(this, x, y);
+                    this.buildSites.add(site);
+                    site.on('pointerdown', () => this.tryBuildTower(site));
+                }
+                else if (cell === 3) { 
+                    graphics.fillStyle(0x000000, 0.3);
+                    graphics.fillCircle(x, y + 10, 20);
+                    graphics.fillStyle(0x558855, 1);
+                    graphics.fillTriangle(x, y - 20, x - 15, y + 10, x + 15, y + 10);
+                }
+            }
+        }
+
+        this.path = new Phaser.Curves.Path(startPoint.x, startPoint.y);
+        
+        let current = startPoint;
+        let visited = new Set();
+        visited.add(`${current.c},${current.r}`);
+        
+        this.createSpawnIndicator(startPoint.x, startPoint.y);
+
+        let steps = 0;
+        while (steps < 200) {
+            const neighbors = [
+                {c: current.c+1, r: current.r}, 
+                {c: current.c, r: current.r+1}, 
+                {c: current.c, r: current.r-1}, 
+                {c: current.c-1, r: current.r}  
+            ];
+            
+            let found = false;
+            for (let n of neighbors) {
+                if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
+                    if (grid[n.r][n.c] === 1 && !visited.has(`${n.c},${n.r}`)) {
+                        const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
+                        const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
+                        
+                        this.path.lineTo(nx, ny);
+                        
+                        visited.add(`${n.c},${n.r}`);
+                        current = {c: n.c, r: n.r, x: nx, y: ny};
+                        found = true;
+                        break; 
+                    }
+                }
+            }
+            if (!found) break; 
+            steps++;
+        }
     }
 
     update(time, delta) {
@@ -206,7 +277,6 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // --- GAMEPLAY UTILS ---
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
@@ -251,7 +321,7 @@ export default class GameScene extends Phaser.Scene {
 
         if (this.isBossWave) {
             this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
-            totalEnemies = 4 * (this.currentLevelData.pathCount || 1); 
+            totalEnemies = 5; 
         }
 
         let spawned = 0;
@@ -269,11 +339,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     spawnEnemy(hpMult = 1) {
-        const paths = this.currentLevelData.paths || [];
-        if(paths.length === 0) return;
-        const pathIndex = Math.floor(Math.random() * paths.length);
-        const path = paths[pathIndex];
+        if(!this.path) return;
         
+        // --- SOLUCIÓN DEL ERROR ---
+        // Enemy.js espera un Array de Puntos, pero this.path es un Objeto Path.
+        // Convertimos el Path a un Array de 150 puntos equiespaciados para movimiento suave.
+        const pathPoints = this.path.getSpacedPoints(150); 
+        // --------------------------
+
         let tierIdx = 0;
         if (this.level >= 4) tierIdx = 1;
         if (this.level >= 8) tierIdx = 2;
@@ -284,7 +357,8 @@ export default class GameScene extends Phaser.Scene {
         const possibleMobs = biomeConfig.tiers[tierIdx];
         const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
 
-        const enemy = new Enemy(this, path, this.hpMultiplier * hpMult, mobKey);
+        // Pasamos pathPoints (Array) en lugar de this.path (Objeto)
+        const enemy = new Enemy(this, pathPoints, this.hpMultiplier * hpMult, mobKey);
         this.enemies.add(enemy);
     }
 
@@ -293,22 +367,22 @@ export default class GameScene extends Phaser.Scene {
         const biomeConfig = BIOME_ENEMIES[this.biome];
         if (!biomeConfig) return;
 
-        const paths = this.currentLevelData.paths || [];
-        if(paths.length === 0) return;
-        const path = paths[Math.floor(paths.length / 2)]; 
+        if(!this.path) return;
+        
+        // También convertimos el path para el Boss
+        const pathPoints = this.path.getSpacedPoints(150); 
 
         let bossKey = 'slime'; 
-
         if (this.level === 5 || this.level === 10) {
             bossKey = biomeConfig.bosses[this.level];
-            this.showFloatingText(path[0].x, path[0].y, "¡JEFE LEGENDARIO!", "#ff0000");
+            this.showFloatingText(this.scale.width/2, 200, "¡JEFE LEGENDARIO!", "#ff0000");
         } else {
             const minis = biomeConfig.miniBosses;
             bossKey = minis[Math.floor(Math.random() * minis.length)];
-            this.showFloatingText(path[0].x, path[0].y, "¡LÍDER DE MANADA!", "#ff8800");
+            this.showFloatingText(this.scale.width/2, 200, "¡LÍDER DE MANADA!", "#ff8800");
         }
 
-        const boss = new Enemy(this, path, this.hpMultiplier * 2.5, bossKey);
+        const boss = new Enemy(this, pathPoints, this.hpMultiplier * 2.5, bossKey);
         this.enemies.add(boss);
     }
 
@@ -327,7 +401,6 @@ export default class GameScene extends Phaser.Scene {
         return null; 
     }
     
-    // --- UI METHODS ---
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
@@ -524,7 +597,6 @@ export default class GameScene extends Phaser.Scene {
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += Math.floor(t.totalInvestment * 0.7); this.updateUI(); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${Math.floor(t.totalInvestment*0.7)}`, '#ffff00'); } }
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { this.tweens.add({ targets: this.skillBtnContainer, scale: 0.9, yoyo: true, duration: 100 }); } }
     createSpawnIndicator(x, y) { const marker = this.add.circle(x, y, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(x, y - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
-    createBuildSlots() { const slots = this.currentLevelData.towerSlots || []; slots.forEach(slot => { const site = new BuildSite(this, slot.x, slot.y); this.buildSites.add(site); site.on('pointerdown', () => this.tryBuildTower(site)); }); }
     
     tryBuildTower(site) { 
         if (site.isOccupied) return; 
@@ -537,10 +609,7 @@ export default class GameScene extends Phaser.Scene {
             this.updateUI(); 
             this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); 
             SaveSystem.save(); 
-            
-            // --- AUDIO: SONIDO DE CONSTRUCCIÓN ---
             SoundManager.playSound('build');
-            // -------------------------------------
         } else { 
             this.cameras.main.shake(100, 0.005); 
         } 
@@ -550,7 +619,6 @@ export default class GameScene extends Phaser.Scene {
         this.physics.pause(); 
         if (this.spawnTimer) this.spawnTimer.remove(); 
         if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
-        // Si ganamos el nivel actual y es el último desbloqueado, abrimos el siguiente
         if (this.level >= gameState.biomeLevels[this.biome]) {
             gameState.biomeLevels[this.biome] = this.level + 1;
         }
@@ -558,10 +626,7 @@ export default class GameScene extends Phaser.Scene {
 
         const rewardGold = 100 + (this.level * 50); 
         this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); 
-        
-        // --- AUDIO: SONIDO DE VICTORIA ---
-        SoundManager.playSound('upgrade'); // Usamos el sonido de upgrade como victoria
-        // ---------------------------------
+        SoundManager.playSound('upgrade'); 
 
         this.time.delayedCall(2000, () => { 
             this.scene.start('ChestScene', { biome: this.biome, level: this.level, winData: { gold: rewardGold, xp: 100 * this.level, baseHp: gameState.baseHp, enemyLoot: this.sessionLoot } }); 
@@ -580,7 +645,7 @@ export default class GameScene extends Phaser.Scene {
                 this.showFloatingText(enemy.x, enemy.y, "¡BOSS DERROTADO!", "#ffd700"); 
                 RPGSystem.updateQuestProgress('boss', 'any', 1); 
             }
-            this.createExplosion(enemy.x, enemy.y, enemy.bodyShape.fillColor); 
+            this.createExplosion(enemy.x, enemy.y, enemy.bodyShape ? enemy.bodyShape.fillColor : 0xff0000); 
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); 
             this.updateUI(); 
         } catch (err) { console.warn("Error", err); } 
@@ -628,7 +693,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.isPaused) { 
             this.physics.pause(); 
             this.tweens.pauseAll(); 
-            this.time.paused = true; // PAUSAR RELOJ
+            this.time.paused = true; 
             
             if(this.enemies) this.enemies.runChildUpdate = false;
             if(this.projectiles) this.projectiles.runChildUpdate = false;
@@ -638,7 +703,7 @@ export default class GameScene extends Phaser.Scene {
         } else { 
             this.physics.resume(); 
             this.tweens.resumeAll(); 
-            this.time.paused = false; // REANUDAR RELOJ
+            this.time.paused = false; 
             
             if(this.enemies) this.enemies.runChildUpdate = true;
             if(this.projectiles) this.projectiles.runChildUpdate = true;
