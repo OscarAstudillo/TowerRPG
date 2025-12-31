@@ -7,7 +7,7 @@ export default class PreloadScene extends Phaser.Scene {
     }
 
     preload() {
-        // BARRA DE CARGA
+        // --- BARRA DE CARGA ---
         const width = this.cameras.main.width;
         const height = this.cameras.main.height;
         
@@ -16,7 +16,7 @@ export default class PreloadScene extends Phaser.Scene {
         progressBox.fillStyle(0x222222, 0.8);
         progressBox.fillRect(width / 2 - 160, height / 2 - 25, 320, 50);
         
-        const loadingText = this.add.text(width / 2, height / 2 - 50, 'Generando Assets...', {
+        const loadingText = this.add.text(width / 2, height / 2 - 50, 'Cargando Recursos...', {
             font: '20px monospace',
             fill: '#ffffff'
         }).setOrigin(0.5, 0.5);
@@ -32,17 +32,24 @@ export default class PreloadScene extends Phaser.Scene {
             progressBox.destroy();
             loadingText.destroy();
         });
+
+        // --- CARGA DE ASSETS (AQUÍ ES DONDE AGREGAS TUS IMÁGENES) ---
+        // La carpeta 'public' es la raíz del servidor, así que la ruta es 'assets/images/...'
+        
+        // PASTO (Tile 0)
+        this.load.image('tile_0', 'assets/images/tile_0.jpg'); 
+        
+        // EJEMPLO: Si agregas más imágenes en el futuro, cárgalas aquí así:
+        // this.load.image('tile_1', 'assets/images/camino.jpg'); 
+        // this.load.image('tile_3', 'assets/images/arbol.png');
     }
 
     create() {
-        // --- GENERACIÓN DE SPRITES PROCEDURALES ---
+        // --- GENERACIÓN DE SPRITES PROCEDURALES (Fallback por si no hay imágenes) ---
         
         // 1. FONDOS
         this.createBackgroundTexture('bg_splash', 0x000033, 0x000000); 
         this.createBackgroundTexture('bg_menu', 0x1a1a2e, 0x16213e);   
-        this.createBackgroundTexture('bg_forest', 0x2d3436, 0x27ae60); 
-        this.createBackgroundTexture('bg_mountain', 0x2d3436, 0x636e72); 
-        this.createBackgroundTexture('bg_volcano', 0x2d3436, 0xc0392b); 
 
         // 2. HÉROES
         this.createHeroTexture('hero_guerrero', 0xff0000, 'sword');
@@ -92,147 +99,46 @@ export default class PreloadScene extends Phaser.Scene {
     }
 
     // --- HELPERS PARA DIBUJAR ---
-    
     createBackgroundTexture(key, color1, color2) {
         const w = 1280, h = 720;
         const g = this.make.graphics({x:0, y:0, add:false});
         g.fillGradientStyle(color1, color1, color2, color2, 1);
         g.fillRect(0, 0, w, h);
-        
-        g.fillStyle(0xffffff, 0.05);
-        for(let i=0; i<50; i++) {
-            g.fillCircle(Math.random()*w, Math.random()*h, Math.random()*2 + 1);
-        }
         g.generateTexture(key, w, h);
     }
 
     createHeroTexture(key, color, weapon) {
         const g = this.make.graphics({x:0, y:0, add:false});
-        
-        // Cuerpo
-        g.fillStyle(color); 
-        g.fillRect(10, 10, 44, 44);
-        
-        // CORRECCIÓN AQUÍ: lineStyle en lugar de setStrokeStyle
-        g.lineStyle(2, 0xffffff); 
-        g.strokeRect(10, 10, 44, 44);
-        
-        // Cara
-        g.fillStyle(0xffccaa); 
-        g.fillRect(20, 15, 24, 20);
-        
-        // Ojos
-        g.fillStyle(0x000000); 
-        g.fillRect(24, 20, 4, 4); 
-        g.fillRect(36, 20, 4, 4); 
-        
-        // Arma Icono Pequeño
-        g.fillStyle(0xffffff);
-        if(weapon === 'sword') g.fillRect(45, 10, 10, 30);
-        if(weapon === 'bow') { 
-            g.lineStyle(2, 0xffffff); 
-            g.strokeCircle(50, 25, 10); 
-        }
-        if(weapon === 'staff') {
-            g.fillRect(48, 10, 4, 40);
-            g.fillStyle(0xff00ff);
-            g.fillCircle(50, 10, 5);
-        }
-        if(weapon === 'dagger') {
-            g.fillRect(45, 20, 6, 20);
-        }
-
+        g.fillStyle(color); g.fillRect(10, 10, 44, 44);
+        g.lineStyle(2, 0xffffff); g.strokeRect(10, 10, 44, 44);
+        g.fillStyle(0xffccaa); g.fillRect(20, 15, 24, 20);
+        g.fillStyle(0x000000); g.fillRect(24, 20, 4, 4); g.fillRect(36, 20, 4, 4); 
         g.generateTexture(key, 64, 64);
     }
 
     createItemTexture(key, color, type) {
         const g = this.make.graphics({x:0, y:0, add:false});
-        
-        // Fondo burbuja
-        g.fillStyle(0x222222); 
-        g.fillCircle(20, 20, 18); 
-        
-        g.fillStyle(color);
-        
-        if (type === 'sword') { 
-            g.fillRect(18, 5, 4, 30); 
-            g.fillRect(12, 25, 16, 4); 
-        }
-        else if (type === 'bow') { 
-            g.lineStyle(3, color); 
-            g.beginPath(); 
-            g.arc(15, 20, 12, -Math.PI/2, Math.PI/2); 
-            g.strokePath(); 
-            g.lineStyle(1, 0xffffff); 
-            g.lineBetween(15, 8, 15, 32); 
-        }
-        else if (type === 'shield') { 
-            g.fillRect(10, 10, 20, 20); 
-            // CORRECCIÓN AQUÍ: lineStyle
-            g.lineStyle(2, 0xffffff); 
-            g.strokeRect(10, 10, 20, 20); 
-        }
-        else if (type === 'ring') { 
-            g.lineStyle(4, color); 
-            g.strokeCircle(20, 20, 8); 
-            g.fillStyle(0x00ffff); 
-            g.fillCircle(20, 12, 3); 
-        }
-        else if (type === 'staff') { 
-            g.fillRect(18, 5, 4, 30); 
-            g.fillStyle(0xff00ff); 
-            g.fillCircle(20, 5, 5); 
-        }
-        else if (type === 'cog') { 
-            g.fillCircle(20, 20, 10); 
-            g.fillRect(8, 18, 24, 4); 
-            g.fillRect(18, 8, 4, 24); 
-        }
-        else { 
-            g.fillCircle(20, 20, 10); // Dagger/Default
-        }
-        
+        g.fillStyle(0x222222); g.fillCircle(20, 20, 18); 
+        g.fillStyle(color); g.fillCircle(20, 20, 10);
         g.generateTexture(key, 40, 40);
     }
 
     createMaterialTexture(key, color) {
         const g = this.make.graphics({x:0, y:0, add:false});
-        g.fillStyle(color);
-        g.fillCircle(16, 16, 12);
-        g.fillStyle(0xffffff, 0.3);
-        g.fillCircle(12, 12, 4); // Brillo
+        g.fillStyle(color); g.fillCircle(16, 16, 12);
         g.generateTexture(key, 32, 32);
     }
 
     createEnemyTexture(key, color, isBoss=false) {
         const s = isBoss ? 64 : 32;
         const g = this.make.graphics({x:0, y:0, add:false});
-        
-        g.fillStyle(color);
-        g.fillRect(0, 0, s, s);
-        
-        // Ojos amenazantes
-        g.fillStyle(0xffff00);
-        const eyeS = s/5;
-        g.fillRect(s*0.2, s*0.3, eyeS, eyeS);
-        g.fillRect(s*0.6, s*0.3, eyeS, eyeS);
-        
-        // Cejas
-        g.fillStyle(0x000000);
-        g.fillRect(s*0.2, s*0.25, eyeS, eyeS/2);
-        g.fillRect(s*0.6, s*0.25, eyeS, eyeS/2);
-        
+        g.fillStyle(color); g.fillRect(0, 0, s, s);
         g.generateTexture(key, s, s);
     }
 
     createBaseTowerTexture() {
         const t = this.make.graphics({x:0, y:0, add:false});
-        t.fillStyle(0xffffff); 
-        t.fillRect(0, 0, 40, 40); // Base
-        t.fillStyle(0xcccccc);
-        t.fillCircle(20, 20, 14); // Torreta
-        t.fillStyle(0x000000);
-        t.fillRect(18, 0, 4, 20); // Cañón
+        t.fillStyle(0xffffff); t.fillRect(0, 0, 40, 40); 
         t.generateTexture('base_tower', 40, 40);
     }
 }

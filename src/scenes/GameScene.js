@@ -178,14 +178,12 @@ export default class GameScene extends Phaser.Scene {
         if (!grid) return;
 
         const TILE_SIZE = 64;
-        // Ajuste para 1920x1080 (30 cols x 15 rows)
-        // OffsetX 0 para empezar pegado a la izquierda.
         const offsetX = 0; 
         const offsetY = 120; // Espacio UI
 
         const graphics = this.add.graphics();
-        this.paths = []; // Reiniciamos array de caminos
-        let startPoints = []; // Para detectar múltiples inicios
+        this.paths = []; 
+        let startPoints = []; 
 
         // 1. DIBUJAR Y DETECTAR ELEMENTOS
         for (let row = 0; row < grid.length; row++) {
@@ -194,29 +192,68 @@ export default class GameScene extends Phaser.Scene {
                 const x = col * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                 const y = row * TILE_SIZE + (TILE_SIZE/2) + offsetY;
 
-                if (cell === 1) { // CAMINO
-                    graphics.fillStyle(this.theme.path, 1);
-                    graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    
-                    // Si está en la primera columna, es un punto de inicio
-                    if (col === 0) {
-                        startPoints.push({c: col, r: row, x, y});
+                // --- LÓGICA DE DIBUJADO DE TILES ---
+                
+                // TILE 0: PASTO / FONDO
+                if (cell === 0) {
+                    if (this.textures.exists('tile_0')) {
+                        // Si cargaste la imagen, la usamos
+                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        // Fallback: Color verde oscuro si no hay imagen
+                        graphics.fillStyle(0x0d3b14, 1); // Color del bioma
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
                     }
+                }
+
+                // TILE 1: CAMINO
+                else if (cell === 1) { 
+                    if (this.textures.exists('tile_1')) {
+                        // Futuro: Si agregas 'tile_1.jpg' para camino
+                        this.add.image(x, y, 'tile_1').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        // Fallback: Color tierra
+                        graphics.fillStyle(this.theme.path, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                    
+                    if (col === 0) startPoints.push({c: col, r: row, x, y});
                 } 
-                else if (cell === 2) { // TORRE
+
+                // TILE 2: SITIO DE CONSTRUCCIÓN
+                else if (cell === 2) { 
+                    // Dibujamos suelo debajo del sitio
+                    if (this.textures.exists('tile_0')) {
+                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(0x0d3b14, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+
                     const site = new BuildSite(this, x, y);
                     this.buildSites.add(site);
                     site.on('pointerdown', () => this.tryBuildTower(site));
                 }
-                else if (cell === 3) { // DECORACIÓN
-                    graphics.fillStyle(0x000000, 0.3);
-                    graphics.fillCircle(x, y + 10, 20);
-                    graphics.fillStyle(0x558855, 1);
-                    graphics.fillTriangle(x, y - 20, x - 15, y + 10, x + 15, y + 10);
-                }
-                else if (cell === 4) { // AGUA (EJEMPLO)
-                    graphics.fillStyle(0x0000aa, 0.8);
-                    graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+
+                // TILE 3: DECORACIÓN (ÁRBOL)
+                else if (cell === 3) { 
+                    // Suelo debajo
+                    if (this.textures.exists('tile_0')) {
+                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(0x0d3b14, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+
+                    // Objeto encima
+                    if (this.textures.exists('tile_3')) {
+                        this.add.image(x, y, 'tile_3').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(0x000000, 0.3);
+                        graphics.fillCircle(x, y + 10, 20);
+                        graphics.fillStyle(0x558855, 1);
+                        graphics.fillTriangle(x, y - 20, x - 15, y + 10, x + 15, y + 10);
+                    }
                 }
             }
         }
@@ -229,23 +266,21 @@ export default class GameScene extends Phaser.Scene {
                         const x = c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                         const y = r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
                         startPoints.push({c:c, r:r, x, y});
-                        break; // Solo uno
+                        break; 
                     }
                 }
                 if(startPoints.length > 0) break;
             }
         }
 
-        // 2. GENERAR CAMINOS INDEPENDIENTES (PATHFINDING)
+        // 2. GENERAR CAMINOS (LÓGICA ANTERIOR MANTENIDA)
         let globalVisited = new Set();
 
         startPoints.forEach((startPoint, index) => {
             const path = new Phaser.Curves.Path(startPoint.x, startPoint.y);
             let current = startPoint;
-            let visited = new Set(); // Local visited para este camino
+            let visited = new Set();
             
-            // Añadir al global también para evitar overlaps raros, 
-            // PERO permitimos convergencia (unirse a un camino ya visitado)
             visited.add(`${current.c},${current.r}`);
             globalVisited.add(`${current.c},${current.r}`);
             
@@ -256,23 +291,19 @@ export default class GameScene extends Phaser.Scene {
 
             while (steps < 300 && !finished) {
                 const neighbors = [
-                    {c: current.c+1, r: current.r}, // Der
-                    {c: current.c, r: current.r+1}, // Abajo
-                    {c: current.c, r: current.r-1}, // Arriba
-                    {c: current.c-1, r: current.r}  // Izq
+                    {c: current.c+1, r: current.r}, 
+                    {c: current.c, r: current.r+1}, 
+                    {c: current.c, r: current.r-1}, 
+                    {c: current.c-1, r: current.r}  
                 ];
                 
                 let foundNext = false;
-                
-                // Prioridad: Ir a casillas NO visitadas por nadie (Camino nuevo)
                 for (let n of neighbors) {
                     if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
                         if (grid[n.r][n.c] === 1 && !globalVisited.has(`${n.c},${n.r}`)) {
                             const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                             const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
-                            
                             path.lineTo(nx, ny);
-                            
                             visited.add(`${n.c},${n.r}`);
                             globalVisited.add(`${n.c},${n.r}`);
                             current = {c: n.c, r: n.r, x: nx, y: ny};
@@ -282,24 +313,21 @@ export default class GameScene extends Phaser.Scene {
                     }
                 }
 
-                // Si no hay camino nuevo, buscar convergencia (unirse a otro camino ya trazado)
                 if (!foundNext) {
                     for (let n of neighbors) {
                         if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
-                            // Si es camino, ya fue visitado globalmente, pero NO por mi localmente (evitar ir hacia atrás)
                             if (grid[n.r][n.c] === 1 && globalVisited.has(`${n.c},${n.r}`) && !visited.has(`${n.c},${n.r}`)) {
                                 const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                                 const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
                                 path.lineTo(nx, ny);
-                                finished = true; // Terminamos aquí, nos unimos a la autopista principal
+                                finished = true; 
                                 foundNext = true;
                                 break;
                             }
                         }
                     }
                 }
-
-                if (!foundNext) finished = true; // Fin del camino (borde o callejón)
+                if (!foundNext) finished = true; 
                 steps++;
             }
             this.paths.push(path);
