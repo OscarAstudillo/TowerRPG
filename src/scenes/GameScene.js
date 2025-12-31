@@ -31,7 +31,7 @@ export default class GameScene extends Phaser.Scene {
         this.biome = data.biome || 'forest';
         this.config = data.config || {}; 
         
-        // Obtenemos los datos (ahora incluyen mapGrid)
+        // Obtenemos los datos
         this.currentLevelData = getLevelData(this.biome, this.level);
         
         // Tema visual
@@ -54,7 +54,8 @@ export default class GameScene extends Phaser.Scene {
         this.isBossWave = false;
         this.bossSpawned = false;
         
-        this.path = null;
+        // Array para guardar MÚLTIPLES caminos
+        this.paths = []; 
     }
 
     create() {
@@ -104,7 +105,7 @@ export default class GameScene extends Phaser.Scene {
         this.sessionLoot = {}; 
         gameState.baseHp = 20;
 
-        // --- CREAR MAPA DESDE GRILLA ---
+        // --- CREAR MAPA MULTI-CAMINO ---
         this.createMapFromGrid();
         // -------------------------------
 
@@ -112,14 +113,12 @@ export default class GameScene extends Phaser.Scene {
         this.createUI();
         this.createPauseMenu();
 
-        let startX = w/2, startY = h/2;
-        if (this.path) {
-            const start = this.path.getStartPoint();
-            startX = start.x;
-            startY = start.y;
-        }
+        // --- HÉROE CENTRADO ---
+        // Ahora nace siempre en el centro del mapa
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
         
-        this.player = new Player(this, startX, startY, gameState.selectedClass, this.enemies, this.projectiles);
+        this.player = new Player(this, centerX, centerY, gameState.selectedClass, this.enemies, this.projectiles);
         
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
@@ -179,75 +178,138 @@ export default class GameScene extends Phaser.Scene {
         if (!grid) return;
 
         const TILE_SIZE = 64;
-        const offsetX = (this.scale.width - (grid[0].length * TILE_SIZE)) / 2;
-        const offsetY = 120; 
+        // Ajuste para 1920x1080 (30 cols x 15 rows)
+        // OffsetX 0 para empezar pegado a la izquierda.
+        const offsetX = 0; 
+        const offsetY = 120; // Espacio UI
 
         const graphics = this.add.graphics();
-        let startPoint = null;
+        this.paths = []; // Reiniciamos array de caminos
+        let startPoints = []; // Para detectar múltiples inicios
 
+        // 1. DIBUJAR Y DETECTAR ELEMENTOS
         for (let row = 0; row < grid.length; row++) {
             for (let col = 0; col < grid[row].length; col++) {
                 const cell = grid[row][col];
                 const x = col * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                 const y = row * TILE_SIZE + (TILE_SIZE/2) + offsetY;
 
-                if (cell === 1) { 
+                if (cell === 1) { // CAMINO
                     graphics.fillStyle(this.theme.path, 1);
                     graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
                     
-                    if (!startPoint && col === 0) startPoint = {c: col, r: row, x, y};
-                    if (!startPoint) startPoint = {c: col, r: row, x, y};
+                    // Si está en la primera columna, es un punto de inicio
+                    if (col === 0) {
+                        startPoints.push({c: col, r: row, x, y});
+                    }
                 } 
-                else if (cell === 2) { 
+                else if (cell === 2) { // TORRE
                     const site = new BuildSite(this, x, y);
                     this.buildSites.add(site);
                     site.on('pointerdown', () => this.tryBuildTower(site));
                 }
-                else if (cell === 3) { 
+                else if (cell === 3) { // DECORACIÓN
                     graphics.fillStyle(0x000000, 0.3);
                     graphics.fillCircle(x, y + 10, 20);
                     graphics.fillStyle(0x558855, 1);
                     graphics.fillTriangle(x, y - 20, x - 15, y + 10, x + 15, y + 10);
                 }
-            }
-        }
-
-        this.path = new Phaser.Curves.Path(startPoint.x, startPoint.y);
-        
-        let current = startPoint;
-        let visited = new Set();
-        visited.add(`${current.c},${current.r}`);
-        
-        this.createSpawnIndicator(startPoint.x, startPoint.y);
-
-        let steps = 0;
-        while (steps < 200) {
-            const neighbors = [
-                {c: current.c+1, r: current.r}, 
-                {c: current.c, r: current.r+1}, 
-                {c: current.c, r: current.r-1}, 
-                {c: current.c-1, r: current.r}  
-            ];
-            
-            let found = false;
-            for (let n of neighbors) {
-                if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
-                    if (grid[n.r][n.c] === 1 && !visited.has(`${n.c},${n.r}`)) {
-                        const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
-                        const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
-                        
-                        this.path.lineTo(nx, ny);
-                        
-                        visited.add(`${n.c},${n.r}`);
-                        current = {c: n.c, r: n.r, x: nx, y: ny};
-                        found = true;
-                        break; 
-                    }
+                else if (cell === 4) { // AGUA (EJEMPLO)
+                    graphics.fillStyle(0x0000aa, 0.8);
+                    graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
                 }
             }
-            if (!found) break; 
-            steps++;
         }
+
+        // Si no hay inicios en la col 0, buscar el primer 1 (Fallback)
+        if (startPoints.length === 0) {
+            for (let r=0; r<grid.length; r++) {
+                for (let c=0; c<grid[0].length; c++) {
+                    if (grid[r][c] === 1) {
+                        const x = c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
+                        const y = r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
+                        startPoints.push({c:c, r:r, x, y});
+                        break; // Solo uno
+                    }
+                }
+                if(startPoints.length > 0) break;
+            }
+        }
+
+        // 2. GENERAR CAMINOS INDEPENDIENTES (PATHFINDING)
+        let globalVisited = new Set();
+
+        startPoints.forEach((startPoint, index) => {
+            const path = new Phaser.Curves.Path(startPoint.x, startPoint.y);
+            let current = startPoint;
+            let visited = new Set(); // Local visited para este camino
+            
+            // Añadir al global también para evitar overlaps raros, 
+            // PERO permitimos convergencia (unirse a un camino ya visitado)
+            visited.add(`${current.c},${current.r}`);
+            globalVisited.add(`${current.c},${current.r}`);
+            
+            this.createSpawnIndicator(startPoint.x, startPoint.y, index + 1);
+
+            let steps = 0;
+            let finished = false;
+
+            while (steps < 300 && !finished) {
+                const neighbors = [
+                    {c: current.c+1, r: current.r}, // Der
+                    {c: current.c, r: current.r+1}, // Abajo
+                    {c: current.c, r: current.r-1}, // Arriba
+                    {c: current.c-1, r: current.r}  // Izq
+                ];
+                
+                let foundNext = false;
+                
+                // Prioridad: Ir a casillas NO visitadas por nadie (Camino nuevo)
+                for (let n of neighbors) {
+                    if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
+                        if (grid[n.r][n.c] === 1 && !globalVisited.has(`${n.c},${n.r}`)) {
+                            const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
+                            const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
+                            
+                            path.lineTo(nx, ny);
+                            
+                            visited.add(`${n.c},${n.r}`);
+                            globalVisited.add(`${n.c},${n.r}`);
+                            current = {c: n.c, r: n.r, x: nx, y: ny};
+                            foundNext = true;
+                            break; 
+                        }
+                    }
+                }
+
+                // Si no hay camino nuevo, buscar convergencia (unirse a otro camino ya trazado)
+                if (!foundNext) {
+                    for (let n of neighbors) {
+                        if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
+                            // Si es camino, ya fue visitado globalmente, pero NO por mi localmente (evitar ir hacia atrás)
+                            if (grid[n.r][n.c] === 1 && globalVisited.has(`${n.c},${n.r}`) && !visited.has(`${n.c},${n.r}`)) {
+                                const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
+                                const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
+                                path.lineTo(nx, ny);
+                                finished = true; // Terminamos aquí, nos unimos a la autopista principal
+                                foundNext = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (!foundNext) finished = true; // Fin del camino (borde o callejón)
+                steps++;
+            }
+            this.paths.push(path);
+        });
+    }
+
+    createSpawnIndicator(x, y, num) { 
+        const marker = this.add.circle(x, y, 20, 0xff0000); 
+        this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); 
+        this.add.text(x, y - 40, `RUTA ${num}`, { fontSize: '14px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); 
     }
 
     update(time, delta) {
@@ -277,15 +339,14 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
+    // ... (generateLoot, startWaveTimer, startNextWaveAction se mantienen igual) ...
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
         gameState.materials[matKey][rarity] += qty;
-        
         if (!this.sessionLoot[matKey]) this.sessionLoot[matKey] = { common: 0 };
         if (!this.sessionLoot[matKey][rarity]) this.sessionLoot[matKey][rarity] = 0;
         this.sessionLoot[matKey][rarity] += qty;
-        
         const item = new Loot(this, x, y, matKey, rarity);
         this.loots.add(item);
     }
@@ -329,8 +390,28 @@ export default class GameScene extends Phaser.Scene {
             delay: spawnDelay,
             repeat: totalEnemies - 1,
             callback: () => {
-                this.spawnEnemy();
+                // --- LÓGICA INTELIGENTE DE SPAWN POR CAMINOS ---
+                // Oleada 1: Camino 0
+                // Oleada 2: Camino 1 (si existe)
+                // Oleada 3+: Todos (Rotativo)
+                
+                let targetPathIndex = 0;
+                const pathCount = this.paths.length;
+
+                if (pathCount > 1) {
+                    if (this.currentWave <= pathCount) {
+                        // Oleadas iniciales: Un camino a la vez para enseñar
+                        targetPathIndex = this.currentWave - 1; 
+                    } else {
+                        // Oleadas avanzadas: Tira por todos los caminos (distribuye carga)
+                        targetPathIndex = spawned % pathCount;
+                    }
+                }
+                // ------------------------------------------------
+
+                this.spawnEnemy(1, targetPathIndex);
                 spawned++;
+                
                 if (this.isBossWave && spawned === totalEnemies) {
                     this.time.delayedCall(3000, () => this.spawnBoss());
                 }
@@ -338,14 +419,14 @@ export default class GameScene extends Phaser.Scene {
         });
     }
 
-    spawnEnemy(hpMult = 1) {
-        if(!this.path) return;
+    spawnEnemy(hpMult = 1, pathIndex = 0) {
+        if (!this.paths || this.paths.length === 0) return;
         
-        // --- SOLUCIÓN DEL ERROR ---
-        // Enemy.js espera un Array de Puntos, pero this.path es un Objeto Path.
-        // Convertimos el Path a un Array de 150 puntos equiespaciados para movimiento suave.
-        const pathPoints = this.path.getSpacedPoints(150); 
-        // --------------------------
+        // Seleccionar camino correcto o fallback al 0
+        const selectedPath = this.paths[pathIndex] || this.paths[0];
+        
+        // Convertir Path a Array de Puntos para el Enemigo
+        const pathPoints = selectedPath.getSpacedPoints(150); 
 
         let tierIdx = 0;
         if (this.level >= 4) tierIdx = 1;
@@ -357,7 +438,6 @@ export default class GameScene extends Phaser.Scene {
         const possibleMobs = biomeConfig.tiers[tierIdx];
         const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
 
-        // Pasamos pathPoints (Array) en lugar de this.path (Objeto)
         const enemy = new Enemy(this, pathPoints, this.hpMultiplier * hpMult, mobKey);
         this.enemies.add(enemy);
     }
@@ -367,10 +447,12 @@ export default class GameScene extends Phaser.Scene {
         const biomeConfig = BIOME_ENEMIES[this.biome];
         if (!biomeConfig) return;
 
-        if(!this.path) return;
-        
-        // También convertimos el path para el Boss
-        const pathPoints = this.path.getSpacedPoints(150); 
+        if (!this.paths || this.paths.length === 0) return;
+
+        // El Boss elije un camino al azar
+        const randomPathIndex = Phaser.Math.Between(0, this.paths.length - 1);
+        const selectedPath = this.paths[randomPathIndex];
+        const pathPoints = selectedPath.getSpacedPoints(150); 
 
         let bossKey = 'slime'; 
         if (this.level === 5 || this.level === 10) {
@@ -386,6 +468,7 @@ export default class GameScene extends Phaser.Scene {
         this.enemies.add(boss);
     }
 
+    // ... (El resto de los métodos se mantienen igual) ...
     checkWaveStatus() {
         if (this.isBossWave && !this.bossSpawned) return;
         if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) {
