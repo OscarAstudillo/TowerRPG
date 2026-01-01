@@ -31,10 +31,8 @@ export default class GameScene extends Phaser.Scene {
         this.biome = data.biome || 'forest';
         this.config = data.config || {}; 
         
-        // Obtenemos los datos
         this.currentLevelData = getLevelData(this.biome, this.level);
         
-        // Tema visual
         const biomeInfo = BIOMES[this.biome] || BIOMES.forest;
         this.theme = { 
             bg: biomeInfo.color, 
@@ -54,7 +52,6 @@ export default class GameScene extends Phaser.Scene {
         this.isBossWave = false;
         this.bossSpawned = false;
         
-        // Array para guardar MÚLTIPLES caminos
         this.paths = []; 
     }
 
@@ -114,7 +111,6 @@ export default class GameScene extends Phaser.Scene {
         this.createPauseMenu();
 
         // --- HÉROE CENTRADO ---
-        // Ahora nace siempre en el centro del mapa
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
         
@@ -185,57 +181,53 @@ export default class GameScene extends Phaser.Scene {
         this.paths = []; 
         let startPoints = []; 
 
-        // 1. DIBUJAR Y DETECTAR ELEMENTOS
         for (let row = 0; row < grid.length; row++) {
             for (let col = 0; col < grid[row].length; col++) {
                 const cell = grid[row][col];
                 const x = col * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                 const y = row * TILE_SIZE + (TILE_SIZE/2) + offsetY;
 
-                // --- LÓGICA DE DIBUJADO DE TILES ---
+                // --- RENDERIZADO DE TILES ---
                 
-                // TILE 0: PASTO / FONDO
-                if (cell === 0) {
-                    if (this.textures.exists('tile_0')) {
-                        // Si cargaste la imagen, la usamos
+                // PASTO (0, 3, 4, 5) -> Ahora todos dibujan suelo verde o textura
+                if (cell === 0 || cell === 3 || cell === 4 || cell === 5) {
+                    const tileKey = `tile_${cell}`;
+                    if (this.textures.exists(tileKey)) {
+                        this.add.image(x, y, tileKey).setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else if (this.textures.exists('tile_0')) {
+                        // Fallback a tile_0 si no existe tile_3/4/5
                         this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     } else {
-                        // Fallback: Color verde oscuro si no hay imagen
-                        graphics.fillStyle(0x0d3b14, 1); // Color del bioma
+                        // Fallback Color
+                        graphics.fillStyle(this.theme.bg, 1);
                         graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
                     }
                 }
 
-                // TILE 1: CAMINO
-                else if (cell === 1) { 
+                else if (cell === 1) { // CAMINO
                     if (this.textures.exists('tile_1')) {
-                        // Futuro: Si agregas 'tile_1.jpg' para camino
                         this.add.image(x, y, 'tile_1').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     } else {
-                        // Fallback: Color tierra
                         graphics.fillStyle(this.theme.path, 1);
                         graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
                     }
-                    
                     if (col === 0) startPoints.push({c: col, r: row, x, y});
                 } 
 
-                // TILE 2: SITIO DE CONSTRUCCIÓN
-                else if (cell === 2) { 
-                    // Dibujamos suelo debajo del sitio
-                    if (this.textures.exists('tile_0')) {
-                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                else if (cell === 2) { // TORRE
+                    // Suelo debajo
+                    if (this.textures.exists('tile_2')) {
+                        this.add.image(x, y, 'tile_2').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     } else {
-                        graphics.fillStyle(0x0d3b14, 1);
+                        graphics.fillStyle(this.theme.bg, 1);
                         graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
                     }
-
+                    
                     const site = new BuildSite(this, x, y);
                     this.buildSites.add(site);
                     site.on('pointerdown', () => this.tryBuildTower(site));
                 }
 
-                // TILE 3: DECORACIÓN (ÁRBOL)
                 else if (cell === 3) { 
                     // Suelo debajo
                     if (this.textures.exists('tile_0')) {
@@ -246,8 +238,8 @@ export default class GameScene extends Phaser.Scene {
                     }
 
                     // Objeto encima
-                    if (this.textures.exists('tile_3')) {
-                        this.add.image(x, y, 'tile_3').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    if (this.textures.exists('tile_100')) {
+                        this.add.image(x, y, 'tile_100').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     } else {
                         graphics.fillStyle(0x000000, 0.3);
                         graphics.fillCircle(x, y + 10, 20);
@@ -258,7 +250,7 @@ export default class GameScene extends Phaser.Scene {
             }
         }
 
-        // Si no hay inicios en la col 0, buscar el primer 1 (Fallback)
+        // Fallback start points
         if (startPoints.length === 0) {
             for (let r=0; r<grid.length; r++) {
                 for (let c=0; c<grid[0].length; c++) {
@@ -273,7 +265,7 @@ export default class GameScene extends Phaser.Scene {
             }
         }
 
-        // 2. GENERAR CAMINOS (LÓGICA ANTERIOR MANTENIDA)
+        // Generar Caminos
         let globalVisited = new Set();
 
         startPoints.forEach((startPoint, index) => {
@@ -367,7 +359,6 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // ... (generateLoot, startWaveTimer, startNextWaveAction se mantienen igual) ...
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
@@ -418,24 +409,23 @@ export default class GameScene extends Phaser.Scene {
             delay: spawnDelay,
             repeat: totalEnemies - 1,
             callback: () => {
-                // --- LÓGICA INTELIGENTE DE SPAWN POR CAMINOS ---
-                // Oleada 1: Camino 0
-                // Oleada 2: Camino 1 (si existe)
-                // Oleada 3+: Todos (Rotativo)
-                
+                // --- LÓGICA DE OLEADAS INTELIGENTE ---
                 let targetPathIndex = 0;
                 const pathCount = this.paths.length;
 
                 if (pathCount > 1) {
-                    if (this.currentWave <= pathCount) {
-                        // Oleadas iniciales: Un camino a la vez para enseñar
-                        targetPathIndex = this.currentWave - 1; 
+                    if (this.currentWave === 1) {
+                        targetPathIndex = 0; // Solo camino 1
+                    } else if (this.currentWave === 2) {
+                        targetPathIndex = 1; // Solo camino 2
                     } else {
-                        // Oleadas avanzadas: Tira por todos los caminos (distribuye carga)
+                        // Oleadas 3+: Ambos caminos (Round Robin)
                         targetPathIndex = spawned % pathCount;
                     }
                 }
-                // ------------------------------------------------
+                
+                // Asegurar que el índice existe (por si acaso)
+                if (!this.paths[targetPathIndex]) targetPathIndex = 0;
 
                 this.spawnEnemy(1, targetPathIndex);
                 spawned++;
@@ -450,10 +440,7 @@ export default class GameScene extends Phaser.Scene {
     spawnEnemy(hpMult = 1, pathIndex = 0) {
         if (!this.paths || this.paths.length === 0) return;
         
-        // Seleccionar camino correcto o fallback al 0
         const selectedPath = this.paths[pathIndex] || this.paths[0];
-        
-        // Convertir Path a Array de Puntos para el Enemigo
         const pathPoints = selectedPath.getSpacedPoints(150); 
 
         let tierIdx = 0;
@@ -477,7 +464,7 @@ export default class GameScene extends Phaser.Scene {
 
         if (!this.paths || this.paths.length === 0) return;
 
-        // El Boss elije un camino al azar
+        // Boss elige camino aleatorio
         const randomPathIndex = Phaser.Math.Between(0, this.paths.length - 1);
         const selectedPath = this.paths[randomPathIndex];
         const pathPoints = selectedPath.getSpacedPoints(150); 
@@ -496,7 +483,7 @@ export default class GameScene extends Phaser.Scene {
         this.enemies.add(boss);
     }
 
-    // ... (El resto de los métodos se mantienen igual) ...
+    // ... (El resto de métodos se mantienen idénticos) ...
     checkWaveStatus() {
         if (this.isBossWave && !this.bossSpawned) return;
         if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) {
