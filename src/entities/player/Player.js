@@ -1,7 +1,7 @@
 // src/entities/player/Player.js
 import Phaser from 'phaser';
 import { gameState, getCurrentHero } from '../../config/GameState.js';
-import { TALENTS } from '../../config/Talents.js'; // <--- AGREGADO: Import faltante
+import { TALENTS } from '../../config/Talents.js';
 import SoundManager from '../../systems/SoundManager.js'; 
 
 export default class Player extends Phaser.GameObjects.Container {
@@ -18,11 +18,9 @@ export default class Player extends Phaser.GameObjects.Container {
         const textureKey = `hero_${charClass}`; 
         
         if (scene.textures.exists(textureKey)) {
-            // Usamos el sprite generado
             this.bodySprite = scene.add.sprite(0, 0, textureKey);
             this.bodySprite.setDisplaySize(32, 32);
         } else {
-            // Fallback: Color del stats o amarillo
             const stats = gameState.playerStats;
             const color = stats.color || 0xffff00; 
             this.bodySprite = scene.add.rectangle(0, 0, 32, 32, color);
@@ -33,12 +31,11 @@ export default class Player extends Phaser.GameObjects.Container {
         // Configuración Física
         this.body.setSize(32, 32);
         this.body.setCollideWorldBounds(true);
-        // Ajustamos el offset para que la caja de colisión esté centrada
         this.body.setOffset(-16, -16); 
 
         this.attackTimer = 0;
         this.skillCooldown = 0;
-        this.skillMaxCooldown = 5000; 
+        this.skillMaxCooldown = 5000; // 5 segundos de cooldown base
 
         // Barra de vida
         this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
@@ -47,6 +44,9 @@ export default class Player extends Phaser.GameObjects.Container {
         
         this.isDead = false;
         this.respawnTimer = 0;
+        
+        // Estado temporal para buffs
+        this.originalStats = {}; 
         
         this.loadPassives();
     }
@@ -64,7 +64,12 @@ export default class Player extends Phaser.GameObjects.Container {
 
         // Movimiento
         const cursors = this.scene.input.keyboard.createCursorKeys();
-        const wasd = this.scene.input.keyboard.addKeys({ 'W': Phaser.Input.Keyboard.KeyCodes.W, 'A': Phaser.Input.Keyboard.KeyCodes.A, 'S': Phaser.Input.Keyboard.KeyCodes.S, 'D': Phaser.Input.Keyboard.KeyCodes.D });
+        const wasd = this.scene.input.keyboard.addKeys({ 
+            'W': Phaser.Input.Keyboard.KeyCodes.W, 
+            'A': Phaser.Input.Keyboard.KeyCodes.A, 
+            'S': Phaser.Input.Keyboard.KeyCodes.S, 
+            'D': Phaser.Input.Keyboard.KeyCodes.D 
+        });
 
         let velocityX = 0;
         let velocityY = 0;
@@ -75,7 +80,6 @@ export default class Player extends Phaser.GameObjects.Container {
         if (cursors.up.isDown || wasd.W.isDown) velocityY = -1;
         else if (cursors.down.isDown || wasd.S.isDown) velocityY = 1;
 
-        // Normalizar velocidad diagonal
         if (velocityX !== 0 && velocityY !== 0) {
             velocityX *= 0.707;
             velocityY *= 0.707;
@@ -83,12 +87,11 @@ export default class Player extends Phaser.GameObjects.Container {
 
         this.body.setVelocity(velocityX * stats.moveSpeed, velocityY * stats.moveSpeed);
 
-        // --- ANIMACIÓN FLIP (Mirar a donde camina) ---
+        // Animación Flip
         if (this.bodySprite && this.bodySprite.setFlipX) {
             if (velocityX < 0) this.bodySprite.setFlipX(true);
             else if (velocityX > 0) this.bodySprite.setFlipX(false);
         }
-        // --------------------------------------------
 
         // Regeneración HP
         if (stats.regenHp > 0) {
@@ -105,7 +108,7 @@ export default class Player extends Phaser.GameObjects.Container {
             this.autoAttack();
         }
 
-        // Actualizar barra de vida
+        // Barra de vida
         const hpPercent = Math.max(0, stats.hp / stats.maxHp);
         this.hpBar.width = 38 * hpPercent;
         this.hpBar.fillColor = hpPercent < 0.3 ? 0xff0000 : 0x00ff00;
@@ -135,6 +138,7 @@ export default class Player extends Phaser.GameObjects.Container {
         let target = null;
         let minDistance = stats.range;
 
+        // Buscar enemigo más cercano
         this.enemies.children.iterate((enemy) => {
             if (enemy.active && !enemy.isDead) {
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
@@ -147,9 +151,9 @@ export default class Player extends Phaser.GameObjects.Container {
 
         if (target) {
             this.fireProjectile(target);
-            // Doble ataque
+            // Probabilidad de Doble ataque
             if (Math.random() * 100 < stats.doubleAttack) {
-                this.scene.time.delayedCall(150, () => {
+                this.scene.time.delayedCall(100, () => {
                     if(target.active) this.fireProjectile(target);
                 });
             }
@@ -158,8 +162,6 @@ export default class Player extends Phaser.GameObjects.Container {
 
     fireProjectile(target) {
         const stats = gameState.playerStats;
-        
-        // Usamos pooling
         const projectile = this.projectiles.get(this.x, this.y);
         
         if (projectile) {
@@ -170,7 +172,6 @@ export default class Player extends Phaser.GameObjects.Container {
                 this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
             }
 
-            // Sonido
             if (SoundManager && SoundManager.playSound) SoundManager.playSound('shoot_arrow');
 
             projectile.fire(target, {
@@ -187,14 +188,68 @@ export default class Player extends Phaser.GameObjects.Container {
         if (!hero) return { success: false };
 
         this.skillCooldown = this.skillMaxCooldown;
-        this.scene.showFloatingText(this.x, this.y, "¡HABILIDAD!", "#00ffff");
+        const stats = gameState.playerStats;
+
+        // --- LÓGICA DE HABILIDADES POR CLASE ---
 
         if (this.charClass === 'guerrero') {
-            gameState.playerStats.hp = Math.min(gameState.playerStats.maxHp, gameState.playerStats.hp + (gameState.playerStats.maxHp * 0.3));
+            // Curación y Defensa temporal
+            const healAmount = stats.maxHp * 0.3;
+            stats.hp = Math.min(stats.maxHp, stats.hp + healAmount);
+            this.scene.showFloatingText(this.x, this.y, "¡FURIA!", "#ff0000");
+            this.scene.showFloatingText(this.x, this.y - 20, `+${Math.floor(healAmount)} HP`, "#00ff00");
+            
+            // Efecto visual de onda expansiva pequeña
+            if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0xff0000);
+
         } else if (this.charClass === 'mago') {
+            // Explosión de área de hielo/fuego
+            this.scene.showFloatingText(this.x, this.y, "¡NOVA MÁGICA!", "#00ffff");
             if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
+            
+            // Daño de área manual por si createExplosion es solo visual
+            const range = 150;
+            this.enemies.children.iterate((e) => {
+                if(e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < range) {
+                    e.takeDamage(stats.damage * 2);
+                    // Efecto de congelar si tienes esa lógica
+                }
+            });
+
         } else if (this.charClass === 'arquero') {
-            // Lógica arquero
+            // AUMENTO DE VELOCIDAD DE ATAQUE (BUFF TEMPORAL)
+            this.scene.showFloatingText(this.x, this.y, "¡DISPARO RÁPIDO!", "#00ff00");
+            
+            // Guardamos valor original para no perderlo
+            if (!this.originalStats.attackSpeed) this.originalStats.attackSpeed = stats.attackSpeed;
+            
+            // Reducimos el intervalo a la mitad (Doble velocidad)
+            // Límite mínimo de 100ms para no crashear
+            stats.attackSpeed = Math.max(100, stats.attackSpeed * 0.4); 
+
+            // Revertir después de 5 segundos
+            this.scene.time.delayedCall(5000, () => {
+                if (this.originalStats.attackSpeed) {
+                    stats.attackSpeed = this.originalStats.attackSpeed;
+                    this.originalStats.attackSpeed = null;
+                    this.scene.showFloatingText(this.x, this.y, "Fin Velocidad", "#cccccc");
+                }
+            });
+
+        } else if (this.charClass === 'asesino') {
+            // Daño crítico masivo temporal
+            this.scene.showFloatingText(this.x, this.y, "¡INSTINTO ASESINO!", "#800080");
+            
+            if (!this.originalStats.critChance) this.originalStats.critChance = stats.critChance;
+            stats.critChance = 100; // 100% Crítico
+
+            this.scene.time.delayedCall(4000, () => {
+                if (this.originalStats.critChance) {
+                    stats.critChance = this.originalStats.critChance;
+                    this.originalStats.critChance = null;
+                    this.scene.showFloatingText(this.x, this.y, "Fin Instinto", "#cccccc");
+                }
+            });
         }
 
         return { success: true };
@@ -214,15 +269,11 @@ export default class Player extends Phaser.GameObjects.Container {
         stats.hp -= finalDamage;
         this.scene.cameras.main.shake(50, 0.002);
         this.scene.showFloatingText(this.x, this.y, `-${Math.floor(finalDamage)}`, "#ff0000");
-
-        if (stats.thorns > 0) {
-            // Lógica de espinas
-        }
     }
 
     die() {
         this.isDead = true;
-        this.visible = false; // Oculta todo el contenedor
+        this.visible = false;
         this.respawnTimer = 5000;
         this.scene.showFloatingText(this.x, this.y, "MUERTO (5s)", "#ff0000");
         this.scene.cameras.main.flash(500, 255, 0, 0);
@@ -232,8 +283,14 @@ export default class Player extends Phaser.GameObjects.Container {
         this.isDead = false;
         this.visible = true;
         gameState.playerStats.hp = gameState.playerStats.maxHp;
+        // Restaurar posición al centro
         this.x = this.scene.scale.width / 2;
         this.y = this.scene.scale.height / 2;
         this.scene.showFloatingText(this.x, this.y, "¡REVIVIDO!", "#00ff00");
+        
+        // Limpiar buffs al morir por seguridad
+        if (this.originalStats.attackSpeed) gameState.playerStats.attackSpeed = this.originalStats.attackSpeed;
+        if (this.originalStats.critChance) gameState.playerStats.critChance = this.originalStats.critChance;
+        this.originalStats = {};
     }
 }

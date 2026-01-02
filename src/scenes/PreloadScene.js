@@ -46,6 +46,11 @@ export default class PreloadScene extends Phaser.Scene {
         this.load.image('tile_3', 'assets/images/tile_3.jpg'); 
         // PASTO (Tile 4)
         this.load.image('tile_4', 'assets/images/tile_4.jpg');
+         // PASTO (Tile 5)
+        this.load.image('tile_5', 'assets/images/tile_5.jpg'); 
+        // camino derecha abajo
+        // (Tile 6)
+        this.load.image('tile_6', 'assets/images/tile_6.jpg');
 
 
 

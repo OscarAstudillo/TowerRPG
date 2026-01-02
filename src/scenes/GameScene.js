@@ -228,6 +228,60 @@ export default class GameScene extends Phaser.Scene {
                     site.on('pointerdown', () => this.tryBuildTower(site));
                 }
 
+                else if (cell === 6) { // CAMINO DERECHA ABAJO
+                    if (this.textures.exists('tile_6')) {
+                        this.add.image(x, y, 'tile_6').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(this.theme.path, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                    if (col === 0) startPoints.push({c: col, r: row, x, y});
+                } 
+
+                else if (cell === 7) { // CAMINO BIDIRECCIONAL ABAJO_ARRIBA
+                    if (this.textures.exists('tile_7')) {
+                        this.add.image(x, y, 'tile_7').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(this.theme.path, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                    if (col === 0) startPoints.push({c: col, r: row, x, y});
+                } 
+
+                else if (cell === 8) { // CAMINO DERECHA_ARRIBA
+                    if (this.textures.exists('tile_8')) {
+                        this.add.image(x, y, 'tile_8').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(this.theme.path, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                    if (col === 0) startPoints.push({c: col, r: row, x, y});
+                } 
+
+                else if (cell === 9) { // CAMINO ARRIBA_DERECHA
+                    if (this.textures.exists('tile_9')) {
+                        this.add.image(x, y, 'tile_9').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(this.theme.path, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                    if (col === 0) startPoints.push({c: col, r: row, x, y});
+                } 
+
+                else if (cell === 10) { // CAMINO ABAJO_DERECHA
+                    if (this.textures.exists('tile_10')) {
+                        this.add.image(x, y, 'tile_10').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else {
+                        graphics.fillStyle(this.theme.path, 1);
+                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
+                    }
+                    if (col === 0) startPoints.push({c: col, r: row, x, y});
+                } 
+
+
+
+
+
                 else if (cell === 3) { 
                     // Suelo debajo
                     if (this.textures.exists('tile_0')) {
