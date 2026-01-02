@@ -400,7 +400,7 @@ export default class GameScene extends Phaser.Scene {
         const uiDepth = 1000; 
         const accent = this.theme.accent; 
         
-        // 1. Barra Superior (Reducida)
+        // 1. Barra Superior
         this.add.rectangle(w/2, 60, w, 80, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
         this.add.rectangle(w/2, 100, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
         
@@ -430,18 +430,16 @@ export default class GameScene extends Phaser.Scene {
         // 2. NUEVA BARRA INFERIOR (Selector de Torres)
         this.towerSelectorContainer = this.add.container(w/2, h - 70).setScrollFactor(0).setDepth(uiDepth);
         
-        // Fondo semi-transparente para las cartas
         const selectorBg = this.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
 
-        // --- DINERO CON FONDO (Pegado al selector) ---
+        // --- DINERO CON FONDO ---
         const economyBg = this.add.rectangle(0, -80, 320, 30, 0x000000, 0.85).setStrokeStyle(1, 0xffd700);
         this.towerSelectorContainer.add(economyBg);
 
         this.economyText = this.add.text(0, -80, 'MONEDAS ACTUALES: 0', { fontFamily: 'Roboto', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.towerSelectorContainer.add(this.economyText);
 
-        // Generar Cartas (1-6) - 100x120
         this.towerCards = [];
         const cardWidth = 100;
         const cardHeight = 120;
@@ -450,31 +448,19 @@ export default class GameScene extends Phaser.Scene {
 
         this.towerOrder.forEach((type, i) => {
             const card = this.add.container(startX + (i * gap), 0);
-            
-            // Fondo carta
             const cardBg = this.add.rectangle(0, 0, cardWidth, cardHeight, 0x222222).setInteractive({useHandCursor:true});
             cardBg.setStrokeStyle(1, 0xaaaaaa);
-            
-            // Icono
             const stats = TOWER_TYPES[type];
             const icon = this.add.rectangle(0, -20, 50, 50, stats.color || 0x888888);
-
-            // Nombre
             const displayName = this.towerDisplayNames[type] || "TORRE";
             const name = this.add.text(0, -50, displayName, { fontSize:'10px', fontStyle:'bold' }).setOrigin(0.5);
-            
-            // Costo
             const cost = TOWER_COSTS[type];
             const costText = this.add.text(0, 25, `$${cost}`, { fontSize:'16px', color:'#ffd700', fontStyle:'bold' }).setOrigin(0.5);
-            
-            // Hotkey
             const key = this.add.text(0, 45, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
 
             cardBg.on('pointerdown', () => this.selectTower(i));
-
             card.add([cardBg, icon, name, costText, key]);
             this.towerSelectorContainer.add(card);
-            
             this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
         });
 
@@ -495,8 +481,6 @@ export default class GameScene extends Phaser.Scene {
         const pStats = gameState.playerStats; 
         if(this.livesText) this.livesText.setText(`❤️ HÉROE: ${Math.max(0, Math.floor(pStats.hp))}/${pStats.maxHp}`); 
         if(this.castleText) this.castleText.setText(`🏰 CASTILLO: ${gameState.baseHp}`); 
-        
-        // --- TEXTO ACTUALIZADO ---
         if(this.economyText) this.economyText.setText(`MONEDAS ACTUALES: ${this.coins}`);
 
         const hero = getCurrentHero(); 
@@ -681,6 +665,7 @@ export default class GameScene extends Phaser.Scene {
     onEnemyLeaks(damage) { gameState.baseHp -= damage; this.cameras.main.flash(200, 255, 0, 0); this.updateUI(); if (gameState.baseHp <= 0) this.gameOver(); }
     gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); }
     
+    // --- CORRECCIÓN EN onEnemyKilled PARA LOOT ---
     onEnemyKilled(enemy) { 
         try { 
             this.coins += (enemy.coinReward || 10); 
@@ -692,6 +677,11 @@ export default class GameScene extends Phaser.Scene {
             }
             this.createExplosion(enemy.x, enemy.y, enemy.bodyShape ? enemy.bodyShape.fillColor : 0xff0000); 
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${enemy.coinReward}`, '#ffff00'); 
+            
+            // --- AQUÍ FALTABA EL SPAWN DE LOOT ---
+            this.spawnLoot(enemy.x, enemy.y); 
+            // -------------------------------------
+
             this.updateUI(); 
         } catch (err) { console.warn("Error", err); } 
     }
