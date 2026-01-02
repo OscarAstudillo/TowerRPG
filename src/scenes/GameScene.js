@@ -6,7 +6,7 @@ import Projectile from '../entities/projectiles/Projectile.js';
 import Tower from '../entities/towers/Tower.js';
 import BuildSite from '../entities/towers/BuildSite.js';
 import Loot from '../entities/items/Loot.js';
-import { gameState, updatePlayerStats, getCurrentHero } from '../config/GameState.js'; 
+import { gameState, updatePlayerStats, getCurrentHero, TOWER_COSTS } from '../config/GameState.js'; 
 import { TOWER_TYPES } from '../config/TowerStats.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
@@ -18,12 +18,16 @@ export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
         this.selectedTowerType = 'archer';
+        this.selectedTowerIndex = 0; // Para tracking visual (0-5)
         this.coins = 5000; 
         this.selectedTowerToUpgrade = null; 
         this.timeToNextWave = 0; 
         this.isTimerRunning = false;
         this.isPaused = false;
-        this.isSceneReady = false; 
+        this.isSceneReady = false;
+        
+        // Orden de torres para el selector (1-6)
+        this.towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
     }
 
     init(data) {
@@ -119,12 +123,13 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        this.input.keyboard.on('keydown-ONE', () => { if(!this.isPaused) { this.selectedTowerType = 'archer'; this.updateUI(); }});
-        this.input.keyboard.on('keydown-TWO', () => { if(!this.isPaused) { this.selectedTowerType = 'cannon'; this.updateUI(); }});
-        this.input.keyboard.on('keydown-THREE', () => { if(!this.isPaused) { this.selectedTowerType = 'mage'; this.updateUI(); }});
-        this.input.keyboard.on('keydown-FOUR', () => { if(!this.isPaused) { this.selectedTowerType = 'tesla'; this.updateUI(); }});
-        this.input.keyboard.on('keydown-FIVE', () => { if(!this.isPaused) { this.selectedTowerType = 'poison'; this.updateUI(); }});
-        this.input.keyboard.on('keydown-SIX', () => { if(!this.isPaused) { this.selectedTowerType = 'quake'; this.updateUI(); }});
+        // Selectores de Torre (Teclado)
+        this.input.keyboard.on('keydown-ONE', () => this.selectTower(0));
+        this.input.keyboard.on('keydown-TWO', () => this.selectTower(1));
+        this.input.keyboard.on('keydown-THREE', () => this.selectTower(2));
+        this.input.keyboard.on('keydown-FOUR', () => this.selectTower(3));
+        this.input.keyboard.on('keydown-FIVE', () => this.selectTower(4));
+        this.input.keyboard.on('keydown-SIX', () => this.selectTower(5));
 
         this.input.on('gameobjectdown', (pointer, obj) => {
             if (this.isPaused) return; 
@@ -137,18 +142,23 @@ export default class GameScene extends Phaser.Scene {
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
-            if (this.upgradeContainer && this.upgradeContainer.visible) {
-                const clickedOnUI = currentlyOver.some(obj => 
-                    obj === this.upgradeContainer || 
-                    (obj.parentContainer && obj.parentContainer === this.upgradeContainer)
-                );
-                const clickedOnTower = currentlyOver.some(obj => this.getTowerFromObject(obj) !== null);
+            
+            // Evitar movimiento si click en UI nueva
+            const clickedOnUI = currentlyOver.some(obj => 
+                (this.upgradeContainer && this.upgradeContainer.visible && (obj === this.upgradeContainer || obj.parentContainer === this.upgradeContainer)) ||
+                (this.towerSelectorContainer && (obj === this.towerSelectorContainer || obj.parentContainer === this.towerSelectorContainer)) ||
+                (this.skillBtnContainer && (obj === this.skillBtnContainer || obj.parentContainer === this.skillBtnContainer))
+            );
 
+            if (this.upgradeContainer && this.upgradeContainer.visible) {
+                const clickedOnTower = currentlyOver.some(obj => this.getTowerFromObject(obj) !== null);
                 if (!clickedOnUI && !clickedOnTower) {
                     this.closeUpgradeMenu();
                 }
             }
-            if (pointer.y > 120 && pointer.y < (this.scale.height - 120)) { 
+            
+            // Movimiento del héroe (solo si no es UI y está en zona jugable)
+            if (!clickedOnUI && pointer.y > 80 && pointer.y < (this.scale.height - 100)) { 
                 const clickedOnInteractive = currentlyOver.length > 0;
                 if (!clickedOnInteractive && this.player && this.player.setTarget) {
                     this.player.setTarget(pointer.x, pointer.y);
@@ -204,8 +214,11 @@ export default class GameScene extends Phaser.Scene {
                     }
                 }
 
-                else if (cell === 1) { // CAMINO
-                    if (this.textures.exists('tile_1')) {
+                else if (cell === 1 || (cell >= 6 && cell <= 10)) { // CAMINOS
+                    const tileKey = `tile_${cell}`;
+                    if (this.textures.exists(tileKey)) {
+                        this.add.image(x, y, tileKey).setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    } else if (this.textures.exists('tile_1')) {
                         this.add.image(x, y, 'tile_1').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     } else {
                         graphics.fillStyle(this.theme.path, 1);
@@ -216,8 +229,8 @@ export default class GameScene extends Phaser.Scene {
 
                 else if (cell === 2) { // TORRE
                     // Suelo debajo
-                    if (this.textures.exists('tile_2')) {
-                        this.add.image(x, y, 'tile_2').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    if (this.textures.exists('tile_0')) {
+                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     } else {
                         graphics.fillStyle(this.theme.bg, 1);
                         graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
@@ -227,80 +240,6 @@ export default class GameScene extends Phaser.Scene {
                     this.buildSites.add(site);
                     site.on('pointerdown', () => this.tryBuildTower(site));
                 }
-
-                else if (cell === 6) { // CAMINO DERECHA ABAJO
-                    if (this.textures.exists('tile_6')) {
-                        this.add.image(x, y, 'tile_6').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.path, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-                    if (col === 0) startPoints.push({c: col, r: row, x, y});
-                } 
-
-                else if (cell === 7) { // CAMINO BIDIRECCIONAL ABAJO_ARRIBA
-                    if (this.textures.exists('tile_7')) {
-                        this.add.image(x, y, 'tile_7').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.path, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-                    if (col === 0) startPoints.push({c: col, r: row, x, y});
-                } 
-
-                else if (cell === 8) { // CAMINO DERECHA_ARRIBA
-                    if (this.textures.exists('tile_8')) {
-                        this.add.image(x, y, 'tile_8').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.path, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-                    if (col === 0) startPoints.push({c: col, r: row, x, y});
-                } 
-
-                else if (cell === 9) { // CAMINO ARRIBA_DERECHA
-                    if (this.textures.exists('tile_9')) {
-                        this.add.image(x, y, 'tile_9').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.path, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-                    if (col === 0) startPoints.push({c: col, r: row, x, y});
-                } 
-
-                else if (cell === 10) { // CAMINO ABAJO_DERECHA
-                    if (this.textures.exists('tile_10')) {
-                        this.add.image(x, y, 'tile_10').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.path, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-                    if (col === 0) startPoints.push({c: col, r: row, x, y});
-                } 
-
-
-
-
-
-                else if (cell === 3) { 
-                    // Suelo debajo
-                    if (this.textures.exists('tile_0')) {
-                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(0x0d3b14, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-
-                    // Objeto encima
-                    if (this.textures.exists('tile_100')) {
-                        this.add.image(x, y, 'tile_100').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(0x000000, 0.3);
-                        graphics.fillCircle(x, y + 10, 20);
-                        graphics.fillStyle(0x558855, 1);
-                        graphics.fillTriangle(x, y - 20, x - 15, y + 10, x + 15, y + 10);
-                    }
-                }
             }
         }
 
@@ -308,7 +247,7 @@ export default class GameScene extends Phaser.Scene {
         if (startPoints.length === 0) {
             for (let r=0; r<grid.length; r++) {
                 for (let c=0; c<grid[0].length; c++) {
-                    if (grid[r][c] === 1) {
+                    if (grid[r][c] === 1 || (grid[r][c] >= 6 && grid[r][c] <= 10)) {
                         const x = c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                         const y = r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
                         startPoints.push({c:c, r:r, x, y});
@@ -321,6 +260,7 @@ export default class GameScene extends Phaser.Scene {
 
         // Generar Caminos
         let globalVisited = new Set();
+        const validPathCells = [1, 6, 7, 8, 9, 10]; 
 
         startPoints.forEach((startPoint, index) => {
             const path = new Phaser.Curves.Path(startPoint.x, startPoint.y);
@@ -346,7 +286,8 @@ export default class GameScene extends Phaser.Scene {
                 let foundNext = false;
                 for (let n of neighbors) {
                     if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
-                        if (grid[n.r][n.c] === 1 && !globalVisited.has(`${n.c},${n.r}`)) {
+                        const cellVal = grid[n.r][n.c];
+                        if (validPathCells.includes(cellVal) && !globalVisited.has(`${n.c},${n.r}`)) {
                             const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                             const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
                             path.lineTo(nx, ny);
@@ -362,7 +303,8 @@ export default class GameScene extends Phaser.Scene {
                 if (!foundNext) {
                     for (let n of neighbors) {
                         if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
-                            if (grid[n.r][n.c] === 1 && globalVisited.has(`${n.c},${n.r}`) && !visited.has(`${n.c},${n.r}`)) {
+                             const cellVal = grid[n.r][n.c];
+                             if (validPathCells.includes(cellVal) && globalVisited.has(`${n.c},${n.r}`) && !visited.has(`${n.c},${n.r}`)) {
                                 const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                                 const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
                                 path.lineTo(nx, ny);
@@ -398,7 +340,7 @@ export default class GameScene extends Phaser.Scene {
             this.lastHeroLevel = hero.level;
         }
 
-        this.updateUI();
+        this.updateUI(); // Esto actualizará el estado visual de los botones (monedas, selección)
         this.updateSkillUI();
         
         if (this.isTimerRunning) {
@@ -413,6 +355,7 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
+    // ... (generateLoot, startWaveTimer, startNextWaveAction, startWave, spawnEnemy, spawnBoss, checkWaveStatus, getTowerFromObject: IGUALES) ...
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
@@ -423,156 +366,83 @@ export default class GameScene extends Phaser.Scene {
         const item = new Loot(this, x, y, matKey, rarity);
         this.loots.add(item);
     }
-
-    startWaveTimer(seconds) { 
-        this.isTimerRunning = true; 
-        this.timeToNextWave = seconds * 1000; 
-        if (this.waveTimerContainer) this.waveTimerContainer.setVisible(true); 
-    }
-
-    startNextWaveAction() { 
-        if (this.isTimerRunning) this.startWave(); 
-    }
-
+    startWaveTimer(seconds) { this.isTimerRunning = true; this.timeToNextWave = seconds * 1000; if (this.waveTimerContainer) this.waveTimerContainer.setVisible(true); }
+    startNextWaveAction() { if (this.isTimerRunning) this.startWave(); }
     startWave() {
         this.isTimerRunning = false; 
         if(this.waveTimerContainer) this.waveTimerContainer.setVisible(false);
         this.waveActive = true;
         this.currentWave++;
-        
         this.isBossWave = (this.currentWave === this.totalWaves);
         this.bossSpawned = false;
-
         if(this.waveInfoText) {
             this.waveInfoText.setText(this.isBossWave ? "¡JEFE FINAL!" : `OLEADA: ${this.currentWave}/${this.totalWaves}`);
             if(this.isBossWave) this.waveInfoText.setColor('#ff0000');
         }
-        
         let baseCount = 8 + (this.currentWave * 3); 
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
         let spawnDelay = 1000 - (this.currentWave * 50); 
         if (spawnDelay < 200) spawnDelay = 200; 
-
-        if (this.isBossWave) {
-            this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000);
-            totalEnemies = 5; 
-        }
-
+        if (this.isBossWave) { this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000", 2000); totalEnemies = 5; }
         let spawned = 0;
-        this.spawnTimer = this.time.addEvent({
-            delay: spawnDelay,
-            repeat: totalEnemies - 1,
-            callback: () => {
-                // --- LÓGICA DE OLEADAS INTELIGENTE ---
-                let targetPathIndex = 0;
-                const pathCount = this.paths.length;
-
-                if (pathCount > 1) {
-                    if (this.currentWave === 1) {
-                        targetPathIndex = 0; // Solo camino 1
-                    } else if (this.currentWave === 2) {
-                        targetPathIndex = 1; // Solo camino 2
-                    } else {
-                        // Oleadas 3+: Ambos caminos (Round Robin)
-                        targetPathIndex = spawned % pathCount;
-                    }
-                }
-                
-                // Asegurar que el índice existe (por si acaso)
+        this.spawnTimer = this.time.addEvent({ delay: spawnDelay, repeat: totalEnemies - 1, callback: () => {
+                let targetPathIndex = 0; const pathCount = this.paths.length;
+                if (pathCount > 1) { if (this.currentWave === 1) targetPathIndex = 0; else if (this.currentWave === 2) targetPathIndex = 1; else targetPathIndex = spawned % pathCount; }
                 if (!this.paths[targetPathIndex]) targetPathIndex = 0;
-
-                this.spawnEnemy(1, targetPathIndex);
-                spawned++;
-                
-                if (this.isBossWave && spawned === totalEnemies) {
-                    this.time.delayedCall(3000, () => this.spawnBoss());
-                }
+                this.spawnEnemy(1, targetPathIndex); spawned++;
+                if (this.isBossWave && spawned === totalEnemies) this.time.delayedCall(3000, () => this.spawnBoss());
             }
         });
     }
-
     spawnEnemy(hpMult = 1, pathIndex = 0) {
         if (!this.paths || this.paths.length === 0) return;
-        
-        const selectedPath = this.paths[pathIndex] || this.paths[0];
-        const pathPoints = selectedPath.getSpacedPoints(150); 
-
-        let tierIdx = 0;
-        if (this.level >= 4) tierIdx = 1;
-        if (this.level >= 8) tierIdx = 2;
-
-        const biomeConfig = BIOME_ENEMIES[this.biome];
-        if (!biomeConfig) return; 
-
-        const possibleMobs = biomeConfig.tiers[tierIdx];
-        const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
-
-        const enemy = new Enemy(this, pathPoints, this.hpMultiplier * hpMult, mobKey);
-        this.enemies.add(enemy);
+        const selectedPath = this.paths[pathIndex] || this.paths[0]; const pathPoints = selectedPath.getSpacedPoints(150); 
+        let tierIdx = 0; if (this.level >= 4) tierIdx = 1; if (this.level >= 8) tierIdx = 2;
+        const biomeConfig = BIOME_ENEMIES[this.biome]; if (!biomeConfig) return; 
+        const possibleMobs = biomeConfig.tiers[tierIdx]; const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
+        const enemy = new Enemy(this, pathPoints, this.hpMultiplier * hpMult, mobKey); this.enemies.add(enemy);
     }
-
     spawnBoss() {
-        this.bossSpawned = true; 
-        const biomeConfig = BIOME_ENEMIES[this.biome];
-        if (!biomeConfig) return;
-
+        this.bossSpawned = true; const biomeConfig = BIOME_ENEMIES[this.biome]; if (!biomeConfig) return;
         if (!this.paths || this.paths.length === 0) return;
-
-        // Boss elige camino aleatorio
-        const randomPathIndex = Phaser.Math.Between(0, this.paths.length - 1);
-        const selectedPath = this.paths[randomPathIndex];
-        const pathPoints = selectedPath.getSpacedPoints(150); 
-
+        const randomPathIndex = Phaser.Math.Between(0, this.paths.length - 1); const selectedPath = this.paths[randomPathIndex]; const pathPoints = selectedPath.getSpacedPoints(150); 
         let bossKey = 'slime'; 
-        if (this.level === 5 || this.level === 10) {
-            bossKey = biomeConfig.bosses[this.level];
-            this.showFloatingText(this.scale.width/2, 200, "¡JEFE LEGENDARIO!", "#ff0000");
-        } else {
-            const minis = biomeConfig.miniBosses;
-            bossKey = minis[Math.floor(Math.random() * minis.length)];
-            this.showFloatingText(this.scale.width/2, 200, "¡LÍDER DE MANADA!", "#ff8800");
-        }
-
-        const boss = new Enemy(this, pathPoints, this.hpMultiplier * 2.5, bossKey);
-        this.enemies.add(boss);
+        if (this.level === 5 || this.level === 10) { bossKey = biomeConfig.bosses[this.level]; this.showFloatingText(this.scale.width/2, 200, "¡JEFE LEGENDARIO!", "#ff0000"); } 
+        else { const minis = biomeConfig.miniBosses; bossKey = minis[Math.floor(Math.random() * minis.length)]; this.showFloatingText(this.scale.width/2, 200, "¡LÍDER DE MANADA!", "#ff8800"); }
+        const boss = new Enemy(this, pathPoints, this.hpMultiplier * 2.5, bossKey); this.enemies.add(boss);
     }
-
-    // ... (El resto de métodos se mantienen idénticos) ...
-    checkWaveStatus() {
-        if (this.isBossWave && !this.bossSpawned) return;
-        if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) {
-            this.waveActive = false;
-            if (this.currentWave >= this.totalWaves) this.victory();
-            else this.startWaveTimer(20);
-        }
-    }
-
-    getTowerFromObject(obj) { 
-        if (obj instanceof Tower) return obj; 
-        if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); 
-        return null; 
-    }
+    checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
+    getTowerFromObject(obj) { if (obj instanceof Tower) return obj; if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); return null; }
     
+    // --- NUEVA UI (MODIFICADA) ---
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
         const uiDepth = 1000; 
         const accent = this.theme.accent; 
         
-        this.add.rectangle(w/2, 60, w, 120, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
-        this.add.rectangle(w/2, 120, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
+        // 1. Barra Superior (Reducida)
+        this.add.rectangle(w/2, 60, w, 80, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
+        this.add.rectangle(w/2, 100, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
         
+        // Stats Castillo/Héroe
         this.livesText = this.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.castleText = this.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1);
         
+        // XP y Nivel (Igual)
         this.xpContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(uiDepth + 1);
         this.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.xpBarBg = this.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.xpBarFill = this.add.rectangle(330, 42, 0, 10, 0x00ffff).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
         this.lvlText = this.add.text(540, 35, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         
-        this.waveInfoText = this.add.text(w - 30, 40, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
+        // Oleada
+        this.waveInfoText = this.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
+
+        // ORO (Movido aquí arriba)
+        this.economyText = this.add.text(w - 30, 70, '$0', { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1);
+
+        // Timer
         this.waveTimerContainer = this.add.container(w/2, 60).setScrollFactor(0).setDepth(uiDepth + 2); 
         this.waveTimerContainer.setSize(320, 60); this.waveTimerContainer.setInteractive({ useHandCursor: true }); 
         const timerBg = this.add.rectangle(0, 0, 320, 60, 0x006400).setStrokeStyle(2, 0xffffff); 
@@ -580,63 +450,115 @@ export default class GameScene extends Phaser.Scene {
         this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]); 
         this.waveTimerContainer.setVisible(false); 
         this.waveTimerContainer.on('pointerdown', () => this.startNextWaveAction()); 
+
+        // 2. NUEVA BARRA INFERIOR (Selector de Torres)
+        this.towerSelectorContainer = this.add.container(w/2, h - 60).setScrollFactor(0).setDepth(uiDepth);
         
-        const barHeight = 120; 
-        const botY = h - (barHeight / 2); 
-        this.add.rectangle(w/2, botY, w, barHeight, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
-        this.add.rectangle(w/2, botY - (barHeight/2), w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
+        // Fondo semi-transparente para las cartas
+        const selectorBg = this.add.rectangle(0, 0, 520, 100, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
+        this.towerSelectorContainer.add(selectorBg);
+
+        // Generar Cartas (1-6)
+        this.towerCards = [];
+        const startX = -210;
+        const gap = 85;
+
+        this.towerOrder.forEach((type, i) => {
+            const card = this.add.container(startX + (i * gap), 0);
+            
+            // Fondo carta
+            const cardBg = this.add.rectangle(0, 0, 75, 90, 0x222222).setInteractive({useHandCursor:true});
+            cardBg.setStrokeStyle(1, 0xaaaaaa);
+            
+            // Nombre
+            const name = this.add.text(0, -25, TOWER_TYPES[type].name.substring(0,3).toUpperCase(), { fontSize:'12px', fontStyle:'bold' }).setOrigin(0.5);
+            
+            // Costo
+            const cost = TOWER_TYPES[type].baseCost;
+            const costText = this.add.text(0, 5, `$${cost}`, { fontSize:'14px', color:'#ffd700' }).setOrigin(0.5);
+            
+            // Hotkey
+            const key = this.add.text(0, 30, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
+
+            cardBg.on('pointerdown', () => this.selectTower(i));
+
+            card.add([cardBg, name, costText, key]);
+            this.towerSelectorContainer.add(card);
+            
+            // Guardamos referencias para actualizar visualmente
+            this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
+        });
+
+        // 3. BOTÓN HABILIDAD (Esquina inferior derecha)
+        this.skillBtnContainer = this.add.container(w - 70, h - 70).setScrollFactor(0).setDepth(uiDepth + 1); 
+        this.skillBg = this.add.circle(0, 0, 40, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true }); 
         
-        const contentY = botY; 
-        this.add.text(40, contentY - 30, 'TESORO:', { fontFamily: 'Cinzel', fontSize: '16px', color: '#ffd700' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.economyText = this.add.text(40, contentY, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffffff', fontStyle: 'bold' }).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.add.text(300, contentY - 35, 'SELECTOR (Teclas 1-6)', { fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1); 
+        // Icono (letra o sprite)
+        const skillIcon = this.add.text(0, 0, "⚡", { fontSize: '32px' }).setOrigin(0.5);
         
-        const buildBg = this.add.rectangle(400, contentY + 10, 250, 60, 0x222222).setStrokeStyle(2, accent).setScrollFactor(0).setDepth(uiDepth); 
-        this.buildText = this.add.text(400, contentY + 10, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffffff', fontStyle: 'bold', align: 'center' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
-        this.skillBtnContainer = this.add.container(w/2 + 200, contentY + 10).setScrollFactor(0).setDepth(uiDepth + 1); 
-        const skillBg = this.add.rectangle(0, 0, 180, 50, 0x222222).setStrokeStyle(2, 0x555555); 
-        this.skillBar = this.add.rectangle(-90, 0, 0, 50, accent).setOrigin(0, 0.5); 
-        this.skillBtn = this.add.rectangle(0, 0, 180, 50, 0x000000, 0).setInteractive({ useHandCursor: true }); 
-        this.skillText = this.add.text(0, 0, "HABILIDAD\n(Espacio)", { fontFamily: 'Cinzel', fontSize: '14px', align: 'center', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5); 
-        this.skillBtnContainer.add([skillBg, this.skillBar, this.skillBtn, this.skillText]); 
-        this.skillBtn.on('pointerdown', () => this.triggerPlayerSkill()); 
-        
-        const exitBtn = this.add.rectangle(w - 80, contentY, 120, 50, 0x8b0000).setInteractive({ useHandCursor: true }).setScrollFactor(0).setDepth(uiDepth + 1).setStrokeStyle(2, 0xffffff); 
-        this.add.text(w - 80, contentY, 'SALIR', { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0).setDepth(uiDepth + 2); 
-        exitBtn.on('pointerdown', () => this.scene.start('MainMenuScene')); 
+        // Cooldown overlay (semi-transparente)
+        this.skillOverlay = this.add.circle(0, 0, 40, 0x000000, 0.7).setVisible(false);
+        this.skillTimerText = this.add.text(0, 0, "", { fontSize:'16px', fontStyle:'bold' }).setOrigin(0.5);
+
+        this.skillBtnContainer.add([this.skillBg, skillIcon, this.skillOverlay, this.skillTimerText]); 
+        this.skillBg.on('pointerdown', () => this.triggerPlayerSkill()); 
     }
     
+    // Nueva función para manejar la selección
+    selectTower(index) {
+        if (this.isPaused) return;
+        if (index < 0 || index >= this.towerOrder.length) return;
+
+        this.selectedTowerIndex = index;
+        this.selectedTowerType = this.towerOrder[index];
+        this.updateUI();
+    }
+
     updateUI() { 
-        const currentTower = TOWER_TYPES[this.selectedTowerType]; 
-        if (currentTower) { 
-            if(this.economyText) this.economyText.setText(`$${this.coins}`); 
-            if(this.buildText) this.buildText.setText(`> ${currentTower.name.toUpperCase()} <\nCOSTO: $${currentTower.baseCost}`); 
-        } 
-        
+        // Actualizar textos básicos
         const pStats = gameState.playerStats; 
         if(this.livesText) this.livesText.setText(`❤️ HÉROE: ${Math.max(0, Math.floor(pStats.hp))}/${pStats.maxHp}`); 
         if(this.castleText) this.castleText.setText(`🏰 CASTILLO: ${gameState.baseHp}`); 
-        
+        if(this.economyText) this.economyText.setText(`$${this.coins}`);
+
         const hero = getCurrentHero(); 
         if (hero && this.xpBarFill && this.lvlText) { 
             const xpPercent = Math.min(1, hero.xp / hero.maxXp); 
             this.xpBarFill.width = 200 * xpPercent; 
             this.lvlText.setText(`Lvl ${hero.level}`); 
         } 
+
+        // Actualizar Cartas de Torres
+        if (this.towerCards) {
+            this.towerCards.forEach((card, i) => {
+                const isSelected = (i === this.selectedTowerIndex);
+                const canAfford = this.coins >= card.cost;
+
+                // Color del borde y fondo según selección
+                card.bg.setStrokeStyle(isSelected ? 3 : 1, isSelected ? 0x00ff00 : 0xaaaaaa);
+                card.bg.setFillStyle(isSelected ? 0x444444 : 0x222222);
+
+                // Color del precio (Rojo si no alcanza)
+                card.costText.setColor(canAfford ? '#ffd700' : '#ff0000');
+                
+                // Escala leve si está seleccionado
+                card.container.setScale(isSelected ? 1.1 : 1.0);
+            });
+        }
     }
     
     updateSkillUI() { 
         if (!this.player) return; 
         const cd = this.player.skillCooldown; 
-        const maxCd = this.player.skillMaxCooldown; 
+        
         if (cd > 0) { 
-            const progress = 1 - (cd / maxCd); 
-            if(this.skillBar) { this.skillBar.width = 200 * progress; this.skillBar.setFillStyle(0x555555); } 
-            if(this.skillText) this.skillText.setText(`${(cd / 1000).toFixed(1)}s`); 
+            this.skillOverlay.setVisible(true);
+            this.skillTimerText.setText(Math.ceil(cd / 1000));
+            this.skillBg.setStrokeStyle(3, 0x555555); // Gris cuando CD
         } else { 
-            if(this.skillBar) { this.skillBar.width = 200; this.skillBar.setFillStyle(this.theme.accent); } 
-            if(this.skillText && this.skillText.text.includes("s")) this.skillText.setText("HABILIDAD\n(Espacio)"); 
+            this.skillOverlay.setVisible(false);
+            this.skillTimerText.setText("");
+            this.skillBg.setStrokeStyle(3, 0x00ffff); // Azul activo
         } 
     }
     

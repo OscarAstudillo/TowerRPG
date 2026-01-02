@@ -139,9 +139,15 @@ export default class RefiningPanel {
         for(let mat in recipe.input) {
             const rawDef = RAW_MATERIALS[mat] || REFINED_MATERIALS[mat] || {name: mat};
             const qtyReq = recipe.input[mat];
-            const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][rKey] || 0) : 0;
             
-            reqText += `${rawDef.name} (${rarity.name}): ${qtyOwned} / ${qtyReq}\n`;
+            // --- CORRECCIÓN: Si es Carbón, forzar visualización "Común" ---
+            const isCoal = (mat === 'coal');
+            const checkRarity = isCoal ? 'common' : rKey;
+            const rarityLabel = isCoal ? 'Común' : rarity.name;
+
+            const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
+            
+            reqText += `${rawDef.name} (${rarityLabel}): ${qtyOwned} / ${qtyReq}\n`;
             if (qtyOwned < qtyReq) hasMats = false;
         }
         
@@ -160,12 +166,14 @@ export default class RefiningPanel {
         const recipe = this.selectedRecipe;
         const rKey = this.selectedRarity;
         
-        // Verificar
+        // Verificar Existencias
         for(let mat in recipe.input) {
-            // --- CAMBIO: Verificar carbón común ---
-            const checkRarity = (mat === 'coal') ? 'common' : rKey;
+            // --- CORRECCIÓN: Verificar en stock 'common' si es carbón ---
+            const isCoal = (mat === 'coal');
+            const checkRarity = isCoal ? 'common' : rKey;
+            
             const qtyOwned = gameState.materials[mat][checkRarity] || 0;
-            if (qtyOwned < recipe.input[mat]) return; 
+            if (qtyOwned < recipe.input[mat]) return; // Cancelar si falta
         }
 
         // Consumir
