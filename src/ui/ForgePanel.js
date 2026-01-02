@@ -14,15 +14,18 @@ export default class ForgePanel {
         this.container = scene.add.container(0, 0).setVisible(false);
         this.category = 'weapon';
         this.subFilter = 'all';
+
+        this.title = scene.add.text(width/2, height * 0.17, "FORJA DE EQUIPAMIENTO", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
+        this.container.add(this.title);
         
-        this.profText = scene.add.text(width/2, height * 0.17, '', { fontFamily: 'Roboto', fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
+        this.profText = scene.add.text(width/2, height * 0.20, '', { fontFamily: 'Roboto', fontSize: '25px', color: '#00ff00', align: 'center' }).setOrigin(0.5);
         this.container.add(this.profText);
 
         this.recipesContainer = scene.add.container(0, 0);
-        this.detailContainer = scene.add.container(width * 0.72, height * 0.55).setVisible(false).setDepth(2000);
+        this.detailContainer = scene.add.container(width * 0.72, height * 0.75).setVisible(false).setDepth(2000);
         this.forgeSubFilterContainer = scene.add.container(0, 0);
         
-        const catY = height * 0.22;
+        const catY = height * 0.24;
         this.createCatBtn(width * 0.2, catY, "ARMAS", 'weapon');
         this.createCatBtn(width * 0.4, catY, "ARMADURAS", 'armor');
         this.createCatBtn(width * 0.6, catY, "JOYAS", 'accessory');
@@ -50,7 +53,7 @@ export default class ForgePanel {
 
     refresh() {
         const p = gameState.professions;
-        this.profText.setText(`Niveles: Armas ${p.weaponsmith.level} | Armaduras ${p.armorsmith.level} | Joyas ${p.jewelry.level}`);
+        this.profText.setText(`Nivel Profesión: Creación de Armas ${p.weaponsmith.level}  |  Creación de Armaduras ${p.armorsmith.level}  |  Creación de Joyas ${p.jewelry.level}`);
 
         this.forgeSubFilterContainer.removeAll(true);
         let subs = [];

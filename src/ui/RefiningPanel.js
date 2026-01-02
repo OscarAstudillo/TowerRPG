@@ -48,7 +48,7 @@ export default class RefiningPanel {
 
     refresh() {
         const p = gameState.professions.refining || { level: 1, xp: 0, maxXp: 100 };
-        this.profText.setText(`Nivel: ${p.level} (${p.xp}/${p.maxXp})`);
+        this.profText.setText(`Nivel de Refinación: ${p.level} (${p.xp}/${p.maxXp})`);
         
         this.recipeList.removeAll(true);
         let y = this.height * 0.35;
