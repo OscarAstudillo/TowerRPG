@@ -18,7 +18,7 @@ export default class GameScene extends Phaser.Scene {
     constructor() {
         super('GameScene');
         this.selectedTowerType = 'archer';
-        this.selectedTowerIndex = 0; // Para tracking visual (0-5)
+        this.selectedTowerIndex = 0; 
         this.coins = 5000; 
         this.selectedTowerToUpgrade = null; 
         this.timeToNextWave = 0; 
@@ -26,8 +26,16 @@ export default class GameScene extends Phaser.Scene {
         this.isPaused = false;
         this.isSceneReady = false;
         
-        // Orden de torres para el selector (1-6)
+        // Orden y nombres cortos para las cartas
         this.towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
+        this.towerDisplayNames = {
+            'archer': 'ARQUERO',
+            'cannon': 'CAÑON',
+            'mage': 'MAGO',
+            'tesla': 'TESLA',
+            'poison': 'VENENO',
+            'quake': 'TERREMOTO'
+        };
     }
 
     init(data) {
@@ -106,24 +114,23 @@ export default class GameScene extends Phaser.Scene {
         this.sessionLoot = {}; 
         gameState.baseHp = 20;
 
-        // --- CREAR MAPA MULTI-CAMINO ---
+        // --- CREAR MAPA ---
         this.createMapFromGrid();
-        // -------------------------------
 
         this.createUpgradeUI(); 
-        this.createUI();
+        this.createUI(); // Aquí se crea el nuevo selector de torres
         this.createPauseMenu();
 
-        // --- HÉROE CENTRADO ---
+        // --- HÉROE ---
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
-        
         this.player = new Player(this, centerX, centerY, gameState.selectedClass, this.enemies, this.projectiles);
         
+        // --- INPUTS ---
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        // Selectores de Torre (Teclado)
+        // Selectores de Torre (Teclado 1-6)
         this.input.keyboard.on('keydown-ONE', () => this.selectTower(0));
         this.input.keyboard.on('keydown-TWO', () => this.selectTower(1));
         this.input.keyboard.on('keydown-THREE', () => this.selectTower(2));
@@ -143,7 +150,7 @@ export default class GameScene extends Phaser.Scene {
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
             
-            // Evitar movimiento si click en UI nueva
+            // Detectar clicks en UI para no mover al héroe
             const clickedOnUI = currentlyOver.some(obj => 
                 (this.upgradeContainer && this.upgradeContainer.visible && (obj === this.upgradeContainer || obj.parentContainer === this.upgradeContainer)) ||
                 (this.towerSelectorContainer && (obj === this.towerSelectorContainer || obj.parentContainer === this.towerSelectorContainer)) ||
@@ -157,8 +164,8 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
             
-            // Movimiento del héroe (solo si no es UI y está en zona jugable)
-            if (!clickedOnUI && pointer.y > 80 && pointer.y < (this.scale.height - 100)) { 
+            // Movimiento del héroe (zona jugable)
+            if (!clickedOnUI && pointer.y > 100 && pointer.y < (this.scale.height - 140)) { 
                 const clickedOnInteractive = currentlyOver.length > 0;
                 if (!clickedOnInteractive && this.player && this.player.setTarget) {
                     this.player.setTarget(pointer.x, pointer.y);
@@ -179,13 +186,22 @@ export default class GameScene extends Phaser.Scene {
         this.isSceneReady = true;
     }
 
+    // --- NUEVO MÉTODO DE SELECCIÓN ---
+    selectTower(index) {
+        if (this.isPaused) return;
+        if (index < 0 || index >= this.towerOrder.length) return;
+        this.selectedTowerIndex = index;
+        this.selectedTowerType = this.towerOrder[index];
+        this.updateUI(); // Actualizar visualmente las cartas
+    }
+
     createMapFromGrid() {
         const grid = this.currentLevelData.mapGrid;
         if (!grid) return;
 
         const TILE_SIZE = 64;
         const offsetX = 0; 
-        const offsetY = 120; // Espacio UI
+        const offsetY = 120; 
 
         const graphics = this.add.graphics();
         this.paths = []; 
@@ -197,45 +213,22 @@ export default class GameScene extends Phaser.Scene {
                 const x = col * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                 const y = row * TILE_SIZE + (TILE_SIZE/2) + offsetY;
 
-                // --- RENDERIZADO DE TILES ---
-                
-                // PASTO (0, 3, 4, 5) -> Ahora todos dibujan suelo verde o textura
                 if (cell === 0 || cell === 3 || cell === 4 || cell === 5) {
                     const tileKey = `tile_${cell}`;
-                    if (this.textures.exists(tileKey)) {
-                        this.add.image(x, y, tileKey).setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else if (this.textures.exists('tile_0')) {
-                        // Fallback a tile_0 si no existe tile_3/4/5
-                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        // Fallback Color
-                        graphics.fillStyle(this.theme.bg, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
+                    if (this.textures.exists(tileKey)) this.add.image(x, y, tileKey).setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    else if (this.textures.exists('tile_0')) this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    else { graphics.fillStyle(this.theme.bg, 1); graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE); }
                 }
-
-                else if (cell === 1 || (cell >= 6 && cell <= 10)) { // CAMINOS
+                else if (cell === 1 || (cell >= 6 && cell <= 10)) {
                     const tileKey = `tile_${cell}`;
-                    if (this.textures.exists(tileKey)) {
-                        this.add.image(x, y, tileKey).setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else if (this.textures.exists('tile_1')) {
-                        this.add.image(x, y, 'tile_1').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.path, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
+                    if (this.textures.exists(tileKey)) this.add.image(x, y, tileKey).setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    else if (this.textures.exists('tile_1')) this.add.image(x, y, 'tile_1').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    else { graphics.fillStyle(this.theme.path, 1); graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE); }
                     if (col === 0) startPoints.push({c: col, r: row, x, y});
                 } 
-
-                else if (cell === 2) { // TORRE
-                    // Suelo debajo
-                    if (this.textures.exists('tile_0')) {
-                        this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
-                    } else {
-                        graphics.fillStyle(this.theme.bg, 1);
-                        graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE);
-                    }
-                    
+                else if (cell === 2) { 
+                    if (this.textures.exists('tile_0')) this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    else { graphics.fillStyle(this.theme.bg, 1); graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE); }
                     const site = new BuildSite(this, x, y);
                     this.buildSites.add(site);
                     site.on('pointerdown', () => this.tryBuildTower(site));
@@ -243,22 +236,19 @@ export default class GameScene extends Phaser.Scene {
             }
         }
 
-        // Fallback start points
         if (startPoints.length === 0) {
             for (let r=0; r<grid.length; r++) {
                 for (let c=0; c<grid[0].length; c++) {
                     if (grid[r][c] === 1 || (grid[r][c] >= 6 && grid[r][c] <= 10)) {
                         const x = c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                         const y = r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
-                        startPoints.push({c:c, r:r, x, y});
-                        break; 
+                        startPoints.push({c:c, r:r, x, y}); break; 
                     }
                 }
                 if(startPoints.length > 0) break;
             }
         }
 
-        // Generar Caminos
         let globalVisited = new Set();
         const validPathCells = [1, 6, 7, 8, 9, 10]; 
 
@@ -266,23 +256,14 @@ export default class GameScene extends Phaser.Scene {
             const path = new Phaser.Curves.Path(startPoint.x, startPoint.y);
             let current = startPoint;
             let visited = new Set();
-            
             visited.add(`${current.c},${current.r}`);
             globalVisited.add(`${current.c},${current.r}`);
-            
             this.createSpawnIndicator(startPoint.x, startPoint.y, index + 1);
 
             let steps = 0;
             let finished = false;
-
             while (steps < 300 && !finished) {
-                const neighbors = [
-                    {c: current.c+1, r: current.r}, 
-                    {c: current.c, r: current.r+1}, 
-                    {c: current.c, r: current.r-1}, 
-                    {c: current.c-1, r: current.r}  
-                ];
-                
+                const neighbors = [{c: current.c+1, r: current.r}, {c: current.c, r: current.r+1}, {c: current.c, r: current.r-1}, {c: current.c-1, r: current.r}];
                 let foundNext = false;
                 for (let n of neighbors) {
                     if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
@@ -291,15 +272,11 @@ export default class GameScene extends Phaser.Scene {
                             const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                             const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
                             path.lineTo(nx, ny);
-                            visited.add(`${n.c},${n.r}`);
-                            globalVisited.add(`${n.c},${n.r}`);
-                            current = {c: n.c, r: n.r, x: nx, y: ny};
-                            foundNext = true;
-                            break; 
+                            visited.add(`${n.c},${n.r}`); globalVisited.add(`${n.c},${n.r}`);
+                            current = {c: n.c, r: n.r, x: nx, y: ny}; foundNext = true; break; 
                         }
                     }
                 }
-
                 if (!foundNext) {
                     for (let n of neighbors) {
                         if (n.r >= 0 && n.r < grid.length && n.c >= 0 && n.c < grid[0].length) {
@@ -307,10 +284,7 @@ export default class GameScene extends Phaser.Scene {
                              if (validPathCells.includes(cellVal) && globalVisited.has(`${n.c},${n.r}`) && !visited.has(`${n.c},${n.r}`)) {
                                 const nx = n.c * TILE_SIZE + (TILE_SIZE/2) + offsetX;
                                 const ny = n.r * TILE_SIZE + (TILE_SIZE/2) + offsetY;
-                                path.lineTo(nx, ny);
-                                finished = true; 
-                                foundNext = true;
-                                break;
+                                path.lineTo(nx, ny); finished = true; foundNext = true; break;
                             }
                         }
                     }
@@ -340,7 +314,7 @@ export default class GameScene extends Phaser.Scene {
             this.lastHeroLevel = hero.level;
         }
 
-        this.updateUI(); // Esto actualizará el estado visual de los botones (monedas, selección)
+        this.updateUI(); 
         this.updateSkillUI();
         
         if (this.isTimerRunning) {
@@ -355,7 +329,7 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // ... (generateLoot, startWaveTimer, startNextWaveAction, startWave, spawnEnemy, spawnBoss, checkWaveStatus, getTowerFromObject: IGUALES) ...
+    // ... (Métodos de lógica de juego: generateLoot, etc. IGUALES) ...
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
@@ -414,7 +388,7 @@ export default class GameScene extends Phaser.Scene {
     checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
     getTowerFromObject(obj) { if (obj instanceof Tower) return obj; if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); return null; }
     
-    // --- NUEVA UI (MODIFICADA) ---
+    // --- MODIFICACIÓN: createUI con Selector de Torres ---
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
@@ -425,11 +399,11 @@ export default class GameScene extends Phaser.Scene {
         this.add.rectangle(w/2, 60, w, 80, 0x111111).setScrollFactor(0).setDepth(uiDepth); 
         this.add.rectangle(w/2, 100, w, 4, accent).setScrollFactor(0).setDepth(uiDepth); 
         
-        // Stats Castillo/Héroe
+        // Stats
         this.livesText = this.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.castleText = this.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' }).setScrollFactor(0).setDepth(uiDepth + 1);
         
-        // XP y Nivel (Igual)
+        // XP
         this.xpContainer = this.add.container(0, 0).setScrollFactor(0).setDepth(uiDepth + 1);
         this.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' }).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.xpBarBg = this.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
@@ -439,7 +413,7 @@ export default class GameScene extends Phaser.Scene {
         // Oleada
         this.waveInfoText = this.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
 
-        // ORO (Movido aquí arriba)
+        // ORO (Arriba a la derecha)
         this.economyText = this.add.text(w - 30, 70, '$0', { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1);
 
         // Timer
@@ -452,37 +426,44 @@ export default class GameScene extends Phaser.Scene {
         this.waveTimerContainer.on('pointerdown', () => this.startNextWaveAction()); 
 
         // 2. NUEVA BARRA INFERIOR (Selector de Torres)
-        this.towerSelectorContainer = this.add.container(w/2, h - 60).setScrollFactor(0).setDepth(uiDepth);
+        this.towerSelectorContainer = this.add.container(w/2, h - 70).setScrollFactor(0).setDepth(uiDepth);
         
         // Fondo semi-transparente para las cartas
-        const selectorBg = this.add.rectangle(0, 0, 520, 100, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
+        const selectorBg = this.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
 
-        // Generar Cartas (1-6)
+        // Generar Cartas (1-6) - AHORA MÁS GRANDES (100x120)
         this.towerCards = [];
-        const startX = -210;
-        const gap = 85;
+        const cardWidth = 100;
+        const cardHeight = 120;
+        const gap = 110; // Espacio entre centros
+        const startX = -((gap * 5) / 2); // Centrado
 
         this.towerOrder.forEach((type, i) => {
             const card = this.add.container(startX + (i * gap), 0);
             
             // Fondo carta
-            const cardBg = this.add.rectangle(0, 0, 75, 90, 0x222222).setInteractive({useHandCursor:true});
+            const cardBg = this.add.rectangle(0, 0, cardWidth, cardHeight, 0x222222).setInteractive({useHandCursor:true});
             cardBg.setStrokeStyle(1, 0xaaaaaa);
             
-            // Nombre
-            const name = this.add.text(0, -25, TOWER_TYPES[type].name.substring(0,3).toUpperCase(), { fontSize:'12px', fontStyle:'bold' }).setOrigin(0.5);
+            // Icono (Color de la torre)
+            const stats = TOWER_TYPES[type];
+            const icon = this.add.rectangle(0, -20, 50, 50, stats.color || 0x888888);
+
+            // Nombre (USAMOS EL DICCIONARIO DE NOMBRES CORTOS)
+            const displayName = this.towerDisplayNames[type] || "TORRE";
+            const name = this.add.text(0, -50, displayName, { fontSize:'10px', fontStyle:'bold' }).setOrigin(0.5);
             
             // Costo
-            const cost = TOWER_TYPES[type].baseCost;
-            const costText = this.add.text(0, 5, `$${cost}`, { fontSize:'14px', color:'#ffd700' }).setOrigin(0.5);
+            const cost = TOWER_COSTS[type];
+            const costText = this.add.text(0, 25, `$${cost}`, { fontSize:'16px', color:'#ffd700', fontStyle:'bold' }).setOrigin(0.5);
             
             // Hotkey
-            const key = this.add.text(0, 30, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
+            const key = this.add.text(0, 45, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
 
             cardBg.on('pointerdown', () => this.selectTower(i));
 
-            card.add([cardBg, name, costText, key]);
+            card.add([cardBg, icon, name, costText, key]);
             this.towerSelectorContainer.add(card);
             
             // Guardamos referencias para actualizar visualmente
@@ -504,16 +485,6 @@ export default class GameScene extends Phaser.Scene {
         this.skillBg.on('pointerdown', () => this.triggerPlayerSkill()); 
     }
     
-    // Nueva función para manejar la selección
-    selectTower(index) {
-        if (this.isPaused) return;
-        if (index < 0 || index >= this.towerOrder.length) return;
-
-        this.selectedTowerIndex = index;
-        this.selectedTowerType = this.towerOrder[index];
-        this.updateUI();
-    }
-
     updateUI() { 
         // Actualizar textos básicos
         const pStats = gameState.playerStats; 
