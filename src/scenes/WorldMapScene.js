@@ -1,4 +1,3 @@
-// src/scenes/WorldMapScene.js
 import Phaser from 'phaser';
 import { gameState } from '../config/GameState.js';
 import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js';
@@ -24,7 +23,10 @@ export default class WorldMapScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
-        this.bgImage = this.add.image(w/2, h/2, 'bg_forest').setDisplaySize(w, h).setDepth(-10);
+        // Inicializamos la imagen de fondo (se actualizará inmediatamente en updateBiomeView)
+        this.bgImage = this.add.image(w/2, h/2, 'bg_forest')
+            .setDisplaySize(w, h)
+            .setDepth(-10);
         
         this.add.text(w/2, 50, "MAPA DEL MUNDO", {
             fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
@@ -85,9 +87,34 @@ export default class WorldMapScene extends Phaser.Scene {
         const biomeKey = this.biomeKeys[this.currentBiomeIndex];
         const biomeData = BIOMES[biomeKey];
 
-        const bgKey = `bg_${biomeKey}`;
-        if (this.textures.exists(bgKey)) this.bgImage.setTexture(bgKey);
-        else this.bgImage.setTexture('bg_forest');
+        // --- LÓGICA DE FONDO ACTUALIZADA ---
+        let targetBgKey = `bg_${biomeKey}`; // Por defecto busca bg_forest, bg_mountain, etc.
+
+        // Si es bosque, damos prioridad a tu imagen "Fondo_Bosque" si existe
+        if (biomeKey === 'forest') {
+            if (this.textures.exists('Fondo_Bosque')) targetBgKey = 'Fondo_Bosque';
+            else if (this.textures.exists('bg_map_forest')) targetBgKey = 'bg_map_forest';
+        }
+        if (biomeKey === 'mountain') {
+            if (this.textures.exists('Fondo_Montaña')) targetBgKey = 'Fondo_Montaña';
+            else if (this.textures.exists('bg_map_mountain')) targetBgKey = 'bg_map_mountain';
+        }
+        if (biomeKey === 'volcano') {
+            if (this.textures.exists('Fondo_Volcan')) targetBgKey = 'Fondo_Volcan';
+            else if (this.textures.exists('bg_map_volcano')) targetBgKey = 'bg_map_volcano';
+        }
+
+        // Aplicar textura si existe, si no, mantener la actual o poner un color
+        if (this.textures.exists(targetBgKey)) {
+            this.bgImage.setTexture(targetBgKey);
+            this.bgImage.setTint(0xffffff); // Limpiar tinta
+        } else {
+            // Fallback visual si no hay imagen
+            this.bgImage.setTexture('pixel'); 
+            this.bgImage.setTint(biomeData.color); 
+        }
+        this.bgImage.setDisplaySize(this.scale.width, this.scale.height);
+        // -----------------------------------
 
         if (this.biomeTitle) this.biomeTitle.destroy();
         this.biomeTitle = this.add.text(this.scale.width / 2, 100, `ZONA: ${biomeData.name.toUpperCase()}`, {
@@ -140,17 +167,12 @@ export default class WorldMapScene extends Phaser.Scene {
         let x = startX;
         let y = startY;
         
-        // --- CORRECCIÓN: USAR PROGRESO POR BIOMA ---
         if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
         const maxLevelForThisBiome = gameState.biomeLevels[biomeKey] || 1;
-        // -------------------------------------------
 
         for (let i = 1; i <= 10; i++) {
             const levelId = i;
-            
-            // --- CORRECCIÓN: COMPARAR SOLO CON EL BIOMA ACTUAL ---
             const isUnlocked = levelId <= maxLevelForThisBiome;
-            // -----------------------------------------------------
             
             const btn = this.add.rectangle(x, y, 80, 80, isUnlocked ? 0x222222 : 0x111111)
                 .setStrokeStyle(2, isUnlocked ? 0x00ff00 : 0x550000);

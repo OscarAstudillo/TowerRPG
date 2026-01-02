@@ -1,4 +1,3 @@
-// src/scenes/PreloadScene.js
 import Phaser from 'phaser';
 
 export default class PreloadScene extends Phaser.Scene {
@@ -33,35 +32,30 @@ export default class PreloadScene extends Phaser.Scene {
             loadingText.destroy();
         });
 
-        // --- CARGA DE ASSETS (AQUÍ ES DONDE AGREGAS TUS IMÁGENES) ---
-        // La carpeta 'public' es la raíz del servidor, así que la ruta es 'assets/images/...'
+        // --- CARGA DE ASSETS ---
         
-        // PASTO (Tile 0)
+        // TILES (Tus texturas de 64x64)
         this.load.image('tile_0', 'assets/images/tile_0.jpg'); 
-        // camino (Tile 1)
-        this.load.image('tile_1', 'assets/images/tile_1.jpg');
-        //BASE TORRE (Tile 2)
-        this.load.image('tile_2', 'assets/images/tile_2.jpg');
-        // pasto (Tile 3)
+        this.load.image('tile_1', 'assets/images/tile_1.jpg'); 
+        this.load.image('tile_2', 'assets/images/tile_2.jpg'); 
         this.load.image('tile_3', 'assets/images/tile_3.jpg'); 
-        // PASTO (Tile 4)
-        this.load.image('tile_4', 'assets/images/tile_4.jpg');
-         // PASTO (Tile 5)
+        this.load.image('tile_4', 'assets/images/tile_4.jpg'); 
         this.load.image('tile_5', 'assets/images/tile_5.jpg'); 
-        // camino derecha abajo
-        // (Tile 6)
-        this.load.image('tile_6', 'assets/images/tile_6.jpg');
+        this.load.image('tile_6', 'assets/images/tile_6.jpg'); 
+        this.load.image('tile_7', 'assets/images/tile_7.jpg'); 
+        this.load.image('tile_8', 'assets/images/tile_8.jpg'); 
+        this.load.image('tile_9', 'assets/images/tile_9.jpg'); 
+        this.load.image('tile_10', 'assets/images/tile_10.jpg');
 
-
-
-        
-        // EJEMPLO: Si agregas más imágenes en el futuro, cárgalas aquí así:
-        // this.load.image('tile_1', 'assets/images/camino.jpg'); 
-        // this.load.image('tile_3', 'assets/images/arbol.png');
+        // FONDOS DE MAPA (NUEVO)
+        // Asegúrate de que el nombre del archivo coincida exactamente (mayúsculas/minúsculas)
+        this.load.image('bg_map_forest', 'assets/images/Fondo_Bosque.jpg'); 
+        this.load.image('bg_map_mountain', 'assets/images/Fondo_Montaña.jpg'); 
+        this.load.image('bg_map_volcano', 'assets/images/Fondo_Volcan.jpg');
     }
 
     create() {
-        // --- GENERACIÓN DE SPRITES PROCEDURALES (Fallback por si no hay imágenes) ---
+        // ... (El resto de tu código de generación de texturas se mantiene igual)
         
         // 1. FONDOS
         this.createBackgroundTexture('bg_splash', 0x000033, 0x000000); 
@@ -110,11 +104,10 @@ export default class PreloadScene extends Phaser.Scene {
             px.generateTexture('pixel', 4, 4);
         }
 
-        // Iniciar el juego
         this.scene.start('SplashScreen');
     }
 
-    // --- HELPERS PARA DIBUJAR ---
+    // ... (Helpers createBackgroundTexture, createHeroTexture, etc. siguen igual)
     createBackgroundTexture(key, color1, color2) {
         const w = 1280, h = 720;
         const g = this.make.graphics({x:0, y:0, add:false});
@@ -122,7 +115,6 @@ export default class PreloadScene extends Phaser.Scene {
         g.fillRect(0, 0, w, h);
         g.generateTexture(key, w, h);
     }
-
     createHeroTexture(key, color, weapon) {
         const g = this.make.graphics({x:0, y:0, add:false});
         g.fillStyle(color); g.fillRect(10, 10, 44, 44);
@@ -131,27 +123,23 @@ export default class PreloadScene extends Phaser.Scene {
         g.fillStyle(0x000000); g.fillRect(24, 20, 4, 4); g.fillRect(36, 20, 4, 4); 
         g.generateTexture(key, 64, 64);
     }
-
     createItemTexture(key, color, type) {
         const g = this.make.graphics({x:0, y:0, add:false});
         g.fillStyle(0x222222); g.fillCircle(20, 20, 18); 
         g.fillStyle(color); g.fillCircle(20, 20, 10);
         g.generateTexture(key, 40, 40);
     }
-
     createMaterialTexture(key, color) {
         const g = this.make.graphics({x:0, y:0, add:false});
         g.fillStyle(color); g.fillCircle(16, 16, 12);
         g.generateTexture(key, 32, 32);
     }
-
     createEnemyTexture(key, color, isBoss=false) {
         const s = isBoss ? 64 : 32;
         const g = this.make.graphics({x:0, y:0, add:false});
         g.fillStyle(color); g.fillRect(0, 0, s, s);
         g.generateTexture(key, s, s);
     }
-
     createBaseTowerTexture() {
         const t = this.make.graphics({x:0, y:0, add:false});
         t.fillStyle(0xffffff); t.fillRect(0, 0, 40, 40); 
