@@ -8,11 +8,14 @@ export default class TowersPanel {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         this.towerViewPage = 0; // 0 = Básicas, 1 = Especiales
+
+         this.title = scene.add.text(width/2, height * 0.17, "TORRES", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
+        this.container.add(this.title);
         
         this.towersPageContainer = scene.add.container(0, 0);
         this.container.add(this.towersPageContainer);
 
-        const toggleBtn = scene.add.text(width/2, height * 0.18, "VER MÁS TORRES >", { 
+        const toggleBtn = scene.add.text(width/2, height * 0.21, "VER MÁS TORRES >", { 
             fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#00ffff' 
         }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
         

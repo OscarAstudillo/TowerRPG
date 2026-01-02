@@ -17,6 +17,9 @@ export default class HeroPanel {
         const panelX = width * 0.30; // Movido a la izquierda
         const panelY = height / 2 + 50;
 
+         this.title = scene.add.text(width/2, height * 0.17, "PANEL DE HÉROE", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
+        this.container.add(this.title);
+
         // Fondo del Panel Principal
         const statsBg = scene.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(3, 0xffd700); 
         this.container.add(statsBg); 
@@ -46,17 +49,27 @@ export default class HeroPanel {
 
 
         // ============================================================
-        // 2. PANEL DE MEJORAS (DERECHA) - Debajo del botón Misiones
+        // 2. PANEL DE MEJORAS (DERECHA)
         // ============================================================
-        const upgradeX = width - 220; // Alineado a la derecha (ajustado)
-        const upgradeY = height * 0.35; // Posición vertical ajustada
+        const upgradeX = width - 220; 
+        const upgradeY = height * 0.35; 
 
-        // Fondo para la zona de mejoras (Más ancho: 400px, Alto: 560px)
+        // Fondo para la zona de mejoras (Ancho: 400, Alto: 560)
         const upgradeBg = scene.add.rectangle(upgradeX, upgradeY + 200, 400, 560, 0x000000, 0.8).setStrokeStyle(2, 0x00ff00);
         this.container.add(upgradeBg);
 
-        this.pointsText = scene.add.text(upgradeX, upgradeY + 30, "PUNTOS DE HABILIDAD: 0", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold', stroke: '#be3a3aff', strokeThickness: 3 }).setOrigin(0.5); 
+        // TEXTO PUNTOS DE HABILIDAD (Corregido)
+        this.pointsText = scene.add.text(upgradeX, upgradeY + 30, "PUNTOS DE HABILIDAD: 0", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5); 
         this.container.add(this.pointsText); 
+
+        // --- ENCABEZADOS DE COLUMNAS (NUEVO) ---
+        // Texto sobre columna verde (x1)
+        const labelCol1 = scene.add.text(upgradeX - 50, upgradeY + 80, "Gastar 1\nPunto Habilidad", { fontFamily: 'Roboto', fontSize: '15px', color: '#00ff00', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
+        this.container.add(labelCol1);
+
+        // Texto sobre columna roja (x10)
+        const labelCol2 = scene.add.text(upgradeX + 90, upgradeY + 80, "Gastar 10\nPuntos Habilidad", { fontFamily: 'Roboto', fontSize: '15px', color: '#ff5555', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
+        this.container.add(labelCol2);
 
         this.statButtonsContainer = scene.add.container(0, 0);
         this.container.add(this.statButtonsContainer);
@@ -68,7 +81,9 @@ export default class HeroPanel {
             { label: "Defensa (+1)", key: 'defense' } 
         ]; 
         
-        let btnY = upgradeY + 90;
+        // Ajustamos la posición inicial Y de los botones para dar espacio a los nuevos textos
+        let btnY = upgradeY + 140; 
+
         statsToUpgrade.forEach((s) => { 
             this.createUpgradeRow(upgradeX, btnY, s.label, s.key); 
             btnY += 60; // Espaciado vertical
@@ -118,7 +133,6 @@ export default class HeroPanel {
         const hero = getCurrentHero(); 
         const clsName = (gameState.selectedClass || "DESCONOCIDO").toUpperCase(); 
         
-        // Formateo Stats
         const attacksPerSecond = (1000 / s.attackSpeed).toFixed(2);
         const atkSpeedTxt = `${attacksPerSecond} Atk/s (${s.attackSpeed}ms)`; 
         const dmgReduction = (s.defense * 0.25).toFixed(1);
@@ -196,7 +210,9 @@ export default class HeroPanel {
         this.heroSetsText.setText(setsText);
 
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); 
-        this.pointsText.setText(`PUNTOS: ${hero.statPoints}`); 
+        
+        // AQUÍ ESTABA EL ERROR: Antes sobrescribía con "PUNTOS: X". Ahora lo corregimos:
+        this.pointsText.setText(`PUNTOS DE HABILIDAD: ${hero.statPoints}`); 
     }
 
     safeAddItemToInventory(item) { 

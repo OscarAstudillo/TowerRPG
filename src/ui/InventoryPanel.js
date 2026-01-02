@@ -13,6 +13,9 @@ export default class InventoryPanel {
         this.category = 'all'; 
         this.page = 0;
         this.itemsPerPage = 9; // 3x3 Grid
+
+         this.title = scene.add.text(width/2, height * 0.17, "MOCHILA", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
+        this.container.add(this.title);
         
         // Elementos UI
         this.gridContainer = scene.add.container(width * 0.28, height * 0.3);
@@ -20,7 +23,7 @@ export default class InventoryPanel {
         this.infoText = scene.add.text(50, height * 0.25, '', { fontFamily: 'Roboto', fontSize: '14px', color: '#fff' });
 
         // Botones Categoría
-        const catY = height * 0.18;
+        const catY = height * 0.21;
         this.createCategoryBtn(width/2 - 300, catY, "EQUIPO", 'all');
         this.createCategoryBtn(width/2, catY, "TORRES", 'tower_part');
         this.createCategoryBtn(width/2 + 300, catY, "MATERIALES", 'mats');
