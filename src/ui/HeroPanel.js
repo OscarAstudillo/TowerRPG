@@ -14,8 +14,8 @@ export default class HeroPanel {
         // ============================================================
         const panelWidth = 750; 
         const panelHeight = 600; 
-        const panelX = width * 0.38; // Movido a la izquierda
-        const panelY = height / 2 + 30;
+        const panelX = width * 0.30; // Movido a la izquierda
+        const panelY = height / 2 + 50;
 
         // Fondo del Panel Principal
         const statsBg = scene.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(3, 0xffd700); 
@@ -29,33 +29,33 @@ export default class HeroPanel {
         const col1X = panelX - 180;
         const startY = panelY - 200;
 
-        this.heroStatsText = scene.add.text(col1X - 160, startY, '', { fontFamily: 'Roboto', fontSize: '15px', lineHeight: 24, color: '#fff' }); 
+        this.heroStatsText = scene.add.text(col1X - 160, startY, '', { fontFamily: 'Roboto', fontSize: '20px', lineHeight: 24, color: '#fff' }); 
         this.container.add(this.heroStatsText); 
 
         // --- COLUMNA 2: EQUIPAMIENTO (Dentro del panel, lado derecho) ---
         const col2X = panelX + 180;
         
-        const equipTitle = scene.add.text(col2X, startY, "-- EQUIPAMIENTO --", { fontFamily: 'Cinzel', fontSize: '18px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        const equipTitle = scene.add.text(col2X, startY, "-- EQUIPAMIENTO --", { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.container.add(equipTitle);
 
         this.equippedTextContainer = scene.add.container(col2X, startY + 40); 
         this.container.add(this.equippedTextContainer); 
         
-        this.heroSetsText = scene.add.text(col2X, panelY + 120, '', { fontFamily: 'Roboto', fontSize: '13px', color: '#ffff00', lineHeight: 20, align: 'center' }).setOrigin(0.5, 0);
+        this.heroSetsText = scene.add.text(col2X, panelY + 70, '', { fontFamily: 'Roboto', fontSize: '18px', color: '#ffff00', lineHeight: 20, align: 'center' }).setOrigin(0.5, 0);
         this.container.add(this.heroSetsText);
 
 
         // ============================================================
         // 2. PANEL DE MEJORAS (DERECHA) - Debajo del botón Misiones
         // ============================================================
-        const upgradeX = width - 180; // Alineado a la derecha
-        const upgradeY = height * 0.25; // Debajo del botón de misiones (aprox)
+        const upgradeX = width - 220; // Alineado a la derecha (ajustado)
+        const upgradeY = height * 0.35; // Posición vertical ajustada
 
-        // Fondo para la zona de mejoras
-        const upgradeBg = scene.add.rectangle(upgradeX, upgradeY + 200, 300, 450, 0x000000, 0.8).setStrokeStyle(2, 0x00ff00);
+        // Fondo para la zona de mejoras (Más ancho: 400px, Alto: 560px)
+        const upgradeBg = scene.add.rectangle(upgradeX, upgradeY + 200, 400, 560, 0x000000, 0.8).setStrokeStyle(2, 0x00ff00);
         this.container.add(upgradeBg);
 
-        this.pointsText = scene.add.text(upgradeX, upgradeY + 30, "PUNTOS: 0", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5); 
+        this.pointsText = scene.add.text(upgradeX, upgradeY + 30, "PUNTOS DE HABILIDAD: 0", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold', stroke: '#be3a3aff', strokeThickness: 3 }).setOrigin(0.5); 
         this.container.add(this.pointsText); 
 
         this.statButtonsContainer = scene.add.container(0, 0);
