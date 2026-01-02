@@ -132,7 +132,8 @@ export default class RefiningPanel {
         let reqText = `Calidad: ${rarity.name.toUpperCase()}\n\n-- REQUISITOS --\n`;
         
         for(let mat in recipe.input) {
-            const rawDef = RAW_MATERIALS[mat] || {name: mat};
+            // FIX: Buscar nombre en RAW_MATERIALS O REFINED_MATERIALS
+            const rawDef = RAW_MATERIALS[mat] || REFINED_MATERIALS[mat] || {name: mat}; 
             const qtyReq = recipe.input[mat];
             const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][rKey] || 0) : 0;
             
