@@ -22,7 +22,7 @@ export default class ForgePanel {
         this.container.add(this.profText);
 
         this.recipesContainer = scene.add.container(0, 0);
-        this.detailContainer = scene.add.container(width * 0.72, height * 0.75).setVisible(false).setDepth(2000);
+        this.detailContainer = scene.add.container(width * 0.72, height * 0.62).setVisible(false).setDepth(2000);
         this.forgeSubFilterContainer = scene.add.container(0, 0);
         
         const catY = height * 0.24;
@@ -53,7 +53,7 @@ export default class ForgePanel {
 
     refresh() {
         const p = gameState.professions;
-        this.profText.setText(`Nivel Profesión: Creación de Armas ${p.weaponsmith.level}  |  Creación de Armaduras ${p.armorsmith.level}  |  Creación de Joyas ${p.jewelry.level}`);
+        this.profText.setText(`Nivel Profesión: Creación de Armas ${p.weaponsmith.level}  |  Creación de Armaduras ${p.armorsmith.level}  | Creación de Joyas ${p.jewelry.level}`);
 
         this.forgeSubFilterContainer.removeAll(true);
         let subs = [];
