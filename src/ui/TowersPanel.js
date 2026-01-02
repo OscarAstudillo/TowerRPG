@@ -1,5 +1,6 @@
 import { gameState, getTowerBonuses } from '../config/GameState.js';
 import SaveSystem from '../systems/SaveSystem.js';
+import { TOWER_TYPES } from '../config/TowerStats.js'; // Importamos los datos de las torres
 
 export default class TowersPanel {
     constructor(scene, x, y, width, height) {
@@ -8,14 +9,11 @@ export default class TowersPanel {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         this.towerViewPage = 0; // 0 = Básicas, 1 = Especiales
-
-         this.title = scene.add.text(width/2, height * 0.17, "TORRES", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
-        this.container.add(this.title);
         
         this.towersPageContainer = scene.add.container(0, 0);
         this.container.add(this.towersPageContainer);
 
-        const toggleBtn = scene.add.text(width/2, height * 0.21, "VER MÁS TORRES >", { 
+        const toggleBtn = scene.add.text(width/2, height * 0.18, "VER MÁS TORRES >", { 
             fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#00ffff' 
         }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
         
@@ -46,6 +44,22 @@ export default class TowersPanel {
         const startX = this.width * 0.2; 
         const gap = this.width * 0.3; 
 
+        // Diccionario de descripciones para las evoluciones
+        const evoDescriptions = {
+            'sniper': "Rango extremo y daño crítico.",
+            'gatling': "Dispara ráfagas a gran velocidad.",
+            'missile': "Proyectiles de alto impacto.",
+            'bigbertha': "Explosión de gran área masiva.",
+            'fire': "Quema enemigos (Daño por tiempo).",
+            'ice': "Congela y ralentiza el avance.",
+            'superconductor': "Rayos que saltan a 5 enemigos.",
+            'static': "Paraliza objetivos brevemente.",
+            'venom': "Veneno letal de larga duración.",
+            'acid': "Corroe y reduce la armadura.",
+            'eruption': "Crea zonas de lava que queman.",
+            'fissure': "Golpe sísmico con Stun."
+        };
+
         currentTypes.forEach((type, i) => { 
             const x = startX + (i * gap); 
             const y = this.height * 0.25; 
@@ -72,6 +86,7 @@ export default class TowersPanel {
             
             this.towersPageContainer.add([title, statsText]); 
             
+            // Slots
             for (let s = 1; s <= 2; s++) { 
                 const slotY = y + 200 + (s * 80); 
                 const slotBg = this.scene.add.rectangle(x, slotY, 240, 60, 0x222222).setStrokeStyle(1, 0xffffff).setInteractive({ useHandCursor: true }); 
@@ -91,7 +106,43 @@ export default class TowersPanel {
                 }); 
                 
                 this.towersPageContainer.add([slotBg, slotTxt]); 
-            } 
+            }
+
+            // ==================================================================================
+            // --- NUEVO: INFORMACIÓN DE LA TORRE Y SUS MEJORAS ---
+            // ==================================================================================
+            const infoY = y + 490; // Posición inferior
+            const staticStats = TOWER_TYPES[type];
+
+            // Construir texto: Descripción Base + Evoluciones con sus efectos
+            let fullInfoText = staticStats.description || "Sin información.";
+            
+            if (staticStats.evolutions) {
+                const evoA = staticStats.evolutions.pathA;
+                const evoB = staticStats.evolutions.pathB;
+                
+                // Usamos el diccionario para obtener la descripción de la habilidad
+                const descA = evoDescriptions[evoA.key] || "Habilidad especial.";
+                const descB = evoDescriptions[evoB.key] || "Habilidad especial.";
+
+                fullInfoText += `\n\n--- EVOLUCIONES (Nvl 4) ---`;
+                fullInfoText += `\n[A] ${evoA.name}:\n${descA}`;
+                fullInfoText += `\n\n[B] ${evoB.name}:\n${descB}`;
+            }
+
+            // Fondo para el texto
+            const descBg = this.scene.add.rectangle(x, infoY, 280, 180, 0x000000, 0.8).setStrokeStyle(1, 0x00ff00);
+            
+            const descText = this.scene.add.text(x, infoY, fullInfoText, { 
+                fontFamily: 'Roboto', 
+                fontSize: '12px', 
+                color: '#cccccc', 
+                align: 'center', 
+                wordWrap: { width: 260 } 
+            }).setOrigin(0.5);
+
+            this.towersPageContainer.add([descBg, descText]);
+            // ==================================================================================
         }); 
     }
     
