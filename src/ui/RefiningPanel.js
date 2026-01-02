@@ -62,14 +62,23 @@ export default class RefiningPanel {
         });
 
         filtered.forEach(recipe => {
+            // Nombre del producto final (Output)
             const product = REFINED_MATERIALS[recipe.output]?.name || recipe.output;
+            
+            // --- CORRECCIÓN: Obtener nombre del material base (Input) ---
+            // Tomamos la primera clave del objeto 'input' (ej: 'wood')
+            const inputKey = Object.keys(recipe.input)[0];
+            // Buscamos su definición en RAW o REFINED para obtener el nombre real (ej: 'Madera')
+            const inputDef = RAW_MATERIALS[inputKey] || REFINED_MATERIALS[inputKey] || {name: inputKey};
+            const inputName = inputDef.name; 
+            // -----------------------------------------------------------
             
             const btn = this.scene.add.rectangle(this.width/2, y, 700, 50, 0x222222).setStrokeStyle(1, 0x00ff00);
             btn.setInteractive({useHandCursor:true}); 
             btn.on('pointerdown', () => this.showRefineDetail(recipe)); 
             
-            // Mostrar nombre genérico de la receta
-            const txt = this.scene.add.text(this.width/2, y, `${recipe.name} -> ${product}`, { fontFamily: 'Roboto', fontSize: '16px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
+            // Ahora mostramos: "Madera -> Tablón de Madera"
+            const txt = this.scene.add.text(this.width/2, y, `${inputName} -> ${product}`, { fontFamily: 'Roboto', fontSize: '16px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
             
             this.recipeList.add([btn, txt]);
             y += 60;
@@ -132,8 +141,7 @@ export default class RefiningPanel {
         let reqText = `Calidad: ${rarity.name.toUpperCase()}\n\n-- REQUISITOS --\n`;
         
         for(let mat in recipe.input) {
-            // FIX: Buscar nombre en RAW_MATERIALS O REFINED_MATERIALS
-            const rawDef = RAW_MATERIALS[mat] || REFINED_MATERIALS[mat] || {name: mat}; 
+            const rawDef = RAW_MATERIALS[mat] || REFINED_MATERIALS[mat] || {name: mat};
             const qtyReq = recipe.input[mat];
             const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][rKey] || 0) : 0;
             
