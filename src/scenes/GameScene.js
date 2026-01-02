@@ -57,11 +57,9 @@ export default class GameScene extends Phaser.Scene {
         const hero = getCurrentHero();
         this.lastHeroLevel = hero ? hero.level : 1;
         
-        // --- CORRECCIÓN IMPORTANTE: RESETEAR ESTADOS ---
         this.isSceneReady = false; 
         this.isPaused = false;
-        this.time.paused = false; // Asegurar que el reloj no esté pausado de una sesión anterior
-        // -----------------------------------------------
+        this.time.paused = false;
 
         this.totalWaves = this.currentLevelData.waves || 3;
         this.hpMultiplier = this.currentLevelData.hpMult || 1;
@@ -128,7 +126,6 @@ export default class GameScene extends Phaser.Scene {
         const centerY = this.scale.height / 2;
         this.player = new Player(this, centerX, centerY, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // --- INPUTS: Limpiar antes de agregar para evitar duplicados ---
         this.input.keyboard.removeAllListeners(); 
         
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
@@ -187,11 +184,9 @@ export default class GameScene extends Phaser.Scene {
         this.isSceneReady = true;
     }
 
-    // --- LIMPIEZA DE ESCENA (NUEVO) ---
-    // Este método asegura que todo se apague correctamente al salir
     cleanUpScene() {
         this.isPaused = false;
-        this.time.paused = false; // CRÍTICO: Reactivar el reloj interno
+        this.time.paused = false; 
         this.physics.resume();
         this.tweens.resumeAll();
         
@@ -424,9 +419,6 @@ export default class GameScene extends Phaser.Scene {
         // Oleada
         this.waveInfoText = this.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
 
-        // ORO
-        this.economyText = this.add.text(w - 30, 70, '$0', { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1);
-
         // Timer
         this.waveTimerContainer = this.add.container(w/2, 60).setScrollFactor(0).setDepth(uiDepth + 2); 
         this.waveTimerContainer.setSize(320, 60); this.waveTimerContainer.setInteractive({ useHandCursor: true }); 
@@ -442,6 +434,11 @@ export default class GameScene extends Phaser.Scene {
         // Fondo semi-transparente para las cartas
         const selectorBg = this.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
+
+        // --- MOVEMOS EL DINERO AQUÍ (Sobre las cartas) ---
+        this.economyText = this.add.text(0, -90, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        this.towerSelectorContainer.add(this.economyText);
+        // --------------------------------------------------
 
         // Generar Cartas (1-6) - 100x120
         this.towerCards = [];
@@ -480,19 +477,29 @@ export default class GameScene extends Phaser.Scene {
             this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
         });
 
-        // 3. BOTÓN HABILIDAD
-        this.skillBtnContainer = this.add.container(w - 70, h - 70).setScrollFactor(0).setDepth(uiDepth + 1); 
-        this.skillBg = this.add.circle(0, 0, 40, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true }); 
-        const skillIcon = this.add.text(0, 0, "⚡", { fontSize: '32px' }).setOrigin(0.5);
-        this.skillOverlay = this.add.circle(0, 0, 40, 0x000000, 0.7).setVisible(false);
-        this.skillTimerText = this.add.text(0, 0, "", { fontSize:'16px', fontStyle:'bold' }).setOrigin(0.5);
+        // 3. BOTÓN HABILIDAD (MODIFICADO: Más grande, más arriba, texto cambiado)
+        const skillY = h - 140; // Más arriba
+        this.skillBtnContainer = this.add.container(w - 90, skillY).setScrollFactor(0).setDepth(uiDepth + 1); 
+        
+        // Radio aumentado a 50 (era 40)
+        this.skillBg = this.add.circle(0, 0, 50, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true }); 
+        
+        // Icono (un poco más arriba para dar espacio al texto)
+        const skillIcon = this.add.text(0, -10, "⚡", { fontSize: '40px' }).setOrigin(0.5);
+        
+        // Texto añadido
+        const skillLabel = this.add.text(0, 25, "Habilidad\n(Espacio)", { 
+            fontFamily: 'Roboto', fontSize: '12px', align: 'center', color: '#ffffff' 
+        }).setOrigin(0.5);
 
-        this.skillBtnContainer.add([this.skillBg, skillIcon, this.skillOverlay, this.skillTimerText]); 
+        this.skillOverlay = this.add.circle(0, 0, 50, 0x000000, 0.7).setVisible(false);
+        this.skillTimerText = this.add.text(0, -10, "", { fontSize:'20px', fontStyle:'bold' }).setOrigin(0.5);
+
+        this.skillBtnContainer.add([this.skillBg, skillIcon, skillLabel, this.skillOverlay, this.skillTimerText]); 
         this.skillBg.on('pointerdown', () => this.triggerPlayerSkill()); 
     }
     
     updateUI() { 
-        // Actualizar textos básicos
         const pStats = gameState.playerStats; 
         if(this.livesText) this.livesText.setText(`❤️ HÉROE: ${Math.max(0, Math.floor(pStats.hp))}/${pStats.maxHp}`); 
         if(this.castleText) this.castleText.setText(`🏰 CASTILLO: ${gameState.baseHp}`); 
@@ -505,7 +512,6 @@ export default class GameScene extends Phaser.Scene {
             this.lvlText.setText(`Lvl ${hero.level}`); 
         } 
 
-        // Actualizar Cartas
         if (this.towerCards) {
             this.towerCards.forEach((card, i) => {
                 const isSelected = (i === this.selectedTowerIndex);
@@ -730,12 +736,10 @@ export default class GameScene extends Phaser.Scene {
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true }); 
         const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); 
         
-        // --- CORRECCIÓN AQUÍ: Limpiar todo antes de salir ---
         exitBtn.on('pointerdown', () => { 
             this.cleanUpScene(); 
             this.scene.start('MainMenuScene'); 
         }); 
-        // ----------------------------------------------------
 
         this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); 
     }
@@ -745,7 +749,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.isPaused) { 
             this.physics.pause(); 
             this.tweens.pauseAll(); 
-            this.time.paused = true; // Pausar reloj interno
+            this.time.paused = true; 
             
             if(this.enemies) this.enemies.runChildUpdate = false;
             if(this.projectiles) this.projectiles.runChildUpdate = false;
@@ -755,7 +759,7 @@ export default class GameScene extends Phaser.Scene {
         } else { 
             this.physics.resume(); 
             this.tweens.resumeAll(); 
-            this.time.paused = false; // Reanudar reloj interno
+            this.time.paused = false; 
             
             if(this.enemies) this.enemies.runChildUpdate = true;
             if(this.projectiles) this.projectiles.runChildUpdate = true;
