@@ -2,6 +2,28 @@
 import { ITEM_SETS } from './ItemSets.js';
 import { TALENTS } from './Talents.js';
 
+// --- CONSTANTES GLOBALES FALTANTES (ESTO SOLUCIONA EL ERROR) ---
+export const BASE_STATS = {
+    hp: 20,    // Vida base del castillo
+    gold: 400  // Oro inicial base (si no lo sobreescribe el nivel)
+};
+
+export const TOWER_COSTS = {
+    archer: 100,
+    cannon: 150,
+    mage: 120,
+    tesla: 180,
+    poison: 130,
+    quake: 200
+};
+
+export const ENEMY_STATS = {
+    hpMult: 1,
+    speedMult: 1,
+    coinMult: 1
+};
+// -------------------------------------------------------------
+
 const CLASS_BASE_STATS = {
     guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000, range: 100 },
     arquero: { hp: 100, damage: 12, defense: 2, attackSpeed: 800, range: 350 },
@@ -228,7 +250,6 @@ export function canEquipItem(classId, item) {
 }
 
 export function getTalentBonuses() {
-    // ... (Tu código original de getTalentBonuses se mantiene igual) ...
     const bonuses = { damage: 0, damageMult: 0, maxHp: 0, maxHpMult: 0, defense: 0, attackSpeed: 0, critChance: 0, critDamage: 0, lifesteal: 0, regenHp: 0, thorns: 0, rangeMult: 0, moveSpeedMult: 0, cdr: 0, block_chance: 0, double_strike: 0, pierce: 0, skillDamage: 0, towerDamage: 0, towerRange: 0, towerCost: 0 };
     const hero = getCurrentHero();
     if (!hero || !hero.talents || hero.talents.length === 0) return bonuses;
@@ -266,7 +287,7 @@ export function updatePlayerStats() {
     }
 
     const talentBonuses = getTalentBonuses();
-    // Aplicar talentos (versión resumida para ahorrar espacio, lógica igual a la tuya)
+    
     stats.maxHp += talentBonuses.maxHp; stats.damage += talentBonuses.damage; stats.defense += talentBonuses.defense; stats.regenHp += talentBonuses.regenHp; stats.lifesteal += talentBonuses.lifesteal; stats.critChance += talentBonuses.critChance; stats.critDamage += talentBonuses.critDamage; stats.attackSpeed -= talentBonuses.attackSpeed; stats.thorns += talentBonuses.thorns; stats.cdr += talentBonuses.cdr; stats.doubleAttack += talentBonuses.double_strike; stats.blockChance += talentBonuses.block_chance;
     if (talentBonuses.maxHpMult > 0) stats.maxHp = Math.floor(stats.maxHp * (1 + talentBonuses.maxHpMult));
     if (talentBonuses.damageMult > 0) stats.damage = Math.floor(stats.damage * (1 + talentBonuses.damageMult));
