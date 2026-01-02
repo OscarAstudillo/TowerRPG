@@ -113,7 +113,10 @@ export default class InventoryPanel {
                 itemCont.add(icon);
             }
 
-            const txt = this.scene.add.text(40, 12, item.name, { fontFamily: 'Roboto', fontSize: '12px', color: '#fff', wordWrap:{width:120} });
+            // --- CAMBIO AQUÍ: Mostrar nivel de encantamiento si es mayor a 0 ---
+            const displayName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
+            const txt = this.scene.add.text(40, 12, displayName, { fontFamily: 'Roboto', fontSize: '12px', color: '#fff', wordWrap:{width:120} });
+            
             bg.on('pointerdown', () => this.showItemDetail(item));
             
             itemCont.add([bg, txt]);
@@ -190,7 +193,10 @@ export default class InventoryPanel {
 
         const panelWidth = 360; 
         
-        const title = this.scene.add.text(0, -220, item.name, { 
+        // También mostrar el nivel en el título del detalle
+        const titleName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
+
+        const title = this.scene.add.text(0, -220, titleName, { 
             fontFamily: 'Cinzel', fontSize: '20px', color: '#' + item.color.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 320} 
         }).setOrigin(0.5, 0);
 
