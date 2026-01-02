@@ -29,7 +29,7 @@ class RPGSystem {
         return 'legendary'; 
     }
 
-    // --- SISTEMA DE COFRES (Método Agregado) ---
+    // --- SISTEMA DE COFRES ---
     getChestLoot(biomeKey, levelId) {
         const loot = [];
         const biome = BIOMES[biomeKey] || BIOMES['forest'];
@@ -43,19 +43,13 @@ class RPGSystem {
         const possibleMats = biome.materials[tier] || biome.materials[1];
 
         for (let i = 0; i < itemCount; i++) {
-            // Elegir material al azar
             const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            // Calcular rareza basada en el nivel
             const rarity = this.getDynamicRarity(levelId);
-            // Cantidad aleatoria (1 a 3 unidades)
             const amount = Phaser.Math.Between(1, 3);
 
-            // Agregar al inventario del juego inmediatamente
             if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
             gameState.materials[matKey][rarity] += amount;
 
-            // Guardar para mostrar en el cofre
-            // Agrupamos si sale el mismo item dos veces en el mismo cofre
             const existing = loot.find(l => l.key === matKey && l.rarity === rarity);
             if (existing) {
                 existing.amount += amount;
@@ -64,7 +58,6 @@ class RPGSystem {
             }
         }
 
-        // Posibilidad de Bonus (Oro extra o Poción)
         if (Math.random() < 0.3) {
             const goldBonus = 50 * levelId;
             gameState.gold += goldBonus;
@@ -303,8 +296,21 @@ class RPGSystem {
         return { key: matKey, rarity: rarity, amount: 1 };
     }
 
+    // --- CORRECCIÓN EN MISIONES DIARIAS ---
     generateDailyQuests() {
+        const ONE_DAY = 24 * 60 * 60 * 1000;
+        const now = Date.now();
+        const lastRefresh = gameState.quests.lastRefresh || 0;
+
+        // Si ya pasaron 24 horas, limpiamos las misiones viejas (completadas o no)
+        if (now - lastRefresh > ONE_DAY) {
+            gameState.quests.active = [];
+        }
+
+        // Si todavía hay misiones activas (y no ha pasado el día), salimos
         if (gameState.quests.active.length > 0) return;
+
+        // GENERAR NUEVAS MISIONES
         const templates = [
             { type: 'kill', target: 'any', count: 20, desc: "Mata 20 Enemigos", reward: { gold: 100, xp: 50 } },
             { type: 'craft', target: 'weapon', count: 1, desc: "Forja 1 Arma", reward: { gold: 150, material: 'wood' } },
@@ -325,11 +331,18 @@ class RPGSystem {
                     reward: { recipe: specialRecipe.id, gold: 50 }
                 });
                 for(let i=0; i<2; i++) this.addRandomQuest(templates);
+                
+                // Actualizar timestamp
+                gameState.quests.lastRefresh = now;
+                SaveSystem.save();
                 return;
             }
         }
         for(let i=0; i<3; i++) this.addRandomQuest(templates);
-        gameState.quests.lastRefresh = Date.now();
+        
+        // Actualizar timestamp y guardar
+        gameState.quests.lastRefresh = now;
+        SaveSystem.save();
     }
 
     addRandomQuest(templates) {
@@ -347,6 +360,8 @@ class RPGSystem {
                 }
             }
         });
+        // Save progress occasionally
+        if (Math.random() < 0.1) SaveSystem.save();
     }
 
     claimQuestReward(questId) {
@@ -364,6 +379,11 @@ class RPGSystem {
                 if (!gameState.unlockedRecipes.includes(quest.reward.recipe)) gameState.unlockedRecipes.push(quest.reward.recipe);
             }
             gameState.quests.active = gameState.quests.active.filter(q => q.id !== questId);
+            
+            // Si vaciamos la lista, NO reseteamos timestamp para obligar a esperar al día siguiente
+            // (A menos que quieras que aparezcan infinitas si las completa rápido, pero eso no es "diario")
+            
+            SaveSystem.save();
             return { success: true, reward: quest.reward };
         }
         return { success: false };
