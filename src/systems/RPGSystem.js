@@ -12,7 +12,6 @@ class RPGSystem {
         return "ITEM_" + Date.now().toString(36) + "_" + Math.random().toString(36).substr(2, 9);
     }
 
-    // --- RAREZA DINÁMICA ---
     getDynamicRarity(level) {
         const lvl = Math.max(1, Math.min(level, 10));
         const p1 =  { common: 95, uncommon: 5, rare: 0, epic: 0, legendary: 0 };
@@ -29,22 +28,24 @@ class RPGSystem {
         return 'legendary'; 
     }
 
-    // --- SISTEMA DE COFRES ---
     getChestLoot(biomeKey, levelId) {
         const loot = [];
         const biome = BIOMES[biomeKey] || BIOMES['forest'];
         
-        // Determinar cantidad de items (3 a 5 items aleatorios)
         const itemCount = Phaser.Math.Between(3, 5); 
         const levelData = LEVEL_CONFIG[levelId] || { tier: 1 };
         const tier = levelData.tier || 1;
 
-        // Materiales posibles según el Tier del nivel
         const possibleMats = biome.materials[tier] || biome.materials[1];
 
         for (let i = 0; i < itemCount; i++) {
             const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            const rarity = this.getDynamicRarity(levelId);
+            
+            // --- CAMBIO: El carbón SIEMPRE es común ---
+            let rarity = this.getDynamicRarity(levelId);
+            if (matKey === 'coal') rarity = 'common';
+            // ------------------------------------------
+
             const amount = Phaser.Math.Between(1, 3);
 
             if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
@@ -68,7 +69,6 @@ class RPGSystem {
         return loot;
     }
 
-    // --- CRAFTEO (FORJA) ---
     craftItem(recipeId, rarityKey) {
         const recipe = RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta no encontrada" };
@@ -83,8 +83,13 @@ class RPGSystem {
         
         for (let matKey in ingredients) {
             const reqQty = ingredients[matKey];
+            
+            // --- CAMBIO: Usar carbón común siempre ---
+            const checkRarity = (matKey === 'coal') ? 'common' : rarityKey;
+            // -----------------------------------------
+
             const playerMats = gameState.materials[matKey];
-            const owned = playerMats ? (playerMats[rarityKey] || 0) : 0;
+            const owned = playerMats ? (playerMats[checkRarity] || 0) : 0;
             
             if (owned < reqQty) {
                 const matName = (RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey] || {name: matKey}).name;
@@ -96,7 +101,9 @@ class RPGSystem {
         
         for (let matKey in ingredients) {
             const reqQty = ingredients[matKey];
-            gameState.materials[matKey][rarityKey] -= reqQty;
+            // --- CAMBIO: Consumir carbón común siempre ---
+            const consumeRarity = (matKey === 'coal') ? 'common' : rarityKey;
+            gameState.materials[matKey][consumeRarity] -= reqQty;
         }
 
         let profKey = recipe.prof || 'weaponsmith';
@@ -113,19 +120,24 @@ class RPGSystem {
         return { success: true, item: item };
     }
 
-    // --- REFINACIÓN ---
     refineMaterial(recipeId, rarityKey = 'common') {
         const recipe = REFINING_RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta inválida" };
 
         for (let mat in recipe.input) {
             const required = recipe.input[mat];
-            const available = gameState.materials[mat] ? (gameState.materials[mat][rarityKey] || 0) : 0;
+            
+            // --- CAMBIO: Usar carbón común siempre ---
+            const checkRarity = (mat === 'coal') ? 'common' : rarityKey;
+            
+            const available = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
             if (available < required) return { success: false, error: `Falta material` };
         }
 
         for (let mat in recipe.input) {
-            gameState.materials[mat][rarityKey] -= recipe.input[mat];
+            // --- CAMBIO: Consumir carbón común siempre ---
+            const consumeRarity = (mat === 'coal') ? 'common' : rarityKey;
+            gameState.materials[mat][consumeRarity] -= recipe.input[mat];
         }
 
         let outputRarity = rarityKey;
@@ -148,7 +160,6 @@ class RPGSystem {
         return { success: true, item: recipe.output, rarity: outputRarity };
     }
 
-    // --- GENERACIÓN DE ITEMS ---
     generateItem(recipe, rarity, initialEnchant = 0) {
         const stats = { ...recipe.baseStats };
         
@@ -212,7 +223,6 @@ class RPGSystem {
         return statsObj; 
     }
 
-    // --- FUSIÓN ---
     fuseSpecificItems(item1, item2) {
         if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Incompatible" };
         if (item1.type !== item2.type) return { success: false, error: "Diferente tipo" };
@@ -232,7 +242,6 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
-    // --- PROFESIONES Y XP ---
     getProfessionLevel(profKey) {
         if (!gameState.professions[profKey]) gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
         return gameState.professions[profKey].level;
@@ -249,7 +258,6 @@ class RPGSystem {
         }
     }
 
-    // --- UTILS ---
     gainHeroXP(amount) {
         if (!gameState.selectedClass) return;
         const hero = getCurrentHero();
@@ -292,25 +300,26 @@ class RPGSystem {
         const tier = config.tier || 1;
         const possibleMats = biome.materials[tier] || biome.materials[1];
         const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-        const rarity = this.getDynamicRarity(levelId);
+        
+        // --- CAMBIO: El carbón SIEMPRE es común ---
+        let rarity = this.getDynamicRarity(levelId);
+        if (matKey === 'coal') rarity = 'common';
+        // ------------------------------------------
+
         return { key: matKey, rarity: rarity, amount: 1 };
     }
 
-    // --- CORRECCIÓN EN MISIONES DIARIAS ---
     generateDailyQuests() {
         const ONE_DAY = 24 * 60 * 60 * 1000;
         const now = Date.now();
         const lastRefresh = gameState.quests.lastRefresh || 0;
 
-        // Si ya pasaron 24 horas, limpiamos las misiones viejas (completadas o no)
         if (now - lastRefresh > ONE_DAY) {
             gameState.quests.active = [];
         }
 
-        // Si todavía hay misiones activas (y no ha pasado el día), salimos
         if (gameState.quests.active.length > 0) return;
 
-        // GENERAR NUEVAS MISIONES
         const templates = [
             { type: 'kill', target: 'any', count: 20, desc: "Mata 20 Enemigos", reward: { gold: 100, xp: 50 } },
             { type: 'craft', target: 'weapon', count: 1, desc: "Forja 1 Arma", reward: { gold: 150, material: 'wood' } },
@@ -332,7 +341,6 @@ class RPGSystem {
                 });
                 for(let i=0; i<2; i++) this.addRandomQuest(templates);
                 
-                // Actualizar timestamp
                 gameState.quests.lastRefresh = now;
                 SaveSystem.save();
                 return;
@@ -340,7 +348,6 @@ class RPGSystem {
         }
         for(let i=0; i<3; i++) this.addRandomQuest(templates);
         
-        // Actualizar timestamp y guardar
         gameState.quests.lastRefresh = now;
         SaveSystem.save();
     }
@@ -360,7 +367,6 @@ class RPGSystem {
                 }
             }
         });
-        // Save progress occasionally
         if (Math.random() < 0.1) SaveSystem.save();
     }
 
@@ -379,10 +385,6 @@ class RPGSystem {
                 if (!gameState.unlockedRecipes.includes(quest.reward.recipe)) gameState.unlockedRecipes.push(quest.reward.recipe);
             }
             gameState.quests.active = gameState.quests.active.filter(q => q.id !== questId);
-            
-            // Si vaciamos la lista, NO reseteamos timestamp para obligar a esperar al día siguiente
-            // (A menos que quieras que aparezcan infinitas si las completa rápido, pero eso no es "diario")
-            
             SaveSystem.save();
             return { success: true, reward: quest.reward };
         }

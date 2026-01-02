@@ -65,19 +65,15 @@ export default class RefiningPanel {
             // Nombre del producto final (Output)
             const product = REFINED_MATERIALS[recipe.output]?.name || recipe.output;
             
-            // --- CORRECCIÓN: Obtener nombre del material base (Input) ---
-            // Tomamos la primera clave del objeto 'input' (ej: 'wood')
+            // Obtener nombre del material base (Input)
             const inputKey = Object.keys(recipe.input)[0];
-            // Buscamos su definición en RAW o REFINED para obtener el nombre real (ej: 'Madera')
             const inputDef = RAW_MATERIALS[inputKey] || REFINED_MATERIALS[inputKey] || {name: inputKey};
             const inputName = inputDef.name; 
-            // -----------------------------------------------------------
             
             const btn = this.scene.add.rectangle(this.width/2, y, 700, 50, 0x222222).setStrokeStyle(1, 0x00ff00);
             btn.setInteractive({useHandCursor:true}); 
             btn.on('pointerdown', () => this.showRefineDetail(recipe)); 
             
-            // Ahora mostramos: "Madera -> Tablón de Madera"
             const txt = this.scene.add.text(this.width/2, y, `${inputName} -> ${product}`, { fontFamily: 'Roboto', fontSize: '16px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
             
             this.recipeList.add([btn, txt]);
@@ -166,13 +162,17 @@ export default class RefiningPanel {
         
         // Verificar
         for(let mat in recipe.input) {
-            const qtyOwned = gameState.materials[mat][rKey] || 0;
-            if (qtyOwned < recipe.input[mat]) return; // Doble check
+            // --- CAMBIO: Verificar carbón común ---
+            const checkRarity = (mat === 'coal') ? 'common' : rKey;
+            const qtyOwned = gameState.materials[mat][checkRarity] || 0;
+            if (qtyOwned < recipe.input[mat]) return; 
         }
 
         // Consumir
         for(let mat in recipe.input) {
-            gameState.materials[mat][rKey] -= recipe.input[mat];
+            // --- CAMBIO: Consumir carbón común ---
+            const consumeRarity = (mat === 'coal') ? 'common' : rKey;
+            gameState.materials[mat][consumeRarity] -= recipe.input[mat];
         }
 
         // Producir
