@@ -26,7 +26,6 @@ export default class GameScene extends Phaser.Scene {
         this.isPaused = false;
         this.isSceneReady = false;
         
-        // Orden y nombres cortos
         this.towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
         this.towerDisplayNames = {
             'archer': 'ARQUERO',
@@ -435,10 +434,12 @@ export default class GameScene extends Phaser.Scene {
         const selectorBg = this.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
 
-        // --- MOVEMOS EL DINERO AQUÍ (Sobre las cartas) ---
-        this.economyText = this.add.text(0, -90, '$0', { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        // --- DINERO CON FONDO (Pegado al selector) ---
+        const economyBg = this.add.rectangle(0, -80, 320, 30, 0x000000, 0.85).setStrokeStyle(1, 0xffd700);
+        this.towerSelectorContainer.add(economyBg);
+
+        this.economyText = this.add.text(0, -80, 'MONEDAS ACTUALES: 0', { fontFamily: 'Roboto', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.towerSelectorContainer.add(this.economyText);
-        // --------------------------------------------------
 
         // Generar Cartas (1-6) - 100x120
         this.towerCards = [];
@@ -477,21 +478,12 @@ export default class GameScene extends Phaser.Scene {
             this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
         });
 
-        // 3. BOTÓN HABILIDAD (MODIFICADO: Más grande, más arriba, texto cambiado)
-        const skillY = h - 140; // Más arriba
+        // 3. BOTÓN HABILIDAD
+        const skillY = h - 140; 
         this.skillBtnContainer = this.add.container(w - 90, skillY).setScrollFactor(0).setDepth(uiDepth + 1); 
-        
-        // Radio aumentado a 50 (era 40)
         this.skillBg = this.add.circle(0, 0, 50, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true }); 
-        
-        // Icono (un poco más arriba para dar espacio al texto)
         const skillIcon = this.add.text(0, -10, "⚡", { fontSize: '40px' }).setOrigin(0.5);
-        
-        // Texto añadido
-        const skillLabel = this.add.text(0, 25, "Habilidad\n(Espacio)", { 
-            fontFamily: 'Roboto', fontSize: '12px', align: 'center', color: '#ffffff' 
-        }).setOrigin(0.5);
-
+        const skillLabel = this.add.text(0, 25, "Habilidad\n(Espacio)", { fontFamily: 'Roboto', fontSize: '12px', align: 'center', color: '#ffffff' }).setOrigin(0.5);
         this.skillOverlay = this.add.circle(0, 0, 50, 0x000000, 0.7).setVisible(false);
         this.skillTimerText = this.add.text(0, -10, "", { fontSize:'20px', fontStyle:'bold' }).setOrigin(0.5);
 
@@ -503,7 +495,9 @@ export default class GameScene extends Phaser.Scene {
         const pStats = gameState.playerStats; 
         if(this.livesText) this.livesText.setText(`❤️ HÉROE: ${Math.max(0, Math.floor(pStats.hp))}/${pStats.maxHp}`); 
         if(this.castleText) this.castleText.setText(`🏰 CASTILLO: ${gameState.baseHp}`); 
-        if(this.economyText) this.economyText.setText(`$${this.coins}`);
+        
+        // --- TEXTO ACTUALIZADO ---
+        if(this.economyText) this.economyText.setText(`MONEDAS ACTUALES: ${this.coins}`);
 
         const hero = getCurrentHero(); 
         if (hero && this.xpBarFill && this.lvlText) { 
