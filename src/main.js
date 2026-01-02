@@ -1,32 +1,61 @@
-// src/main.js
 import Phaser from 'phaser';
-import PreloadScene from './scenes/PreloadScene.js'; // IMPORTANTE
-import SplashScreen from './scenes/SplashScreen.js'; // IMPORTANTE
-import MainMenuScene from './scenes/MainMenuScene.js';
-import HeroSelectScene from './scenes/HeroSelectScene.js';
-import GameScene from './scenes/GameScene.js';
-import ResultScene from './scenes/ResultScene.js';
-import WorldMapScene from './scenes/WorldMapScene.js';
-import ChestScene from './scenes/ChestScene.js';
+import './style.css'; // Asegúrate de que esta línea esté para cargar los estilos
+
+import PreloadScene from './scenes/PreloadScene';
+import SplashScreen from './scenes/SplashScreen';
+import MainMenuScene from './scenes/MainMenuScene';
+import HeroSelectScene from './scenes/HeroSelectScene';
+import WorldMapScene from './scenes/WorldMapScene';
+import GameScene from './scenes/GameScene';
+import ResultScene from './scenes/ResultScene';
+import ChestScene from './scenes/ChestScene';
 
 const config = {
     type: Phaser.AUTO,
     width: 1920,
     height: 1080,
     parent: 'app',
+    backgroundColor: '#000000',
+    
+    // --- INICIO: CONFIGURACIÓN RESPONSIVA ---
+    scale: {
+        mode: Phaser.Scale.FIT, // Escala para ajustar manteniendo proporción
+        autoCenter: Phaser.Scale.CENTER_BOTH, // Centra vertical y horizontalmente
+        min: {
+            width: 320,
+            height: 180
+        },
+        max: {
+            width: 1920,
+            height: 1080
+        }
+    },
+    // --- FIN: CONFIGURACIÓN RESPONSIVA ---
+
     physics: {
         default: 'arcade',
         arcade: {
-            debug: false,
+            debug: false, 
             gravity: { y: 0 }
         }
     },
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
+    
+    // Optimizaciones de renderizado para móviles
+    render: {
+        pixelArt: false,
+        antialias: true
     },
-    // ORDEN DE ESCENAS CRÍTICO: Preload -> Splash -> El resto
-    scene: [PreloadScene, SplashScreen, MainMenuScene, HeroSelectScene, GameScene, ResultScene, WorldMapScene, ChestScene]
+
+    scene: [
+        PreloadScene,
+        SplashScreen,
+        MainMenuScene,
+        HeroSelectScene,
+        WorldMapScene,
+        GameScene,
+        ResultScene,
+        ChestScene
+    ]
 };
 
 const game = new Phaser.Game(config);
