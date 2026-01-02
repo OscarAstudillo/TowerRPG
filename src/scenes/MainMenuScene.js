@@ -21,8 +21,8 @@ export default class MainMenuScene extends Phaser.Scene {
         this.hasLoaded = false;
         
         // Estilos
-        this.fontTitle = { fontFamily: 'Cinzel', fontSize: '64px', fontStyle: 'bold', color: '#FFD700', stroke: '#8B0000', strokeThickness: 6, shadow: { offsetX: 3, offsetY: 3, color: '#000', blur: 5, fill: true } };
-        this.fontMenuBtn = { fontFamily: 'Cinzel', fontSize: '20px', color: '#FFFFFF' };
+        this.fontTitle = { fontFamily: 'Cinzel', fontSize: '50px', fontStyle: 'bold', color: '#FFD700', stroke: '#8B0000', strokeThickness: 6, shadow: { offsetX: 3, offsetY: 3, color: '#000', blur: 5, fill: true } };
+        this.fontMenuBtn = { fontFamily: 'Cinzel', fontSize: '18px', color: '#FFFFFF' };
     }
 
     create() {
@@ -60,51 +60,72 @@ export default class MainMenuScene extends Phaser.Scene {
         updatePlayerStats();
         SoundManager.playMusic('music_menu');
 
-        // --- 2. CONSTRUCCIÓN VISUAL ---
+        // --- 2. LAYOUT Y DIMENSIONES ---
         const w = this.scale.width;
         const h = this.scale.height;
 
-        // Fondo
+        // Definimos el margen izquierdo para el menú
+        const menuWidth = 280; 
+        const menuMargin = 20;
+        const contentX = menuWidth + menuMargin; // Donde empieza el contenido (ej: 300px)
+        const contentW = w - contentX - 20; // Ancho disponible para paneles (con margen derecho)
+        const contentCenterX = contentX + (contentW / 2); // Centro de la zona de contenido
+
+        // Fondo (Ocupa toda la pantalla)
         if (this.textures.exists('title_bg')) {
             this.add.image(w / 2, h / 2, 'title_bg').setDisplaySize(w, h);
         }
         this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.85); // Overlay oscuro
 
-        // Título Principal
-        this.add.text(w / 2, h * 0.08, "TOWER RPG", this.fontTitle).setOrigin(0.5);
+        // Título Principal (Centrado en la zona de contenido)
+        this.add.text(contentCenterX, h * 0.08, "TOWER RPG", this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffd700' }).setOrigin(1, 0.5);
 
         // Contenedores Principales
-        this.menuContainer = this.add.container(w * 0.15, h * 0.55); // Panel Izquierdo (Menú)
-        this.contentContainer = this.add.container(w * 0.6, h * 0.55); // Panel Derecho (Contenido)
-
+        // Menú: Centrado verticalmente en su columna izquierda
+        this.menuContainer = this.add.container(menuWidth / 2 + 10, h / 2); 
+        
         // --- 3. CREAR MENÚ LATERAL ---
-        this.createMenuPanel();
+        this.createMenuPanel(menuWidth, h);
 
         // --- 4. INICIALIZAR PANELES DE LÓGICA ---
-        // Estos paneles se renderizarán dentro de "contentContainer" o sobre la escena, según su implementación original
-        // NOTA: Tus clases UI actuales (HeroPanel, etc.) usan `this.scene.add.container`.
-        // Para adaptarlas sin reescribirlas, las instanciamos igual, pero controlaremos su visibilidad.
+        // IMPORTANTE: Instanciamos los paneles con 'contentW' para que calculen su centro relativo a ese ancho.
+        // Luego movemos sus contenedores a 'contentX'.
         
-        this.heroPanel = new HeroPanel(this, 0, 0, w, h);
-        this.inventoryPanel = new InventoryPanel(this, 0, 0, w, h);
-        this.forgePanel = new ForgePanel(this, 0, 0, w, h);
-        this.talentsPanel = new TalentTree(this, 0, 0, w, h);
-        this.refiningPanel = new RefiningPanel(this, 0, 0, w, h);
-        this.towersPanel = new TowersPanel(this, 0, 0, w, h);
+        this.heroPanel = new HeroPanel(this, 0, 0, contentW, h);
+        this.heroPanel.container.setPosition(contentX, 0);
+
+        this.inventoryPanel = new InventoryPanel(this, 0, 0, contentW, h);
+        this.inventoryPanel.container.setPosition(contentX, 0);
+
+        this.forgePanel = new ForgePanel(this, 0, 0, contentW, h);
+        this.forgePanel.container.setPosition(contentX, 0);
+
+        this.talentsPanel = new TalentTree(this, 0, 0, contentW, h);
+        this.talentsPanel.container.setPosition(contentX, 0);
+
+        this.refiningPanel = new RefiningPanel(this, 0, 0, contentW, h);
+        this.refiningPanel.container.setPosition(contentX, 0);
+
+        this.towersPanel = new TowersPanel(this, 0, 0, contentW, h);
+        this.towersPanel.container.setPosition(contentX, 0);
+
+        // QuestBoard es un modal (cubre todo), lo dejamos full screen para que el bloqueo funcione bien
         this.questBoard = new QuestBoard(this, 0, 0, w, h);
 
         // Iniciar en la pestaña por defecto
         this.switchTab('hero');
 
         // Footer
-        this.add.text(w - 20, h - 20, "Ver. 0.9.5 - Dev Build", { fontFamily: 'Roboto', fontSize: '14px', color: '#666' }).setOrigin(1, 1);
+        this.add.text(w - 20, h - 20, "Ver. 0.9.6 - Dev Build", { fontFamily: 'Roboto', fontSize: '12px', color: '#444' }).setOrigin(1, 1);
     }
 
-    createMenuPanel() {
-        // Fondo del menú lateral
-        const bg = this.add.rectangle(0, 0, 250, 600, 0x111111, 0.9).setStrokeStyle(2, 0x444444);
-        const title = this.add.text(0, -260, "MENÚ", { fontFamily: 'Cinzel', fontSize: '28px', color: '#fff' }).setOrigin(0.5);
+    createMenuPanel(width, height) {
+        // Fondo del menú lateral (Izquierda)
+        const bgHeight = height - 40; // Un poco de margen arriba/abajo
+        const bg = this.add.rectangle(0, 0, width, bgHeight, 0x111111, 0.95).setStrokeStyle(2, 0x444444);
+        
+        const title = this.add.text(0, -bgHeight/2 + 40, "MENÚ", { fontFamily: 'Cinzel', fontSize: '28px', color: '#fff' }).setOrigin(0.5);
         this.menuContainer.add([bg, title]);
 
         const buttons = [
@@ -121,7 +142,8 @@ export default class MainMenuScene extends Phaser.Scene {
         ];
 
         this.menuButtons = [];
-        let y = -200;
+        // Calculamos posición inicial basada en la altura del panel
+        let y = -bgHeight/2 + 100;
         
         buttons.forEach(btnData => {
             const btn = this.add.container(0, y);
@@ -132,11 +154,11 @@ export default class MainMenuScene extends Phaser.Scene {
             const color = isPlay ? 0x006400 : 0x222222;
             const stroke = isPlay ? 0x00ff00 : 0x666666;
 
-            const btnBg = this.add.rectangle(0, 0, 220, 45, color).setInteractive({ useHandCursor: true });
+            const btnBg = this.add.rectangle(0, 0, width - 40, 45, color).setInteractive({ useHandCursor: true });
             btnBg.setStrokeStyle(1, stroke);
             
-            const icon = this.add.text(-90, 0, btnData.icon, { fontSize: '20px' }).setOrigin(0.5);
-            const label = this.add.text(-60, 0, btnData.label, this.fontMenuBtn).setOrigin(0, 0.5);
+            const icon = this.add.text(-(width/2) + 60, 0, btnData.icon, { fontSize: '20px' }).setOrigin(0.5);
+            const label = this.add.text(-(width/2) + 90, 0, btnData.label, this.fontMenuBtn).setOrigin(0, 0.5);
 
             btnBg.on('pointerdown', () => {
                 SoundManager.playSound('ui_click');
