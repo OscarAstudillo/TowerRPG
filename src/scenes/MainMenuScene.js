@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { gameState, updatePlayerStats, saveHeroEquipment } from '../config/GameState.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
+import SoundManager from '../systems/SoundManager.js';
 
 // IMPORTAR PANELES UI
 import InventoryPanel from '../ui/InventoryPanel.js';
@@ -16,20 +17,18 @@ import QuestBoard from '../ui/QuestBoard.js';
 export default class MainMenuScene extends Phaser.Scene {
     constructor() {
         super('MainMenuScene');
-        this.currentTab = 'hero';
+        this.selectedTab = 'hero'; 
         this.hasLoaded = false;
         
-        // Estilos Globales
-        this.fontTitle = { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000000', strokeThickness: 4 };
-        this.fontHeader = { fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 3 };
-        this.fontBody = { fontFamily: 'Roboto', fontSize: '14px', color: '#ffffff', stroke: '#000000', strokeThickness: 2 };
-        this.fontBtn = { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 2 };
+        // Estilos
+        this.fontTitle = { fontFamily: 'Cinzel', fontSize: '64px', fontStyle: 'bold', color: '#FFD700', stroke: '#8B0000', strokeThickness: 6, shadow: { offsetX: 3, offsetY: 3, color: '#000', blur: 5, fill: true } };
+        this.fontMenuBtn = { fontFamily: 'Cinzel', fontSize: '20px', color: '#FFFFFF' };
     }
 
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
-
-        // --- SISTEMA DE CARGA Y REPARACIÓN ---
+        
+        // --- 1. LÓGICA DE CARGA DE DATOS (MANTENIDA) ---
         if (!this.hasLoaded) {
             const loaded = SaveSystem.load();
             
@@ -59,20 +58,34 @@ export default class MainMenuScene extends Phaser.Scene {
         }
 
         updatePlayerStats();
+        SoundManager.playMusic('music_menu');
 
-        // --- UI GLOBAL ---
+        // --- 2. CONSTRUCCIÓN VISUAL ---
         const w = this.scale.width;
         const h = this.scale.height;
-        const cx = w / 2;
-        const cy = h / 2;
 
-        this.add.image(cx, cy, 'bg_menu').setDisplaySize(w, h);
-        this.add.rectangle(cx, cy, w, h, 0x1a1a1a, 0.5); 
+        // Fondo
+        if (this.textures.exists('title_bg')) {
+            this.add.image(w / 2, h / 2, 'title_bg').setDisplaySize(w, h);
+        }
+        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.85); // Overlay oscuro
 
-        this.add.text(cx, h * 0.05, 'TITAN DEFENSE RPG', this.fontTitle).setOrigin(0.5);
+        // Título Principal
+        this.add.text(w / 2, h * 0.08, "TOWER RPG", this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffd700' }).setOrigin(1, 0.5);
 
-        // --- INSTANCIAR PANELES ---
+        // Contenedores Principales
+        this.menuContainer = this.add.container(w * 0.15, h * 0.55); // Panel Izquierdo (Menú)
+        this.contentContainer = this.add.container(w * 0.6, h * 0.55); // Panel Derecho (Contenido)
+
+        // --- 3. CREAR MENÚ LATERAL ---
+        this.createMenuPanel();
+
+        // --- 4. INICIALIZAR PANELES DE LÓGICA ---
+        // Estos paneles se renderizarán dentro de "contentContainer" o sobre la escena, según su implementación original
+        // NOTA: Tus clases UI actuales (HeroPanel, etc.) usan `this.scene.add.container`.
+        // Para adaptarlas sin reescribirlas, las instanciamos igual, pero controlaremos su visibilidad.
+        
         this.heroPanel = new HeroPanel(this, 0, 0, w, h);
         this.inventoryPanel = new InventoryPanel(this, 0, 0, w, h);
         this.forgePanel = new ForgePanel(this, 0, 0, w, h);
@@ -81,70 +94,99 @@ export default class MainMenuScene extends Phaser.Scene {
         this.towersPanel = new TowersPanel(this, 0, 0, w, h);
         this.questBoard = new QuestBoard(this, 0, 0, w, h);
 
-        // --- TABS ---
-        const tabY = h * 0.12; 
-        const tabW = 140; 
-        const startX = cx - (tabW * 2.5);
-
-        this.createTabButton(startX, tabY, 'HÉROE', 'hero');
-        this.createTabButton(startX + tabW, tabY, 'TALENTOS', 'talents');
-        this.createTabButton(startX + tabW*2, tabY, 'MOCHILA', 'inventory');
-        this.createTabButton(startX + tabW*3, tabY, 'REFINAR', 'refining');
-        this.createTabButton(startX + tabW*4, tabY, 'FORJA', 'forge');
-        this.createTabButton(startX + tabW*5, tabY, 'TORRES', 'towers');
-
-        // Botón Misiones
-        const questBtn = this.add.rectangle(w - 150, h * 0.2, 120, 40, 0x800080).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xffffff);
-        this.add.text(w - 150, h * 0.2, "MISIONES", { fontFamily:'Roboto', fontSize:'16px', color:'#fff', fontStyle:'bold' }).setOrigin(0.5);
-        questBtn.on('pointerdown', () => this.questBoard.toggle());
-
-        // Botón Jugar
-        const playBtn = this.add.rectangle(cx, h - 50, 220, 50, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00);
-        this.add.text(cx, h - 50, 'IR AL MAPA', { fontFamily: 'Cinzel', fontSize: '24px', color:'#fff', fontStyle:'bold' }).setOrigin(0.5);
-        playBtn.on('pointerdown', () => this.scene.start('WorldMapScene'));
-
-        // Botón Cambiar Héroe
-        const changeHeroBtn = this.add.text(50, h - 50, 'CAMBIAR HÉROE', this.fontBtn).setInteractive({ useHandCursor: true }).setOrigin(0, 0.5).setColor('#00ffff');
-        changeHeroBtn.on('pointerdown', () => {
-            if(gameState.selectedClass) {
-                // Usamos la función importada para guardar el estado
-                saveHeroEquipment(gameState.selectedClass);
-            }
-            gameState.selectedClass = null; 
-            this.scene.start('HeroSelectScene'); 
-        });
-
-        // Botón Reset
-        const resetBtn = this.add.text(w - 50, h - 50, 'BORRAR DATOS', this.fontBtn).setInteractive({ useHandCursor: true }).setOrigin(1, 0.5).setColor('#ff5555');
-        resetBtn.on('pointerdown', () => { 
-            if(confirm("¿Borrar todo el progreso y reiniciar?")) { 
-                SaveSystem.reset(); 
-                location.reload(); 
-            } 
-        });
-
+        // Iniciar en la pestaña por defecto
         this.switchTab('hero');
+
+        // Footer
+        this.add.text(w - 20, h - 20, "Ver. 0.9.5 - Dev Build", { fontFamily: 'Roboto', fontSize: '14px', color: '#666' }).setOrigin(1, 1);
     }
 
-    createTabButton(x, y, text, key) {
-        const btn = this.add.rectangle(x, y, 130, 45, 0x222222).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x555555);
-        const txt = this.add.text(x, y, text, { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
+    createMenuPanel() {
+        // Fondo del menú lateral
+        const bg = this.add.rectangle(0, 0, 250, 600, 0x111111, 0.9).setStrokeStyle(2, 0x444444);
+        const title = this.add.text(0, -260, "MENÚ", { fontFamily: 'Cinzel', fontSize: '28px', color: '#fff' }).setOrigin(0.5);
+        this.menuContainer.add([bg, title]);
+
+        const buttons = [
+            { label: "JUGAR", icon: "⚔️", key: 'play', action: () => this.scene.start('WorldMapScene') },
+            { label: "HÉROE", icon: "🛡️", key: 'hero', action: () => this.switchTab('hero') },
+            { label: "MOCHILA", icon: "🎒", key: 'inventory', action: () => this.switchTab('inventory') },
+            { label: "TALENTOS", icon: "✨", key: 'talents', action: () => this.switchTab('talents') },
+            { label: "TORRES", icon: "🏰", key: 'towers', action: () => this.switchTab('towers') },
+            { label: "FORJA", icon: "🔨", key: 'forge', action: () => this.switchTab('forge') },
+            { label: "REFINAR", icon: "🔥", key: 'refining', action: () => this.switchTab('refining') },
+            { label: "MISIONES", icon: "📜", key: 'quests', action: () => this.questBoard.toggle() },
+            { label: "CAMBIAR HÉROE", icon: "👤", key: 'change', action: () => this.changeHero() },
+            { label: "RESET", icon: "❌", key: 'reset', action: () => this.resetGame() }
+        ];
+
+        this.menuButtons = [];
+        let y = -200;
         
-        btn.on('pointerdown', () => {
-            this.tweens.add({ targets: btn, scale: 0.95, yoyo: true, duration: 50 });
-            this.switchTab(key);
+        buttons.forEach(btnData => {
+            const btn = this.add.container(0, y);
+            btn.key = btnData.key;
+
+            // Estilo especial para JUGAR
+            const isPlay = btnData.key === 'play';
+            const color = isPlay ? 0x006400 : 0x222222;
+            const stroke = isPlay ? 0x00ff00 : 0x666666;
+
+            const btnBg = this.add.rectangle(0, 0, 220, 45, color).setInteractive({ useHandCursor: true });
+            btnBg.setStrokeStyle(1, stroke);
+            
+            const icon = this.add.text(-90, 0, btnData.icon, { fontSize: '20px' }).setOrigin(0.5);
+            const label = this.add.text(-60, 0, btnData.label, this.fontMenuBtn).setOrigin(0, 0.5);
+
+            btnBg.on('pointerdown', () => {
+                SoundManager.playSound('ui_click');
+                this.updateMenuVisuals(btnData.key);
+                btnData.action();
+            });
+
+            btnBg.on('pointerover', () => btnBg.setFillStyle(isPlay ? 0x008000 : 0x333333));
+            btnBg.on('pointerout', () => {
+                // Mantener color si está seleccionado
+                if (this.selectedTab === btnData.key && !isPlay) btnBg.setFillStyle(0x444444);
+                else btnBg.setFillStyle(color);
+            });
+
+            btn.bg = btnBg; // Referencia para actualizar
+            btn.add([btnBg, icon, label]);
+            this.menuContainer.add(btn);
+            this.menuButtons.push(btn);
+
+            y += 55;
+        });
+    }
+
+    updateMenuVisuals(selectedKey) {
+        this.selectedTab = selectedKey;
+        this.menuButtons.forEach(btn => {
+            if (btn.key === 'play' || btn.key === 'change' || btn.key === 'reset') return; // Botones de acción no cambian estado permanente
+            
+            if (btn.key === selectedKey) {
+                btn.bg.setFillStyle(0x444444);
+                btn.bg.setStrokeStyle(2, 0xFFD700);
+            } else {
+                btn.bg.setFillStyle(0x222222);
+                btn.bg.setStrokeStyle(1, 0x666666);
+            }
         });
     }
 
     switchTab(key) {
-        this.currentTab = key;
-        
+        // Ocultar todos
         this.heroPanel.hide();
         this.inventoryPanel.hide();
         this.forgePanel.hide();
         this.talentsPanel.hide();
         this.refiningPanel.hide();
         this.towersPanel.hide();
+        // Misiones es un popup, no un panel principal, pero lo gestionamos
+        if (key !== 'quests') this.questBoard.hide();
+
+        this.updateMenuVisuals(key);
 
         switch(key) {
             case 'hero': this.heroPanel.show(); break;
@@ -156,6 +198,22 @@ export default class MainMenuScene extends Phaser.Scene {
         }
     }
 
+    changeHero() {
+        if(gameState.selectedClass) {
+            saveHeroEquipment(gameState.selectedClass);
+        }
+        gameState.selectedClass = null; 
+        this.scene.start('HeroSelectScene');
+    }
+
+    resetGame() {
+        if(confirm("¿Estás seguro de BORRAR todo el progreso?")) { 
+            SaveSystem.reset(); 
+            location.reload(); 
+        }
+    }
+
+    // --- FUNCIONES DE UTILIDAD (MANTENIDAS) ---
     updateGoldText() {
         if(this.goldText) this.goldText.setText(`ORO: ${gameState.gold}`);
     }

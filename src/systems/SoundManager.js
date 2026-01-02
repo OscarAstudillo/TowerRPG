@@ -5,6 +5,7 @@ class SoundManager {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.masterVolume = 0.2; // Volumen general bajo para no aturdir
         this.enabled = true;
+        this.currentMusic = null; // Para rastrear música en el futuro
     }
 
     // Intenta iniciar el audio (los navegadores bloquean audio hasta el primer click)
@@ -13,6 +14,21 @@ class SoundManager {
             this.ctx.resume();
         }
     }
+
+    // --- NUEVOS MÉTODOS PARA CORREGIR EL ERROR ---
+    playMusic(key) {
+        if (!this.enabled) return;
+        this.init();
+        // Aquí iría la lógica para reproducir música de fondo.
+        // Por ahora lo dejamos vacío para que el juego no se rompa.
+        // console.log(`[SoundManager] Reproduciendo música: ${key}`);
+    }
+
+    stopMusic() {
+        // Aquí iría la lógica para detener la música.
+        // console.log("[SoundManager] Música detenida");
+    }
+    // ---------------------------------------------
 
     // Generador de tonos simple (Oscilador)
     playSound(type) {
@@ -86,6 +102,14 @@ class SoundManager {
             gain.gain.linearRampToValueAtTime(0, now + 0.3);
             osc.start(now);
             osc.stop(now + 0.3);
+        } else if (type === 'ui_click') {
+            // Click suave
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            gain.gain.setValueAtTime(this.masterVolume * 0.5, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now);
+            osc.stop(now + 0.05);
         }
     }
 }

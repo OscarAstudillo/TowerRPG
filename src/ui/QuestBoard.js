@@ -22,11 +22,26 @@ export default class QuestBoard {
         this.container.add([blocker, bg, title, closeBtn, this.questListContainer]);
     }
 
-    toggle() {
-        const isVisible = !this.container.visible;
-        this.container.setVisible(isVisible);
-        if (isVisible) this.refresh();
+    // --- MÉTODOS DE VISIBILIDAD (CORRECCIÓN) ---
+    show() {
+        // Aseguramos que se generen misiones si es un nuevo día
+        RPGSystem.generateDailyQuests();
+        this.refresh();
+        this.container.setVisible(true);
     }
+
+    hide() {
+        this.container.setVisible(false);
+    }
+
+    toggle() {
+        if (this.container.visible) {
+            this.hide();
+        } else {
+            this.show();
+        }
+    }
+    // -------------------------------------------
 
     refresh() {
         this.questListContainer.removeAll(true);
@@ -66,10 +81,10 @@ export default class QuestBoard {
                     if (res.success) {
                         SaveSystem.save(); 
                         this.refresh();
-                        this.scene.updateGoldText();
+                        if(this.scene.updateGoldText) this.scene.updateGoldText();
                         // Refrescar forja si se obtuvo receta
                         if(res.reward.recipe && this.scene.forgePanel) this.scene.forgePanel.refresh();
-                        this.scene.showCentralAlert("¡Recompensa Reclamada!", "#ffd700");
+                        if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Recompensa Reclamada!", "#ffd700");
                     }
                 });
                 this.questListContainer.add([qBg, qTitle, qProgress, qReward, statusBtn, btnTxt]);
