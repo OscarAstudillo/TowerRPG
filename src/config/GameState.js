@@ -45,7 +45,7 @@ export const CLASS_RESTRICTIONS = {
 };
 
 export const initialState = {
-    gold: 5000,
+    gold: 500000,
     selectedClass: null,
     
     playerStats: {
