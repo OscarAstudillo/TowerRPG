@@ -26,7 +26,7 @@ export default class GameScene extends Phaser.Scene {
         this.isPaused = false;
         this.isSceneReady = false;
         
-        // Orden y nombres cortos para las cartas
+        // Orden y nombres cortos
         this.towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
         this.towerDisplayNames = {
             'archer': 'ARQUERO',
@@ -56,8 +56,13 @@ export default class GameScene extends Phaser.Scene {
         if (!gameState.playerStats) updatePlayerStats();
         const hero = getCurrentHero();
         this.lastHeroLevel = hero ? hero.level : 1;
+        
+        // --- CORRECCIÓN IMPORTANTE: RESETEAR ESTADOS ---
         this.isSceneReady = false; 
         this.isPaused = false;
+        this.time.paused = false; // Asegurar que el reloj no esté pausado de una sesión anterior
+        // -----------------------------------------------
+
         this.totalWaves = this.currentLevelData.waves || 3;
         this.hpMultiplier = this.currentLevelData.hpMult || 1;
         this.spawnMult = 1;
@@ -114,23 +119,21 @@ export default class GameScene extends Phaser.Scene {
         this.sessionLoot = {}; 
         gameState.baseHp = 20;
 
-        // --- CREAR MAPA ---
         this.createMapFromGrid();
-
         this.createUpgradeUI(); 
-        this.createUI(); // Aquí se crea el nuevo selector de torres
+        this.createUI(); 
         this.createPauseMenu();
 
-        // --- HÉROE ---
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
         this.player = new Player(this, centerX, centerY, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // --- INPUTS ---
+        // --- INPUTS: Limpiar antes de agregar para evitar duplicados ---
+        this.input.keyboard.removeAllListeners(); 
+        
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
-        // Selectores de Torre (Teclado 1-6)
         this.input.keyboard.on('keydown-ONE', () => this.selectTower(0));
         this.input.keyboard.on('keydown-TWO', () => this.selectTower(1));
         this.input.keyboard.on('keydown-THREE', () => this.selectTower(2));
@@ -150,7 +153,6 @@ export default class GameScene extends Phaser.Scene {
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
             
-            // Detectar clicks en UI para no mover al héroe
             const clickedOnUI = currentlyOver.some(obj => 
                 (this.upgradeContainer && this.upgradeContainer.visible && (obj === this.upgradeContainer || obj.parentContainer === this.upgradeContainer)) ||
                 (this.towerSelectorContainer && (obj === this.towerSelectorContainer || obj.parentContainer === this.towerSelectorContainer)) ||
@@ -164,7 +166,6 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
             
-            // Movimiento del héroe (zona jugable)
             if (!clickedOnUI && pointer.y > 100 && pointer.y < (this.scale.height - 140)) { 
                 const clickedOnInteractive = currentlyOver.length > 0;
                 if (!clickedOnInteractive && this.player && this.player.setTarget) {
@@ -186,13 +187,25 @@ export default class GameScene extends Phaser.Scene {
         this.isSceneReady = true;
     }
 
-    // --- NUEVO MÉTODO DE SELECCIÓN ---
+    // --- LIMPIEZA DE ESCENA (NUEVO) ---
+    // Este método asegura que todo se apague correctamente al salir
+    cleanUpScene() {
+        this.isPaused = false;
+        this.time.paused = false; // CRÍTICO: Reactivar el reloj interno
+        this.physics.resume();
+        this.tweens.resumeAll();
+        
+        if (this.spawnTimer) this.spawnTimer.remove();
+        this.input.keyboard.removeAllListeners();
+        this.input.removeAllListeners();
+    }
+
     selectTower(index) {
         if (this.isPaused) return;
         if (index < 0 || index >= this.towerOrder.length) return;
         this.selectedTowerIndex = index;
         this.selectedTowerType = this.towerOrder[index];
-        this.updateUI(); // Actualizar visualmente las cartas
+        this.updateUI(); 
     }
 
     createMapFromGrid() {
@@ -329,7 +342,6 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // ... (Métodos de lógica de juego: generateLoot, etc. IGUALES) ...
     generateLoot(x, y, matKey, qty) {
         const rarity = RPGSystem.getDynamicRarity(this.level);
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
@@ -388,7 +400,6 @@ export default class GameScene extends Phaser.Scene {
     checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
     getTowerFromObject(obj) { if (obj instanceof Tower) return obj; if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); return null; }
     
-    // --- MODIFICACIÓN: createUI con Selector de Torres ---
     createUI() { 
         const w = this.scale.width; 
         const h = this.scale.height; 
@@ -413,7 +424,7 @@ export default class GameScene extends Phaser.Scene {
         // Oleada
         this.waveInfoText = this.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1); 
 
-        // ORO (Arriba a la derecha)
+        // ORO
         this.economyText = this.add.text(w - 30, 70, '$0', { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(uiDepth + 1);
 
         // Timer
@@ -432,12 +443,12 @@ export default class GameScene extends Phaser.Scene {
         const selectorBg = this.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
 
-        // Generar Cartas (1-6) - AHORA MÁS GRANDES (100x120)
+        // Generar Cartas (1-6) - 100x120
         this.towerCards = [];
         const cardWidth = 100;
         const cardHeight = 120;
-        const gap = 110; // Espacio entre centros
-        const startX = -((gap * 5) / 2); // Centrado
+        const gap = 110; 
+        const startX = -((gap * 5) / 2); 
 
         this.towerOrder.forEach((type, i) => {
             const card = this.add.container(startX + (i * gap), 0);
@@ -446,11 +457,11 @@ export default class GameScene extends Phaser.Scene {
             const cardBg = this.add.rectangle(0, 0, cardWidth, cardHeight, 0x222222).setInteractive({useHandCursor:true});
             cardBg.setStrokeStyle(1, 0xaaaaaa);
             
-            // Icono (Color de la torre)
+            // Icono
             const stats = TOWER_TYPES[type];
             const icon = this.add.rectangle(0, -20, 50, 50, stats.color || 0x888888);
 
-            // Nombre (USAMOS EL DICCIONARIO DE NOMBRES CORTOS)
+            // Nombre
             const displayName = this.towerDisplayNames[type] || "TORRE";
             const name = this.add.text(0, -50, displayName, { fontSize:'10px', fontStyle:'bold' }).setOrigin(0.5);
             
@@ -466,18 +477,13 @@ export default class GameScene extends Phaser.Scene {
             card.add([cardBg, icon, name, costText, key]);
             this.towerSelectorContainer.add(card);
             
-            // Guardamos referencias para actualizar visualmente
             this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
         });
 
-        // 3. BOTÓN HABILIDAD (Esquina inferior derecha)
+        // 3. BOTÓN HABILIDAD
         this.skillBtnContainer = this.add.container(w - 70, h - 70).setScrollFactor(0).setDepth(uiDepth + 1); 
         this.skillBg = this.add.circle(0, 0, 40, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true }); 
-        
-        // Icono (letra o sprite)
         const skillIcon = this.add.text(0, 0, "⚡", { fontSize: '32px' }).setOrigin(0.5);
-        
-        // Cooldown overlay (semi-transparente)
         this.skillOverlay = this.add.circle(0, 0, 40, 0x000000, 0.7).setVisible(false);
         this.skillTimerText = this.add.text(0, 0, "", { fontSize:'16px', fontStyle:'bold' }).setOrigin(0.5);
 
@@ -499,20 +505,14 @@ export default class GameScene extends Phaser.Scene {
             this.lvlText.setText(`Lvl ${hero.level}`); 
         } 
 
-        // Actualizar Cartas de Torres
+        // Actualizar Cartas
         if (this.towerCards) {
             this.towerCards.forEach((card, i) => {
                 const isSelected = (i === this.selectedTowerIndex);
                 const canAfford = this.coins >= card.cost;
-
-                // Color del borde y fondo según selección
                 card.bg.setStrokeStyle(isSelected ? 3 : 1, isSelected ? 0x00ff00 : 0xaaaaaa);
                 card.bg.setFillStyle(isSelected ? 0x444444 : 0x222222);
-
-                // Color del precio (Rojo si no alcanza)
                 card.costText.setColor(canAfford ? '#ffd700' : '#ff0000');
-                
-                // Escala leve si está seleccionado
                 card.container.setScale(isSelected ? 1.1 : 1.0);
             });
         }
@@ -525,11 +525,11 @@ export default class GameScene extends Phaser.Scene {
         if (cd > 0) { 
             this.skillOverlay.setVisible(true);
             this.skillTimerText.setText(Math.ceil(cd / 1000));
-            this.skillBg.setStrokeStyle(3, 0x555555); // Gris cuando CD
+            this.skillBg.setStrokeStyle(3, 0x555555); 
         } else { 
             this.skillOverlay.setVisible(false);
             this.skillTimerText.setText("");
-            this.skillBg.setStrokeStyle(3, 0x00ffff); // Azul activo
+            this.skillBg.setStrokeStyle(3, 0x00ffff); 
         } 
     }
     
@@ -729,7 +729,14 @@ export default class GameScene extends Phaser.Scene {
         resumeBtn.on('pointerdown', () => this.togglePause()); 
         const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true }); 
         const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); 
-        exitBtn.on('pointerdown', () => { this.isPaused = false; this.physics.resume(); this.scene.start('MainMenuScene'); }); 
+        
+        // --- CORRECCIÓN AQUÍ: Limpiar todo antes de salir ---
+        exitBtn.on('pointerdown', () => { 
+            this.cleanUpScene(); 
+            this.scene.start('MainMenuScene'); 
+        }); 
+        // ----------------------------------------------------
+
         this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); 
     }
     
@@ -738,7 +745,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.isPaused) { 
             this.physics.pause(); 
             this.tweens.pauseAll(); 
-            this.time.paused = true; 
+            this.time.paused = true; // Pausar reloj interno
             
             if(this.enemies) this.enemies.runChildUpdate = false;
             if(this.projectiles) this.projectiles.runChildUpdate = false;
@@ -748,7 +755,7 @@ export default class GameScene extends Phaser.Scene {
         } else { 
             this.physics.resume(); 
             this.tweens.resumeAll(); 
-            this.time.paused = false; 
+            this.time.paused = false; // Reanudar reloj interno
             
             if(this.enemies) this.enemies.runChildUpdate = true;
             if(this.projectiles) this.projectiles.runChildUpdate = true;
