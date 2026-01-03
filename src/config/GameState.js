@@ -5,7 +5,7 @@ import { TALENTS } from './Talents.js';
 // --- CONSTANTES GLOBALES FALTANTES (ESTO SOLUCIONA EL ERROR) ---
 export const BASE_STATS = {
     hp: 20,    // Vida base del castillo
-    gold: 400  // Oro inicial base (si no lo sobreescribe el nivel)
+    gold: 401  // Oro inicial base (si no lo sobreescribe el nivel)
 };
 
 export const TOWER_COSTS = {
