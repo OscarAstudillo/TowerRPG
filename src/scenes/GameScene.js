@@ -14,7 +14,7 @@ import { BIOMES, getLevelData } from '../config/Levels.js';
 import { BIOME_ENEMIES } from '../config/Enemies.js';
 import SoundManager from '../systems/SoundManager.js'; 
 import { EventBus } from '../utils/EventBus.js'; // IMPORTAR EVENT BUS
-import GameUI from '../ui/GameUI.js'; // IMPORTAR UI DESACOPLADA
+import GameUI from './ui/GameUI.js'; // IMPORTAR UI DESACOPLADA
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
