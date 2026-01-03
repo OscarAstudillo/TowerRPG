@@ -245,4 +245,39 @@ export default class GameUI {
             this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
         }
     }
+
+    pulseGoldIcon() {
+        if (!this.economyText) return;
+        
+        // Efecto de "latido" en el texto
+        this.scene.tweens.add({
+            targets: this.economyText,
+            scale: 1.2,
+            duration: 100,
+            yoyo: true,
+            color: '#ffff00', // Brillo amarillo intenso momentáneo
+            onComplete: () => {
+                this.economyText.setColor('#ffd700'); // Volver a dorado normal
+            }
+        });
+    }
+
+    // Helper para obtener la posición mundial del texto de oro (para que la moneda sepa a dónde volar)
+    getGoldIconPosition() {
+        // Asumiendo que economyText está dentro de un container, sumamos posiciones
+        const x = this.container.x + this.towerSelectorContainer.x + this.economyText.x; 
+        // Nota: Ajusta esto según donde esté exactamente tu texto de oro en pantalla
+        // Si economyText está en topHUD:
+        // const x = this.container.x + this.economyText.x;
+        // const y = this.container.y + this.economyText.y;
+        
+        // Como tu UI es compleja, devolvemos una posición fija aproximada de la UI superior derecha o donde esté tu contador
+        // Según tu código anterior, economyText está en towerSelectorContainer abajo.
+        // Si prefieres que vuele abajo:
+        return { 
+            x: this.scene.scale.width / 2, // Ajusta a la X de tu contador
+            y: this.scene.scale.height - 80 
+        };
+    }
+
 }

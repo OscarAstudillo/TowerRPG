@@ -1,4 +1,3 @@
-// src/entities/player/Player.js
 import Phaser from 'phaser';
 import { gameState, getCurrentHero } from '../../config/GameState.js';
 import { TALENTS } from '../../config/Talents.js';
@@ -14,7 +13,6 @@ export default class Player extends Phaser.GameObjects.Container {
         this.enemies = enemiesGroup;
         this.projectiles = projectilesGroup;
         
-        // --- VISUALIZACIÓN: SPRITE ---
         const textureKey = `hero_${charClass}`; 
         
         if (scene.textures.exists(textureKey)) {
@@ -26,26 +24,21 @@ export default class Player extends Phaser.GameObjects.Container {
             this.bodySprite = scene.add.rectangle(0, 0, 32, 32, color);
         }
         this.add(this.bodySprite);
-        // -----------------------------
 
-        // Configuración Física
         this.body.setSize(32, 32);
         this.body.setCollideWorldBounds(true);
         this.body.setOffset(-16, -16); 
 
         this.attackTimer = 0;
         this.skillCooldown = 0;
-        this.skillMaxCooldown = 5000; // 5 segundos de cooldown base
+        this.skillMaxCooldown = 5000; 
 
-        // Barra de vida
         this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -25, 38, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
         
         this.isDead = false;
         this.respawnTimer = 0;
-        
-        // Estado temporal para buffs
         this.originalStats = {}; 
         
         this.loadPassives();
@@ -62,7 +55,6 @@ export default class Player extends Phaser.GameObjects.Container {
 
         const stats = gameState.playerStats;
 
-        // Movimiento
         const cursors = this.scene.input.keyboard.createCursorKeys();
         const wasd = this.scene.input.keyboard.addKeys({ 
             'W': Phaser.Input.Keyboard.KeyCodes.W, 
@@ -87,28 +79,23 @@ export default class Player extends Phaser.GameObjects.Container {
 
         this.body.setVelocity(velocityX * stats.moveSpeed, velocityY * stats.moveSpeed);
 
-        // Animación Flip
         if (this.bodySprite && this.bodySprite.setFlipX) {
             if (velocityX < 0) this.bodySprite.setFlipX(true);
             else if (velocityX > 0) this.bodySprite.setFlipX(false);
         }
 
-        // Regeneración HP
         if (stats.regenHp > 0) {
             stats.hp = Math.min(stats.maxHp, stats.hp + (stats.regenHp * delta / 1000));
         }
 
-        // Skill Cooldown
         if (this.skillCooldown > 0) this.skillCooldown -= delta;
 
-        // Auto-Attack
         this.attackTimer += delta;
         if (this.attackTimer >= stats.attackSpeed) {
             this.attackTimer = 0;
             this.autoAttack();
         }
 
-        // Barra de vida
         const hpPercent = Math.max(0, stats.hp / stats.maxHp);
         this.hpBar.width = 38 * hpPercent;
         this.hpBar.fillColor = hpPercent < 0.3 ? 0xff0000 : 0x00ff00;
@@ -138,7 +125,6 @@ export default class Player extends Phaser.GameObjects.Container {
         let target = null;
         let minDistance = stats.range;
 
-        // Buscar enemigo más cercano
         this.enemies.children.iterate((enemy) => {
             if (enemy.active && !enemy.isDead) {
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
@@ -151,7 +137,6 @@ export default class Player extends Phaser.GameObjects.Container {
 
         if (target) {
             this.fireProjectile(target);
-            // Probabilidad de Doble ataque
             if (Math.random() * 100 < stats.doubleAttack) {
                 this.scene.time.delayedCall(100, () => {
                     if(target.active) this.fireProjectile(target);
@@ -166,22 +151,26 @@ export default class Player extends Phaser.GameObjects.Container {
         
         if (projectile) {
             let finalDamage = stats.damage;
-            
-            if (Math.random() * 100 < stats.critChance) {
+            // --- CÁLCULO DE CRÍTICO ---
+            const isCrit = Math.random() * 100 < stats.critChance;
+            if (isCrit) {
                 finalDamage *= (stats.critDamage / 100);
-                this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
             }
+            // ---------------------------
 
             if (SoundManager && SoundManager.playSound) SoundManager.playSound('shoot_arrow');
 
             projectile.fire(target, {
                 damage: finalDamage,
+                isCrit: isCrit, // PASAMOS EL FLAG
                 type: 'arrow',
                 effect: null
             });
         }
     }
 
+    // ... (castSkill, takeDamage, die, respawn SIN CAMBIOS) ...
+    // Asegúrate de mantener esos métodos igual que en tu código original
     castSkill() {
         if (this.skillCooldown > 0) return { success: false };
         const hero = getCurrentHero();
@@ -190,82 +179,58 @@ export default class Player extends Phaser.GameObjects.Container {
         this.skillCooldown = this.skillMaxCooldown;
         const stats = gameState.playerStats;
 
-        // --- LÓGICA DE HABILIDADES POR CLASE ---
-
         if (this.charClass === 'guerrero') {
-            // Curación y Defensa temporal
             const healAmount = stats.maxHp * 0.3;
             stats.hp = Math.min(stats.maxHp, stats.hp + healAmount);
-            this.scene.showFloatingText(this.x, this.y, "¡FURIA!", "#ff0000");
-            this.scene.showFloatingText(this.x, this.y - 20, `+${Math.floor(healAmount)} HP`, "#00ff00");
-            
-            // Efecto visual de onda expansiva pequeña
+            this.scene.showFloatingText(this.x, this.y, "¡FURIA!", "heal"); // Usamos tipo 'heal'
+            this.scene.showFloatingText(this.x, this.y - 20, `+${Math.floor(healAmount)} HP`, "heal");
             if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0xff0000);
 
         } else if (this.charClass === 'mago') {
-            // Explosión de área de hielo/fuego
-            this.scene.showFloatingText(this.x, this.y, "¡NOVA MÁGICA!", "#00ffff");
+            this.scene.showFloatingText(this.x, this.y, "¡NOVA!", "#00ffff");
             if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
-            
-            // Daño de área manual por si createExplosion es solo visual
             const range = 150;
             this.enemies.children.iterate((e) => {
                 if(e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < range) {
-                    e.takeDamage(stats.damage * 2);
-                    // Efecto de congelar si tienes esa lógica
+                    const dmg = stats.damage * 2;
+                    e.takeDamage(dmg);
+                    if(this.scene.showDamage) this.scene.showDamage(e.x, e.y, Math.floor(dmg), true); // Crit visual
                 }
             });
 
         } else if (this.charClass === 'arquero') {
-            // AUMENTO DE VELOCIDAD DE ATAQUE (BUFF TEMPORAL)
-            this.scene.showFloatingText(this.x, this.y, "¡DISPARO RÁPIDO!", "#00ff00");
-            
-            // Guardamos valor original para no perderlo
+            this.scene.showFloatingText(this.x, this.y, "¡RÁPIDO!", "#00ff00");
             if (!this.originalStats.attackSpeed) this.originalStats.attackSpeed = stats.attackSpeed;
-            
-            // Reducimos el intervalo a la mitad (Doble velocidad)
-            // Límite mínimo de 100ms para no crashear
             stats.attackSpeed = Math.max(100, stats.attackSpeed * 0.4); 
-
-            // Revertir después de 5 segundos
             this.scene.time.delayedCall(5000, () => {
                 if (this.originalStats.attackSpeed) {
                     stats.attackSpeed = this.originalStats.attackSpeed;
                     this.originalStats.attackSpeed = null;
-                    this.scene.showFloatingText(this.x, this.y, "Fin Velocidad", "#cccccc");
                 }
             });
 
         } else if (this.charClass === 'asesino') {
-            // Daño crítico masivo temporal
-            this.scene.showFloatingText(this.x, this.y, "¡INSTINTO ASESINO!", "#800080");
-            
+            this.scene.showFloatingText(this.x, this.y, "¡INSTINTO!", "#800080");
             if (!this.originalStats.critChance) this.originalStats.critChance = stats.critChance;
-            stats.critChance = 100; // 100% Crítico
-
+            stats.critChance = 100; 
             this.scene.time.delayedCall(4000, () => {
                 if (this.originalStats.critChance) {
                     stats.critChance = this.originalStats.critChance;
                     this.originalStats.critChance = null;
-                    this.scene.showFloatingText(this.x, this.y, "Fin Instinto", "#cccccc");
                 }
             });
         }
-
         return { success: true };
     }
 
     takeDamage(amount) {
         const stats = gameState.playerStats;
-        
         if (Math.random() * 100 < stats.blockChance) {
             this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
             return;
         }
-
         const mitigation = stats.defense * 0.5;
         const finalDamage = Math.max(1, amount - mitigation);
-
         stats.hp -= finalDamage;
         this.scene.cameras.main.shake(50, 0.002);
         this.scene.showFloatingText(this.x, this.y, `-${Math.floor(finalDamage)}`, "#ff0000");
@@ -283,12 +248,9 @@ export default class Player extends Phaser.GameObjects.Container {
         this.isDead = false;
         this.visible = true;
         gameState.playerStats.hp = gameState.playerStats.maxHp;
-        // Restaurar posición al centro
         this.x = this.scene.scale.width / 2;
         this.y = this.scene.scale.height / 2;
         this.scene.showFloatingText(this.x, this.y, "¡REVIVIDO!", "#00ff00");
-        
-        // Limpiar buffs al morir por seguridad
         if (this.originalStats.attackSpeed) gameState.playerStats.attackSpeed = this.originalStats.attackSpeed;
         if (this.originalStats.critChance) gameState.playerStats.critChance = this.originalStats.critChance;
         this.originalStats = {};

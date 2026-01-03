@@ -1,9 +1,8 @@
-// src/entities/towers/Tower.js
 import Phaser from 'phaser';
 import { TOWER_TYPES } from '../../config/TowerStats.js';
 import { getTowerBonuses, getTalentBonuses } from '../../config/GameState.js';
 import Projectile from '../projectiles/Projectile.js';
-import SoundManager from '../../systems/SoundManager.js'; // IMPORTAR AUDIO
+import SoundManager from '../../systems/SoundManager.js'; 
 
 export default class Tower extends Phaser.GameObjects.Container {
     constructor(scene, x, y, typeKey, enemiesGroup, projectilesGroup, buildSite, baseCost) {
@@ -21,7 +20,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.typeName = data.name;
         this.baseColor = data.color;
         
-        // --- SPRITE BASE ---
         this.baseSprite = scene.add.sprite(0, 0, 'base_tower');
         this.baseSprite.setTint(this.baseColor); 
         this.baseSprite.setDisplaySize(40, 40);
@@ -31,7 +29,6 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.selectionRing.strokeRect(-20, -20, 40, 40);
 
         this.add([this.baseSprite, this.selectionRing]);
-        // -------------------
 
         this.setSize(40, 40);
         this.setInteractive({ useHandCursor: true });
@@ -104,22 +101,25 @@ export default class Tower extends Phaser.GameObjects.Container {
                 p.setActive(true);
                 p.setVisible(true);
 
-                // --- AUDIO: REPRODUCIR SONIDO SEGÚN TIPO ---
                 let soundType = 'shoot_arrow';
                 if (['cannon', 'quake'].includes(this.typeKey)) soundType = 'shoot_cannon';
                 else if (['mage', 'tesla', 'ice', 'fire', 'poison'].includes(this.typeKey)) soundType = 'shoot_magic';
                 
                 SoundManager.playSound(soundType);
-                // -------------------------------------------
 
                 let finalDamage = this.damage;
+                // --- CÁLCULO DE CRÍTICO ---
+                // Sniper o habilidad de torre pueden tener crítico
+                let isCrit = false;
                 if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
                     finalDamage *= 2; 
-                    if(this.scene.showFloatingText) this.scene.showFloatingText(target.x, target.y, "CRIT!", "#ff0000");
+                    isCrit = true; // Flag para visual
                 }
+                // --------------------------
 
                 p.fire(target, {
                     damage: finalDamage,
+                    isCrit: isCrit, // Pasamos el flag
                     type: projectileType,
                     effect: this.currentEffect,
                     aoe: this.currentAoE || 0
@@ -142,7 +142,7 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.level++;
             this.updateStats();
             this.showLevelUpEffect();
-            SoundManager.playSound('upgrade'); // Sonido al mejorar
+            SoundManager.playSound('upgrade'); 
         }
     }
 
@@ -168,7 +168,7 @@ export default class Tower extends Phaser.GameObjects.Container {
             this.applyGlobalBonuses();
             this.showLevelUpEffect();
             this.rangeCircle.setRadius(this.range);
-            SoundManager.playSound('upgrade'); // Sonido al evolucionar
+            SoundManager.playSound('upgrade'); 
         }
     }
 

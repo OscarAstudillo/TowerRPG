@@ -670,15 +670,27 @@ export default class GameScene extends Phaser.Scene {
             const reward = enemy.coinReward || 10;
             this.coins += reward; 
             
+            // Lógica existente...
             if (RPGSystem && RPGSystem.gainHeroXP) { RPGSystem.gainHeroXP(enemy.xpReward || 10); } 
             RPGSystem.updateQuestProgress('kill', 'any', 1); 
             
             if (enemy.typeKey.includes('boss')) { 
-                this.showFloatingText(enemy.x, enemy.y, "¡BOSS DERROTADO!", "#ffd700"); 
+                this.showFloatingText(enemy.x, enemy.y, "¡BOSS DERROTADO!", 'crit'); 
                 RPGSystem.updateQuestProgress('boss', 'any', 1); 
             }
+            
             this.createExplosion(enemy.x, enemy.y, enemy.bodyShape ? enemy.bodyShape.fillColor : 0xff0000); 
-            this.showFloatingText(enemy.x, enemy.y - 30, `+$${reward}`, '#ffff00'); 
+            
+            // --- CAMBIO AQUÍ: Usar spawnCoinEffect en lugar de texto simple ---
+            // Lanzar varias monedas si es mucho oro
+            const numCoins = Math.min(5, Math.ceil(reward / 10)); 
+            for(let i=0; i<numCoins; i++) {
+                this.time.delayedCall(i * 100, () => {
+                    this.spawnCoinEffect(enemy.x + (Math.random()*20-10), enemy.y + (Math.random()*20-10));
+                });
+            }
+            // También mostramos el texto numérico pero color oro
+            this.showFloatingText(enemy.x, enemy.y - 30, `+$${reward}`, 'gold'); 
             
             this.spawnLoot(enemy.x, enemy.y); 
 
@@ -703,7 +715,122 @@ export default class GameScene extends Phaser.Scene {
         this.hitEmitter.explode(5); 
     }
 
-    showFloatingText(x, y, message, color = '#fff', duration = 800) { const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, duration: duration, onComplete: () => text.destroy() }); }
+    spawnCoinEffect(startX, startY) {
+        // Crear sprite de moneda (o texto si no tienes sprite)
+        // Usa 'coin_bag' o un sprite simple, o un texto "$"
+        const coin = this.add.text(startX, startY, "🪙", { fontSize: '24px' }).setOrigin(0.5).setDepth(2000);
+        
+        // Obtener destino (La posición del texto de oro en la UI)
+        // Si no implementaste getGoldIconPosition en UI, usa una fija:
+        const targetX = this.scale.width / 2; 
+        const targetY = this.scale.height - 80; // Donde está tu barra de abajo
+
+        // Curva de Bezier para que el vuelo no sea una línea recta aburrida
+        const midX = startX + (targetX - startX) / 2 + (Math.random() * 100 - 50);
+        const midY = Math.min(startY, targetY) - 100; // Sube un poco antes de bajar
+
+        this.tweens.add({
+            targets: coin,
+            x: targetX,
+            y: targetY,
+            duration: 800,
+            ease: 'Sine.easeInOut',
+            onComplete: () => {
+                coin.destroy();
+                // Llamar al pulso de la UI
+                if (this.gameUI && this.gameUI.pulseGoldIcon) {
+                    this.gameUI.pulseGoldIcon();
+                }
+                // Reproducir sonido de moneda aquí si quieres
+                SoundManager.playSound('ui_click'); 
+            }
+        });
+        
+        // Efecto secundario: Moneda girando o escalando mientras viaja
+        this.tweens.add({
+            targets: coin,
+            scaleX: 0, // Simula giro 2D
+            duration: 200,
+            yoyo: true,
+            repeat: 4
+        });
+    }
+
+    showFloatingText(x, y, message, type = 'normal') {
+        let color = '#ffffff';
+        let fontSize = '20px';
+        let stroke = '#000000';
+        let strokeThick = 3;
+        let isCrit = false;
+
+        // Configurar estilo según tipo
+        switch(type) {
+            case 'crit':
+                color = '#ffaa00'; // Naranja/Dorado intenso
+                fontSize = '32px';
+                stroke = '#880000';
+                strokeThick = 6;
+                isCrit = true;
+                break;
+            case 'heal':
+                color = '#00ff00';
+                fontSize = '22px';
+                break;
+            case 'gold':
+                color = '#ffd700';
+                fontSize = '24px';
+                break;
+            case 'damage':
+            default:
+                color = '#ffffff';
+        }
+
+        const text = this.add.text(x, y, message, { 
+            fontFamily: 'Cinzel', 
+            fontSize: fontSize, 
+            fontStyle: 'bold', 
+            color: color, 
+            stroke: stroke, 
+            strokeThickness: strokeThick 
+        }).setOrigin(0.5).setDepth(2000);
+
+        // --- EFECTO DE FÍSICA (ARCADE POP) ---
+        // Hacemos que el texto "salte" hacia un lado aleatorio
+        const angle = Phaser.Math.Between(-30, 30) * (Math.PI / 180); // Ángulo aleatorio arriba
+        const speed = isCrit ? 150 : 80;
+        const velocityX = Math.sin(angle) * speed * (Math.random() < 0.5 ? 1 : -1);
+        const velocityY = -speed;
+
+        // Tween complejo
+        this.tweens.addCounter({
+            from: 0,
+            to: 100,
+            duration: 1000,
+            onUpdate: (tween) => {
+                const t = tween.getValue() / 100;
+                text.x += velocityX * 0.05; // Movimiento lateral
+                text.y += (velocityY * 0.05) + (2 * t); // Gravedad simulada (baja y luego cae)
+                
+                // Fade out al final
+                if (t > 0.7) text.setAlpha(1 - ((t - 0.7) * 3));
+            },
+            onComplete: () => text.destroy()
+        });
+
+        // Efecto especial para CRÍTICOS (Pop + Shake)
+        if (isCrit) {
+            text.setScale(0);
+            this.tweens.add({
+                targets: text,
+                scale: 1.5,
+                duration: 200,
+                ease: 'Back.out',
+                yoyo: true,
+                hold: 300 // Se queda grande un momento
+            });
+            this.cameras.main.shake(100, 0.005); // Pequeño temblor de pantalla
+        }
+    }
     showLevelUpEffect() { const txt = this.add.text(this.scale.width/2, this.scale.height/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, yoyo: true, onComplete: () => txt.destroy() }); gameState.playerStats.hp = gameState.playerStats.maxHp; }
     
     createPauseMenu() { 
@@ -751,4 +878,11 @@ export default class GameScene extends Phaser.Scene {
             this.pauseContainer.setVisible(false); 
         } 
     }
+
+    showDamage(x, y, amount, isCrit) {
+        const type = isCrit ? 'crit' : 'damage';
+        const text = isCrit ? `¡${amount}!` : `${amount}`;
+        this.showFloatingText(x, y, text, type);
+    }
+
 }

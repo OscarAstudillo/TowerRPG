@@ -1,6 +1,5 @@
-// src/entities/projectiles/Projectile.js
 import Phaser from 'phaser';
-import SoundManager from '../../systems/SoundManager.js'; // IMPORTAR AUDIO
+import SoundManager from '../../systems/SoundManager.js'; 
 
 export default class Projectile extends Phaser.GameObjects.Container {
     constructor(scene, x, y) {
@@ -11,24 +10,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.sprite = scene.add.sprite(0, 0, 'base_projectile');
         this.add(this.sprite);
         
-        this.speed = 600;
-        this.damage = 10;
-        this.target = null;
-        this.isParabolic = false;
-        this.aoeRadius = 0;
-        this.effect = null;
-        this.lifespan = 2000;
-        
-        this.chainCount = 0;   
-        this.isPuddle = false; 
-        this.puddleTick = 0;
-        this.type = 'arrow';
-        this.hitIds = []; 
-        
-        this.destX = 0;
-        this.destY = 0;
-        this.timer = 0;
-        this.duration = 0;
+        this.resetValues(); // Inicialización limpia
         
         if (this.body) {
             this.body.setVelocity(0, 0);
@@ -39,6 +21,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
     resetValues() {
         this.speed = 600;
         this.damage = 10;
+        this.isCrit = false; // NUEVO: Flag de crítico
         this.target = null;
         this.isParabolic = false;
         this.aoeRadius = 0;
@@ -53,6 +36,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.timer = 0;
         this.duration = 0;
         this.hitIds = [];
+        this.startX = 0;
+        this.startY = 0;
         
         if (this.body) {
             this.body.setVelocity(0, 0);
@@ -75,6 +60,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
 
         this.target = target;
         this.damage = options.damage || 10;
+        this.isCrit = options.isCrit || false; // RECIBIR CRÍTICO
         this.aoeRadius = options.aoe || 0;
         this.effect = options.effect || null;
         this.type = options.type || 'arrow';
@@ -83,6 +69,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.chainCount = this.effect.val;
         }
 
+        // Configuración visual según tipo
         if (this.type === 'cannon') {
             this.sprite.setTint(0x000000); 
             this.sprite.setScale(1.5);
@@ -157,7 +144,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
                         if (e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= this.aoeRadius) {
                             if (this.effect) e.applyStatus(this.effect);
                             e.takeDamage(1);
-                            if(this.scene.createHitEffect) this.scene.createHitEffect(e.x, e.y, 0x00ff00);
+                            // Solo mostrar daño visual en charcos si es relevante, o muy pequeño
+                            // if(this.scene.showDamage) this.scene.showDamage(e.x, e.y, 1, false);
                         }
                     });
                 }
@@ -199,7 +187,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
             this.rotation = angle;
             
-            if (Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y) < 10) {
+            if (Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y) < 20) {
                 this.hit(this.target);
             }
         }
@@ -216,6 +204,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.y = this.destY;
         }
 
+        // Lógica de Veneno (Puddle)
         if (this.type === 'poison') {
             this.isPuddle = true;
             this.body.setVelocity(0, 0); 
@@ -227,25 +216,27 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.sprite.setScale(this.aoeRadius / 8); 
             
             this.createExplosion(0x00ff00);
-            // Sonido de salpicadura (similar a hit)
             SoundManager.playSound('hit'); 
             return; 
         }
 
+        // Lógica AOE (Explosión)
         if (this.aoeRadius > 0) {
             const colorExplosion = (this.type === 'quake') ? 0x8b4513 : 0xffa500;
             this.createExplosion(colorExplosion); 
             
-            // Sonido de explosión AOE
-            SoundManager.playSound('shoot_cannon'); // Reusamos el boom grave
+            SoundManager.playSound('shoot_cannon'); 
 
             const enemies = this.scene.enemies.getChildren();
             enemies.forEach(enemy => {
                 if (enemy && enemy.active) {
                     const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                     if (dist <= this.aoeRadius) {
-                        let dmg = (this.type === 'poison') ? this.damage : this.damage * 0.5;
+                        let dmg = (this.type === 'poison') ? this.damage : Math.floor(this.damage * 0.5);
                         enemy.takeDamage(dmg);
+                        
+                        // Mostrar daño AOE
+                        if(this.scene.showDamage) this.scene.showDamage(enemy.x, enemy.y, dmg, false);
                         
                         if (this.effect) {
                             if (this.effect.type === 'chance_stun') {
@@ -260,16 +251,22 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 }
             });
         } 
+        // Lógica Single Target
         else if (directTarget && directTarget.active) {
             if (this.hitIds.includes(directTarget)) return;
             this.hitIds.push(directTarget);
 
             directTarget.takeDamage(this.damage);
+            
+            // --- NUEVO: MOSTRAR DAÑO FLOTANTE ---
+            if(this.scene.showDamage) {
+                this.scene.showDamage(directTarget.x, directTarget.y, Math.floor(this.damage), this.isCrit);
+            }
+            // -------------------------------------
+
             if (this.effect) directTarget.applyStatus(this.effect);
             
-            // --- AUDIO: SONIDO DE IMPACTO ---
             SoundManager.playSound('hit');
-            // --------------------------------
 
             if (this.scene.createHitEffect) {
                 this.scene.createHitEffect(this.x, this.y, this.sprite.tintTopLeft);
