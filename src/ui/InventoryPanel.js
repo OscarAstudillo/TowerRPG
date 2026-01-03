@@ -3,6 +3,7 @@ import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { ITEM_SETS } from '../config/ItemSets.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
+import SoundManager from '../systems/SoundManager.js';
 
 export default class InventoryPanel {
     constructor(scene, x, y, width, height) {
@@ -113,7 +114,6 @@ export default class InventoryPanel {
                 itemCont.add(icon);
             }
 
-            // --- CAMBIO AQUÍ: Mostrar nivel de encantamiento si es mayor a 0 ---
             const displayName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
             const txt = this.scene.add.text(40, 12, displayName, { fontFamily: 'Roboto', fontSize: '12px', color: '#fff', wordWrap:{width:120} });
             
@@ -193,7 +193,6 @@ export default class InventoryPanel {
 
         const panelWidth = 360; 
         
-        // También mostrar el nivel en el título del detalle
         const titleName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
 
         const title = this.scene.add.text(0, -220, titleName, { 
@@ -375,10 +374,85 @@ export default class InventoryPanel {
         candidates.slice(0, 7).forEach(item => {
             const btn = this.scene.add.rectangle(0, y, 450, 45, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, item.color);
             const txt = this.scene.add.text(0, y, `${item.name} (+${item.enchant})`, { fontFamily: 'Roboto', fontSize:'16px' }).setOrigin(0.5);
-            btn.on('pointerdown', () => this.executeFusion(item));
+            // AQUÍ CAMBIAMOS: En lugar de executeFusion, llamamos a showFusionConfirmation
+            btn.on('pointerdown', () => this.showFusionConfirmation(item));
             this.fusionList.add([btn, txt]);
             y += 55;
         });
+    }
+
+    // --- NUEVO: VENTANA DE CONFIRMACIÓN ---
+    showFusionConfirmation(item2) {
+        this.fusionListModal.setVisible(false); // Ocultar lista
+        
+        const cx = this.scene.scale.width / 2;
+        const cy = this.scene.scale.height / 2;
+        
+        const modalContainer = this.scene.add.container(0, 0).setDepth(3000);
+        const overlay = this.scene.add.rectangle(cx, cy, 2000, 2000, 0x000000, 0.8).setInteractive();
+        const panel = this.scene.add.rectangle(cx, cy, 600, 400, 0x222222).setStrokeStyle(4, 0xffd700);
+        
+        const title = this.scene.add.text(cx, cy - 170, "CONFIRMAR FUSIÓN", { fontFamily: 'Cinzel', fontSize: '28px', color: '#ffd700' }).setOrigin(0.5);
+        
+        const infoText = this.scene.add.text(cx, cy - 120, 
+            "Al fusionar, el objeto resultante aumentará su nivel (+).\n" +
+            "IMPORTANTE: El objeto PRINCIPAL conservará sus estadísticas base.\n" +
+            "El secundario se destruirá.", 
+            { fontFamily: 'Roboto', fontSize: '16px', color: '#fff', align: 'center' }
+        ).setOrigin(0.5);
+
+        // Preview Item A (Principal)
+        const itemAContainer = this.createItemPreview(this.itemToFuse1, "PRINCIPAL (Se Mantiene)");
+        itemAContainer.setPosition(cx - 150, cy + 20);
+        
+        // Preview Item B (Sacrificio)
+        const itemBContainer = this.createItemPreview(item2, "SACRIFICIO (Se Destruye)");
+        itemBContainer.setPosition(cx + 150, cy + 20);
+
+        // Botones
+        const btnCancel = this.scene.add.rectangle(cx - 100, cy + 150, 150, 50, 0x550000).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0xffffff);
+        const txtCancel = this.scene.add.text(cx - 100, cy + 150, "CANCELAR", { fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        const btnConfirm = this.scene.add.rectangle(cx + 100, cy + 150, 150, 50, 0x005500).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
+        const txtConfirm = this.scene.add.text(cx + 100, cy + 150, "FUSIONAR", { fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
+
+        btnCancel.on('pointerdown', () => {
+            modalContainer.destroy();
+            this.fusionListModal.setVisible(true); // Volver a la lista
+        });
+        
+        overlay.on('pointerdown', () => {
+            modalContainer.destroy();
+            this.fusionListModal.setVisible(true);
+        });
+
+        btnConfirm.on('pointerdown', () => {
+            this.executeFusion(item2);
+            modalContainer.destroy();
+        });
+
+        modalContainer.add([overlay, panel, title, infoText, itemAContainer, itemBContainer, btnCancel, txtCancel, btnConfirm, txtConfirm]);
+    }
+
+    createItemPreview(item, label) {
+        const container = this.scene.add.container(0, 0);
+        const bg = this.scene.add.rectangle(0, 0, 200, 180, 0x111111).setStrokeStyle(2, 0x444444);
+        
+        const lbl = this.scene.add.text(0, -70, label, { fontSize: '12px', color: '#888', fontStyle: 'italic' }).setOrigin(0.5);
+        
+        const nameColor = item.rarity === 'legendary' ? '#ffd700' : (item.rarity === 'epic' ? '#d000d0' : '#ffffff');
+        const name = this.scene.add.text(0, -40, `${item.name} +${item.enchant||0}`, { fontSize: '16px', fontStyle: 'bold', color: nameColor }).setOrigin(0.5);
+        
+        let statsText = "";
+        if (item.stats) {
+            Object.entries(item.stats).forEach(([key, val]) => {
+                if (val !== 0) statsText += `${key.toUpperCase()}: ${val}\n`;
+            });
+        }
+        const stats = this.scene.add.text(0, 10, statsText, { fontSize: '14px', color: '#aaa', align: 'center' }).setOrigin(0.5);
+
+        container.add([bg, lbl, name, stats]);
+        return container;
     }
 
     executeFusion(item2) {
@@ -393,6 +467,9 @@ export default class InventoryPanel {
             SaveSystem.save();
             
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(`FUSIÓN EXITOSA: ${res.item.name}`, '#00ff00');
+            if (SoundManager.playSound) SoundManager.playSound('upgrade');
+        } else {
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(res.error || "Fallo en la fusión", '#ff0000');
         }
     }
 }
