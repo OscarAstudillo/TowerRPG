@@ -13,8 +13,8 @@ import RPGSystem from '../systems/RPGSystem.js';
 import { BIOMES, getLevelData } from '../config/Levels.js'; 
 import { BIOME_ENEMIES } from '../config/Enemies.js';
 import SoundManager from '../systems/SoundManager.js'; 
-import { EventBus } from '../utils/EventBus.js'; // IMPORTAR EVENT BUS
-import GameUI from '../ui/GameUi.js'; // IMPORTAR UI DESACOPLADA
+import { EventBus } from '../utils/EventBus.js'; 
+import GameUI from '../ui/GameUi.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -34,6 +34,7 @@ export default class GameScene extends Phaser.Scene {
     init(data) {
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
+        this.difficulty = data.difficulty || 1; // 1: Fácil, 2: Normal, 3: Difícil
         this.config = data.config || {}; 
         
         this.currentLevelData = getLevelData(this.biome, this.level);
@@ -55,7 +56,13 @@ export default class GameScene extends Phaser.Scene {
         this.time.paused = false;
 
         this.totalWaves = this.currentLevelData.waves || 3;
-        this.hpMultiplier = this.currentLevelData.hpMult || 1;
+        
+        // --- ESCALADO DE DIFICULTAD ---
+        // HP Enemigos: Base * Multiplicador de dificultad
+        // Fácil (1) = x1, Normal (2) = x2, Difícil (3) = x4
+        const diffMult = this.difficulty === 1 ? 1 : (this.difficulty === 2 ? 2 : 4);
+        this.hpMultiplier = (this.currentLevelData.hpMult || 1) * diffMult;
+        
         this.spawnMult = 1;
         this.isBossWave = false;
         this.bossSpawned = false;
@@ -73,7 +80,7 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
-        this.createParticles(); // Refactorizado para limpieza
+        this.createParticles(); 
 
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
         this.projectiles = this.physics.add.group({ classType: Projectile, runChildUpdate: true, maxSize: 200 });
@@ -90,30 +97,29 @@ export default class GameScene extends Phaser.Scene {
         this.currentWave = 0; 
         this.waveInProgress = false;
         this.sessionLoot = {}; 
+        
+        // Vida del Castillo
         gameState.baseHp = 20;
+        this.maxBaseHp = 20; // Referencia para estrellas
 
         this.createMapFromGrid();
-        this.createUpgradeUI(); // Se queda aquí (World UI)
-        this.createPauseMenu(); // Se queda aquí (Overlay)
+        this.createUpgradeUI(); 
+        this.createPauseMenu(); 
 
-        // --- INICIALIZAR UI DESACOPLADA ---
+        // UI Desacoplada
         this.gameUI = new GameUI(this);
-        // Sincronización inicial
         EventBus.emit('gold-changed', this.coins);
-        EventBus.emit('base-damaged', gameState.baseHp);
+        EventBus.emit('base-damaged', { current: gameState.baseHp, max: this.maxBaseHp });
         EventBus.emit('tower-selected', this.selectedTowerIndex);
-        // ----------------------------------
-
+        
         const centerX = this.scale.width / 2;
         const centerY = this.scale.height / 2;
         this.player = new Player(this, centerX, centerY, gameState.selectedClass, this.enemies, this.projectiles);
         
-        // --- ESCUCHAR EVENTOS DE UI ---
         EventBus.on('ui-select-tower', this.selectTower, this);
         EventBus.on('ui-trigger-skill', this.triggerPlayerSkill, this);
         EventBus.on('ui-start-wave', this.startNextWaveAction, this);
-        // ------------------------------
-
+        
         this.setupInputs();
 
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
@@ -175,15 +181,8 @@ export default class GameScene extends Phaser.Scene {
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
             
-            // Si hacemos click en algo interactivo (UI), no movemos al player
             if (currentlyOver.length > 0) {
-                // Verificar si es un objeto UI
-                const isUI = currentlyOver.some(obj => obj.scene && obj.scene !== this); // Comprobación básica
-                // OJO: Como GameUI usa la misma escena, esto no filtra. 
-                // Pero como los botones de UI capturan el evento, 'pointerdown' en escena no debería dispararse si paramos propagación.
-                // Sin embargo, Phaser input a veces atraviesa.
-                // Simple check de zona:
-                if (pointer.y > this.scale.height - 140) return; // Zona de cartas
+                if (pointer.y > this.scale.height - 140) return; 
             }
 
             if (this.upgradeContainer && this.upgradeContainer.visible) {
@@ -197,7 +196,6 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
             
-            // Movimiento
             if (pointer.y > 100 && pointer.y < (this.scale.height - 140)) { 
                 if (this.player && this.player.setTarget) {
                     this.player.setTarget(pointer.x, pointer.y);
@@ -216,7 +214,6 @@ export default class GameScene extends Phaser.Scene {
         this.input.keyboard.removeAllListeners();
         this.input.removeAllListeners();
 
-        // Limpiar listeners de EventBus para no duplicar
         EventBus.off('ui-select-tower');
         EventBus.off('ui-trigger-skill');
         EventBus.off('ui-start-wave');
@@ -227,10 +224,9 @@ export default class GameScene extends Phaser.Scene {
         if (index < 0 || index >= this.towerOrder.length) return;
         this.selectedTowerIndex = index;
         this.selectedTowerType = this.towerOrder[index];
-        EventBus.emit('tower-selected', index); // Notificar a UI
+        EventBus.emit('tower-selected', index); 
     }
 
-    // ... (createMapFromGrid IGUAL) ...
     createMapFromGrid() {
         const grid = this.currentLevelData.mapGrid;
         if (!grid) return;
@@ -262,7 +258,6 @@ export default class GameScene extends Phaser.Scene {
                 }
             }
         }
-        // ... (Pathfinding igual) ...
         if (startPoints.length === 0) {
             for (let r=0; r<grid.length; r++) {
                 for (let c=0; c<grid[0].length; c++) {
@@ -332,7 +327,6 @@ export default class GameScene extends Phaser.Scene {
             this.lastHeroLevel = hero.level;
         }
 
-        // --- UPDATE DE ESTADOS ---
         EventBus.emit('hero-stats-update');
         EventBus.emit('skill-cooldown', { current: this.player ? this.player.skillCooldown : 0, total: this.player ? this.player.skillMaxCooldown : 1000 });
         
@@ -348,18 +342,75 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // --- MÉTODOS DE LÓGICA DE JUEGO (Modificados para emitir) ---
+    // --- NUEVO: SISTEMA DE SPAWN LOOT POR DIFICULTAD ---
+    spawnLoot(x, y) { 
+        // 30% chance de dropear algo
+        if (Math.random() > 0.30) return; 
+        
+        let type = 'wood'; 
+        let rarity = 'common'; 
+        const roll = Math.random(); 
+        
+        // Items Especiales (Pociones/Monedas no tienen Tier)
+        if (roll < 0.15) {
+            type = 'potion_hp';
+        } else if (roll < 0.25) {
+            type = 'coin_bag';
+        } else {
+            // --- MATERIALES POR TIER (DIFICULTAD) ---
+            const matRoll = Math.random();
+            
+            // Asignar material según Tier
+            if (this.difficulty === 1) {
+                // Tier 1: Madera, Cobre, Cuero Simple
+                type = matRoll < 0.5 ? 'wood' : 'copper'; 
+            } else if (this.difficulty === 2) {
+                // Tier 2: Cedro, Hierro, Cuero Rígido
+                type = matRoll < 0.5 ? 'cedar' : 'iron'; 
+            } else {
+                // Tier 3: Ébano, Mithril, Cuero Dragon
+                type = matRoll < 0.5 ? 'ebony' : 'mithril'; 
+            }
+        }
+        
+        const item = new Loot(this, x, y, type, rarity);
+        this.loots.add(item);
+    }
+
+    // Al recoger, generamos el material real en inventario con la rareza correcta
+    collectLoot(lootItem) { 
+        if (lootItem.isConsumable) { 
+            if (lootItem.typeKey === 'potion_hp') { 
+                const heal = Math.floor(gameState.playerStats.maxHp * 0.25); 
+                gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); 
+                this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); 
+            } else if (lootItem.typeKey === 'coin_bag') { 
+                const gold = Phaser.Math.Between(30, 60) * this.difficulty; // Más oro en dificultad alta
+                this.coins += gold; 
+                EventBus.emit('gold-changed', this.coins); 
+                this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); 
+            } 
+        } else { 
+            // Materiales: Aquí se calcula la rareza real basada en nivel/suerte
+            this.generateLoot(lootItem.x, lootItem.y, lootItem.typeKey, 1);
+            this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); 
+        } 
+        lootItem.destroy(); 
+    }
 
     generateLoot(x, y, matKey, qty) {
+        // La rareza la calcula RPGSystem según nivel de jugador/mapa
         const rarity = RPGSystem.getDynamicRarity(this.level);
+        
         if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic:0, legendary:0 };
         gameState.materials[matKey][rarity] += qty;
+        
+        // Log de sesión (para mostrar al final)
         if (!this.sessionLoot[matKey]) this.sessionLoot[matKey] = { common: 0 };
         if (!this.sessionLoot[matKey][rarity]) this.sessionLoot[matKey][rarity] = 0;
         this.sessionLoot[matKey][rarity] += qty;
-        const item = new Loot(this, x, y, matKey, rarity);
-        this.loots.add(item);
     }
+    // ----------------------------------------------------
 
     startWaveTimer(seconds) { 
         this.isTimerRunning = true; 
@@ -391,7 +442,11 @@ export default class GameScene extends Phaser.Scene {
                 let targetPathIndex = 0; const pathCount = this.paths.length;
                 if (pathCount > 1) { if (this.currentWave === 1) targetPathIndex = 0; else if (this.currentWave === 2) targetPathIndex = 1; else targetPathIndex = spawned % pathCount; }
                 if (!this.paths[targetPathIndex]) targetPathIndex = 0;
-                this.spawnEnemy(1, targetPathIndex); spawned++;
+                
+                // --- POOLING DE ENEMIGOS ---
+                this.spawnEnemy(1, targetPathIndex); 
+                spawned++;
+                
                 if (this.isBossWave && spawned === totalEnemies) this.time.delayedCall(3000, () => this.spawnBoss());
             }
         });
@@ -403,7 +458,15 @@ export default class GameScene extends Phaser.Scene {
         let tierIdx = 0; if (this.level >= 4) tierIdx = 1; if (this.level >= 8) tierIdx = 2;
         const biomeConfig = BIOME_ENEMIES[this.biome]; if (!biomeConfig) return; 
         const possibleMobs = biomeConfig.tiers[tierIdx]; const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
-        const enemy = new Enemy(this, pathPoints, this.hpMultiplier * hpMult, mobKey); this.enemies.add(enemy);
+        
+        // --- POOLING ---
+        let enemy = this.enemies.getFirstDead();
+        if (!enemy) {
+            enemy = new Enemy(this, pathPoints, this.hpMultiplier * hpMult, mobKey);
+            this.enemies.add(enemy);
+        } else {
+            enemy.initEnemy(this.hpMultiplier * hpMult, mobKey, pathPoints);
+        }
     }
 
     spawnBoss() {
@@ -413,13 +476,20 @@ export default class GameScene extends Phaser.Scene {
         let bossKey = 'slime'; 
         if (this.level === 5 || this.level === 10) { bossKey = biomeConfig.bosses[this.level]; this.showFloatingText(this.scale.width/2, 200, "¡JEFE LEGENDARIO!", "#ff0000"); } 
         else { const minis = biomeConfig.miniBosses; bossKey = minis[Math.floor(Math.random() * minis.length)]; this.showFloatingText(this.scale.width/2, 200, "¡LÍDER DE MANADA!", "#ff8800"); }
-        const boss = new Enemy(this, pathPoints, this.hpMultiplier * 2.5, bossKey); this.enemies.add(boss);
+        
+        // --- POOLING BOSS ---
+        let boss = this.enemies.getFirstDead();
+        if (!boss) {
+            boss = new Enemy(this, pathPoints, this.hpMultiplier * 2.5, bossKey);
+            this.enemies.add(boss);
+        } else {
+            boss.initEnemy(this.hpMultiplier * 2.5, bossKey, pathPoints);
+            boss.setScale(1.5);
+        }
     }
 
-    checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.getLength() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
+    checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.countActive() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
     getTowerFromObject(obj) { if (obj instanceof Tower) return obj; if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); return null; }
-    
-    // createUI, updateUI, updateSkillUI SE HAN MOVIDO A GameUI.js
     
     createUpgradeUI() { 
         this.upgradeContainer = this.add.container(0, 0).setDepth(2000).setVisible(false); 
@@ -488,7 +558,7 @@ export default class GameScene extends Phaser.Scene {
             this.coins -= t.upgradeCost; 
             t.upgrade(); 
             this.updateUpgradeMenuText(); 
-            EventBus.emit('gold-changed', this.coins); // Notificar UI
+            EventBus.emit('gold-changed', this.coins); 
             SaveSystem.save(); 
         } 
     }
@@ -502,7 +572,7 @@ export default class GameScene extends Phaser.Scene {
             this.coins -= evoData.cost; 
             t.evolve(pathKey); 
             this.updateUpgradeMenuText(); 
-            EventBus.emit('gold-changed', this.coins); // Notificar UI
+            EventBus.emit('gold-changed', this.coins); 
             SaveSystem.save(); 
         } else { 
             this.showFloatingText(t.x, t.y, "¡Falta Oro!", "#ff0000"); 
@@ -529,7 +599,7 @@ export default class GameScene extends Phaser.Scene {
     
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += Math.floor(t.totalInvestment * 0.7); EventBus.emit('gold-changed', this.coins); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${Math.floor(t.totalInvestment*0.7)}`, '#ffff00'); } }
     
-    triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { /* Animacion de skill en UI opcional */ } }
+    triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { /* Animacion opcional */ } }
     
     createSpawnIndicator(x, y) { const marker = this.add.circle(x, y, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(x, y - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
     
@@ -542,7 +612,7 @@ export default class GameScene extends Phaser.Scene {
             this.towers.add(tower); 
             site.occupy(); 
             
-            EventBus.emit('gold-changed', this.coins); // Notificar UI
+            EventBus.emit('gold-changed', this.coins); 
             
             this.tweens.add({ targets: tower, scale: { from: 0, to: 1 }, duration: 200, ease: 'Back.out' }); 
             SaveSystem.save(); 
@@ -555,24 +625,39 @@ export default class GameScene extends Phaser.Scene {
     victory() { 
         this.physics.pause(); 
         if (this.spawnTimer) this.spawnTimer.remove(); 
-        if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
-        if (this.level >= gameState.biomeLevels[this.biome]) {
+        
+        // --- CÁLCULO DE ESTRELLAS Y PROGRESO ---
+        const hpPercent = gameState.baseHp / this.maxBaseHp;
+        let stars = 1;
+        if (hpPercent >= 0.8) stars = 3;
+        else if (hpPercent >= 0.5) stars = 2;
+
+        const starKey = `${this.biome}_${this.difficulty}_${this.level}`;
+        const prevStars = gameState.levelStars[starKey] || 0;
+        
+        if (stars > prevStars) {
+            gameState.levelStars[starKey] = stars;
+        }
+
+        // Progreso de niveles (solo para Dificultad 1 - compatibilidad)
+        if (this.difficulty === 1 && this.level >= gameState.biomeLevels[this.biome]) {
             gameState.biomeLevels[this.biome] = this.level + 1;
         }
+        
         SaveSystem.save(); 
 
-        const rewardGold = 100 + (this.level * 50); 
-        this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡VICTORIA!", "#ffd700", 3000); 
+        const rewardGold = 100 + (this.level * 50 * this.difficulty); 
+        this.showFloatingText(this.scale.width/2, this.scale.height/2, `¡VICTORIA!\n${stars} ★`, "#ffd700", 3000); 
         SoundManager.playSound('upgrade'); 
 
         this.time.delayedCall(2000, () => { 
-            this.scene.start('ChestScene', { biome: this.biome, level: this.level, winData: { gold: rewardGold, xp: 100 * this.level, baseHp: gameState.baseHp, enemyLoot: this.sessionLoot } }); 
+            this.scene.start('ChestScene', { biome: this.biome, level: this.level, winData: { gold: rewardGold, xp: 100 * this.level * this.difficulty, baseHp: gameState.baseHp, enemyLoot: this.sessionLoot } }); 
         }); 
     }
     
     onEnemyLeaks(damage) { 
         gameState.baseHp -= damage; 
-        EventBus.emit('base-damaged', gameState.baseHp); // Notificar UI
+        EventBus.emit('base-damaged', { current: gameState.baseHp, max: this.maxBaseHp }); 
         
         this.cameras.main.flash(200, 255, 0, 0); 
         if (gameState.baseHp <= 0) this.gameOver(); 
@@ -595,9 +680,8 @@ export default class GameScene extends Phaser.Scene {
             this.createExplosion(enemy.x, enemy.y, enemy.bodyShape ? enemy.bodyShape.fillColor : 0xff0000); 
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${reward}`, '#ffff00'); 
             
-            this.spawnLoot(enemy.x, enemy.y); // DROPEAR LOOT
+            this.spawnLoot(enemy.x, enemy.y); 
 
-            // Notificar cambios
             EventBus.emit('gold-changed', this.coins); 
             EventBus.emit('hero-stats-update');
 
@@ -619,8 +703,6 @@ export default class GameScene extends Phaser.Scene {
         this.hitEmitter.explode(5); 
     }
 
-    spawnLoot(x, y) { if (Math.random() > 0.30) return; let type = 'wood'; let rarity = 'common'; const roll = Math.random(); if (roll < 0.15) type = 'potion_hp'; else if (roll < 0.25) type = 'coin_bag'; else { const m = Math.random(); if(m<0.25) type='wood'; else type='copper'; } const item = new Loot(this, x, y, type, rarity); this.loots.add(item); }
-    collectLoot(lootItem) { if (lootItem.isConsumable) { if (lootItem.typeKey === 'potion_hp') { const heal = Math.floor(gameState.playerStats.maxHp * 0.25); gameState.playerStats.hp = Math.min(gameState.playerStats.hp + heal, gameState.playerStats.maxHp); this.showFloatingText(lootItem.x, lootItem.y, `+${heal} HP`, '#ff0000'); } else if (lootItem.typeKey === 'coin_bag') { const gold = Phaser.Math.Between(30, 60); this.coins += gold; EventBus.emit('gold-changed', this.coins); this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, '#ffd700'); } } else { if(gameState.materials[lootItem.typeKey]) { gameState.materials[lootItem.typeKey][lootItem.rarityKey]++; RPGSystem.updateQuestProgress('collect', lootItem.typeKey, 1); if (!this.sessionLoot[lootItem.typeKey]) this.sessionLoot[lootItem.typeKey] = {common:0}; if (!this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]) this.sessionLoot[lootItem.typeKey][lootItem.rarityKey] = 0; this.sessionLoot[lootItem.typeKey][lootItem.rarityKey]++; this.showFloatingText(lootItem.x, lootItem.y, `+1 ${lootItem.typeKey}`, '#ffffff'); } } lootItem.destroy(); }
     showFloatingText(x, y, message, color = '#fff', duration = 800) { const text = this.add.text(x, y, message, { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: color, stroke: '#000', strokeThickness: 3 }).setOrigin(0.5).setDepth(2000); this.tweens.add({ targets: text, y: y - 50, alpha: 0, duration: duration, onComplete: () => text.destroy() }); }
     showLevelUpEffect() { const txt = this.add.text(this.scale.width/2, this.scale.height/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, yoyo: true, onComplete: () => txt.destroy() }); gameState.playerStats.hp = gameState.playerStats.maxHp; }
     

@@ -141,11 +141,22 @@ export const initialState = {
     unlockedRecipes: [], 
     activeSets: [],
     
+    // --- NUEVO: SISTEMA DE DIFICULTAD Y ESTRELLAS ---
+    // Guardamos estrellas por nivel: "bioma_dificultad_nivel": estrellas (ej: "forest_1_1": 3)
+    levelStars: {}, 
+    // Dificultad desbloqueada por bioma: 1=Fácil, 2=Normal, 3=Difícil
+    biomeDifficulty: { 
+        forest: 1, 
+        mountain: 1, 
+        volcano: 1 
+    },
+    // Nivel máximo desbloqueado (para mantener compatibilidad con dificultad 1/Normal)
     biomeLevels: {
         forest: 1,
         mountain: 1,
         volcano: 1
     },
+    // ------------------------------------------------
     
     maxLevel: 1, 
     baseHp: 20
