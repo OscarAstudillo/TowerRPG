@@ -31,32 +31,23 @@ class RPGSystem {
     getChestLoot(biomeKey, levelId) {
         const loot = [];
         const biome = BIOMES[biomeKey] || BIOMES['forest'];
-        
         const itemCount = Phaser.Math.Between(3, 5); 
         const levelData = LEVEL_CONFIG[levelId] || { tier: 1 };
         const tier = levelData.tier || 1;
-
         const possibleMats = biome.materials[tier] || biome.materials[1];
 
         for (let i = 0; i < itemCount; i++) {
             const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
-            
-            // --- CAMBIO: El carbón SIEMPRE es común ---
             let rarity = this.getDynamicRarity(levelId);
-            if (matKey === 'coal') rarity = 'common';
-            // ------------------------------------------
+            if (matKey === 'coal') rarity = 'common'; // Carbón siempre común
 
             const amount = Phaser.Math.Between(1, 3);
-
             if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
             gameState.materials[matKey][rarity] += amount;
 
             const existing = loot.find(l => l.key === matKey && l.rarity === rarity);
-            if (existing) {
-                existing.amount += amount;
-            } else {
-                loot.push({ key: matKey, rarity: rarity, amount: amount });
-            }
+            if (existing) existing.amount += amount;
+            else loot.push({ key: matKey, rarity: rarity, amount: amount });
         }
 
         if (Math.random() < 0.3) {
@@ -64,7 +55,6 @@ class RPGSystem {
             gameState.gold += goldBonus;
             loot.push({ key: 'Oro Extra', rarity: 'common', amount: goldBonus, bonus: true });
         }
-
         SaveSystem.save();
         return loot;
     }
@@ -80,14 +70,9 @@ class RPGSystem {
         if (gameState.gold < goldCost) return { success: false, error: "Falta Oro" };
 
         const ingredients = recipe.ingredients || {}; 
-        
         for (let matKey in ingredients) {
             const reqQty = ingredients[matKey];
-            
-            // --- CAMBIO: Usar carbón común siempre ---
             const checkRarity = (matKey === 'coal') ? 'common' : rarityKey;
-            // -----------------------------------------
-
             const playerMats = gameState.materials[matKey];
             const owned = playerMats ? (playerMats[checkRarity] || 0) : 0;
             
@@ -98,10 +83,8 @@ class RPGSystem {
         }
 
         gameState.gold -= goldCost;
-        
         for (let matKey in ingredients) {
             const reqQty = ingredients[matKey];
-            // --- CAMBIO: Consumir carbón común siempre ---
             const consumeRarity = (matKey === 'coal') ? 'common' : rarityKey;
             gameState.materials[matKey][consumeRarity] -= reqQty;
         }
@@ -109,15 +92,177 @@ class RPGSystem {
         let profKey = recipe.prof || 'weaponsmith';
         if (!recipe.prof && recipe.type === 'tower_part') profKey = 'engineering';
 
+        // El nivel de profesión podría dar un pequeño bono de nivel inicial
         const profLevel = this.getProfessionLevel(profKey);
-        const bonusEnchant = Math.floor(profLevel / 20);
+        const bonusEnchant = Math.floor(profLevel / 50); // Cada 50 niveles de prof, +1 enchant base
         
-        const item = this.generateItem(recipe, rarity, bonusEnchant);
+        const item = this.generateItem(recipe, rarityKey, bonusEnchant);
         
         this.gainProfessionXP(profKey, rarityKey);
         this.updateQuestProgress('craft', recipe.type, 1);
         
         return { success: true, item: item };
+    }
+
+    // --- GENERACIÓN DE ÍTEMS CON EL NUEVO SISTEMA DE STATS ---
+    generateItem(recipe, rarityKey, initialEnchant = 0) {
+        const rarity = RARITY[rarityKey];
+        const tier = recipe.tier || 1;
+        
+        // 1. Identificar Arquetipo para Stats Base (ej: Espada = Daño + Vel)
+        // Se busca en GAME_CONSTANTS.BASE_STATS_RULES (definido en GameConstants.js)
+        // Si no existe, usa keys de recipe.baseStats como fallback
+        const subType = recipe.subType || recipe.type;
+        const archetype = GAME_CONSTANTS.BASE_STATS_RULES ? GAME_CONSTANTS.BASE_STATS_RULES[subType] : null; 
+        
+        let finalStats = {};
+
+        // 2. Calcular Multiplicadores Globales
+        // REGLA: Tier N+1 es 100% más fuerte -> Multiplicador = 2 ^ (Tier - 1)
+        const tierMult = Math.pow(2, tier - 1);
+
+        // REGLA: Rareza +10% por nivel
+        const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
+        const rarityIndex = rarityOrder.indexOf(rarityKey);
+        const rarityMult = Math.pow(1.10, rarityIndex);
+
+        // REGLA: Fusión +5% por nivel (aplicado si sale ya encantado)
+        const fusionMult = Math.pow(1.05, initialEnchant);
+
+        // Multiplicador Total
+        const totalMult = tierMult * rarityMult * fusionMult;
+
+        // 3. Aplicar Stats Base Obligatorios
+        if (archetype) {
+            // Primario
+            this.applyStat(finalStats, archetype.primary, recipe.baseStats[archetype.primary], totalMult);
+            // Secundario
+            this.applyStat(finalStats, archetype.secondary, recipe.baseStats[archetype.secondary], totalMult);
+        } else {
+            // Fallback: Copiar todos los de la receta escalados
+            for (let key in recipe.baseStats) {
+                this.applyStat(finalStats, key, recipe.baseStats[key], totalMult);
+            }
+        }
+
+        // 4. Generar Atributos Extra (Random)
+        // Cantidad basada en la rareza (Common=0, Uncommon=1, etc.)
+        const extraCount = rarity.statCount || 0;
+        const pool = this.getStatPool(recipe);
+        
+        // Evitar repetir stats si es posible, o acumular
+        for (let i = 0; i < extraCount; i++) {
+            const statDef = pool[Math.floor(Math.random() * pool.length)];
+            // Valor base random del pool, escalado por Tier y Fusión (pero NO por rareza excesiva, para que no se dispare)
+            // Usamos tierMult * fusionMult * un pequeño bono de rareza (1.05^index) para variedad
+            const randomMult = tierMult * fusionMult * Math.pow(1.05, rarityIndex);
+            
+            const baseVal = (Math.random() * (statDef.max - statDef.min) + statDef.min);
+            this.applyStat(finalStats, statDef.key, baseVal, randomMult);
+        }
+
+        return { 
+            id: this.getUniqueId(),
+            recipeId: recipe.id, 
+            name: recipe.name, 
+            type: recipe.type, 
+            subType: recipe.subType, 
+            towerType: (recipe.type === 'tower_part' ? recipe.subType : null),
+            twoHanded: recipe.twoHanded || false, 
+            rarity: rarityKey, 
+            enchant: initialEnchant, 
+            stats: finalStats, 
+            color: rarity.color 
+        };
+    }
+
+    applyStat(statsObj, key, baseValue, multiplier) {
+        if (baseValue === undefined || baseValue === null) return;
+        
+        let val = baseValue * multiplier;
+        
+        // Ajuste y Redondeo según tipo de stat
+        if (['damage', 'defense', 'hp', 'range'].includes(key)) {
+            val = Math.ceil(val); // Enteros
+        } else if (['critChance', 'critDamage', 'lifesteal', 'blockChance', 'thorns', 'regenHp', 'doubleAttack'].includes(key)) {
+            val = parseFloat(val.toFixed(1)); // 1 decimal
+        } else if (key === 'attackSpeed') {
+            // Vel. Ataque en ms (menor es más rápido). 
+            // Para mejorarla, DIVIDIMOS por el multiplicador.
+            // Base 1000ms * 2 potencia = 500ms (doble velocidad)
+            val = Math.round(baseValue / multiplier); 
+            if (val < 100) val = 100; // Cap de seguridad
+            statsObj[key] = val;
+            return;
+        } else if (key === 'cdr') {
+             // Reducción de CD (ms). Mejorar es AUMENTAR la reducción o reducir el tiempo base?
+             // Asumiremos que el stat es "% CDR" o valor plano. Si es valor plano:
+             val = parseFloat(val.toFixed(1));
+        }
+
+        // Acumular si ya existe (para atributos extra que coinciden con base)
+        if (statsObj[key]) statsObj[key] += val;
+        else statsObj[key] = val;
+    }
+
+    getStatPool(recipe) {
+        // Pool de stats posibles para atributos extra
+        if (recipe.type === 'weapon') return [ 
+            { key: 'damage', min: 1, max: 3 }, 
+            { key: 'critChance', min: 1, max: 2 }, 
+            { key: 'critDamage', min: 5, max: 10 }, 
+            { key: 'lifesteal', min: 0.5, max: 1.5 },
+            { key: 'attackSpeed', min: 20, max: 50 } // Reducción en ms
+        ];
+        if (recipe.type === 'armor' || recipe.type === 'offhand') return [ 
+            { key: 'hp', min: 10, max: 20 }, 
+            { key: 'defense', min: 1, max: 2 }, 
+            { key: 'thorns', min: 1, max: 3 }, 
+            { key: 'regenHp', min: 0.5, max: 1.5 },
+            { key: 'moveSpeed', min: 2, max: 5 }
+        ];
+        if (recipe.type === 'accessory') return [
+            { key: 'critChance', min: 1, max: 2 },
+            { key: 'damage', min: 1, max: 3 },
+            { key: 'lifesteal', min: 0.5, max: 1 },
+            { key: 'cdr', min: 1, max: 3 }
+        ];
+        if (recipe.type === 'tower_part') return [ 
+            { key: 'damage', min: 2, max: 5 }, 
+            { key: 'range', min: 10, max: 20 }, 
+            { key: 'attackSpeed', min: 20, max: 50 }, 
+            { key: 'doubleAttack', min: 2, max: 5 } 
+        ];
+        
+        return [ { key: 'hp', min: 5, max: 10 } ];
+    }
+
+    // --- FUSIÓN CON ESCALADO DEL 5% ---
+    fuseSpecificItems(item1, item2) {
+        if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Deben ser misma rareza y nivel (+)" };
+        if (item1.recipeId !== item2.recipeId) return { success: false, error: "Deben ser el mismo objeto" };
+        
+        const newItem = JSON.parse(JSON.stringify(item1));
+        newItem.id = this.getUniqueId();
+        newItem.enchant += 1; 
+
+        // Multiplicador de Fusión: +5% stats (1.05)
+        const mult = 1.05;
+
+        for (let key in newItem.stats) {
+            if (key === 'attackSpeed') {
+                // Velocidad mejora reduciéndose
+                newItem.stats[key] = Math.max(100, Math.round(newItem.stats[key] / mult));
+            } else if (['critChance', 'critDamage', 'lifesteal', 'blockChance', 'thorns'].includes(key)) {
+                // Porcentajes con 1 decimal
+                newItem.stats[key] = parseFloat((newItem.stats[key] * mult).toFixed(1));
+            } else {
+                // Enteros (Daño, Vida, Defensa)
+                newItem.stats[key] = Math.ceil(newItem.stats[key] * mult);
+            }
+        }
+        
+        return { success: true, item: newItem };
     }
 
     refineMaterial(recipeId, rarityKey = 'common') {
@@ -126,16 +271,12 @@ class RPGSystem {
 
         for (let mat in recipe.input) {
             const required = recipe.input[mat];
-            
-            // --- CAMBIO: Usar carbón común siempre ---
             const checkRarity = (mat === 'coal') ? 'common' : rarityKey;
-            
             const available = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
             if (available < required) return { success: false, error: `Falta material` };
         }
 
         for (let mat in recipe.input) {
-            // --- CAMBIO: Consumir carbón común siempre ---
             const consumeRarity = (mat === 'coal') ? 'common' : rarityKey;
             gameState.materials[mat][consumeRarity] -= recipe.input[mat];
         }
@@ -158,88 +299,6 @@ class RPGSystem {
         this.gainProfessionXP('refining', rarityKey);
 
         return { success: true, item: recipe.output, rarity: outputRarity };
-    }
-
-    generateItem(recipe, rarity, initialEnchant = 0) {
-        const stats = { ...recipe.baseStats };
-        
-        for(let k in stats) {
-            if (k !== 'attackSpeed' && k !== 'cdr') {
-                stats[k] = Math.floor(stats[k] * rarity.mult);
-            }
-        }
-        
-        const pool = this.getStatPool(recipe);
-        for (let i = 0; i < rarity.statCount; i++) {
-            const stat = pool[Math.floor(Math.random() * pool.length)];
-            const rawVal = (Math.random() * (stat.max - stat.min) + stat.min);
-            const val = Math.ceil(rawVal * rarity.mult);
-            
-            if(stat.key === 'attackSpeed') {
-                 if(stats[stat.key]) stats[stat.key] -= val; else stats[stat.key] = -val;
-            } else {
-                 if(stats[stat.key]) stats[stat.key] += val; else stats[stat.key] = val;
-            }
-        }
-
-        if (initialEnchant > 0) this.applyEnchantStats(stats, initialEnchant);
-        
-        return { 
-            id: this.getUniqueId(),
-            recipeId: recipe.id, 
-            name: `${recipe.name}`, 
-            type: recipe.type, 
-            subType: recipe.subType, 
-            towerType: (recipe.type === 'tower_part' ? recipe.subType : null),
-            twoHanded: recipe.twoHanded || false, 
-            rarity: rarity.id, 
-            enchant: initialEnchant, 
-            stats: stats, 
-            color: rarity.color 
-        };
-    }
-
-    getStatPool(recipe) {
-        if (recipe.type === 'weapon') return [ { key: 'damage', min: 2, max: 5 }, { key: 'critChance', min: 1, max: 3 }, { key: 'critDamage', min: 5, max: 15 }, { key: 'lifesteal', min: 1, max: 2 } ];
-        if (recipe.type === 'armor') return [ { key: 'hp', min: 10, max: 30 }, { key: 'defense', min: 1, max: 3 }, { key: 'thorns', min: 1, max: 3 }, { key: 'regenHp', min: 1, max: 2 } ];
-        if (recipe.type === 'tower_part') return [ { key: 'damage', min: 2, max: 5 }, { key: 'range', min: 10, max: 20 }, { key: 'attackSpeed', min: 20, max: 50 }, { key: 'doubleAttack', min: 2, max: 5 } ];
-        return [ { key: 'attackSpeed', min: 10, max: 50 }, { key: 'moveSpeed', min: 5, max: 15 }, { key: 'damage', min: 1, max: 3 } ];
-    }
-
-    applyEnchantStats(statsObj, levels) { 
-        for (let i = 0; i < levels; i++) { 
-            for (let key in statsObj) { 
-                const current = statsObj[key]; 
-                if (key === 'attackSpeed' || key === 'cdr') {
-                      let reduction = Math.floor(current * 0.03); 
-                      if (reduction < 5) reduction = 5; 
-                      statsObj[key] = Math.max(200, current - reduction); 
-                } else {
-                      const boost = Math.ceil(current * 0.10) + 1; 
-                      statsObj[key] = current + boost; 
-                }
-            } 
-        } 
-        return statsObj; 
-    }
-
-    fuseSpecificItems(item1, item2) {
-        if (item1.rarity !== item2.rarity || item1.enchant !== item2.enchant) return { success: false, error: "Incompatible" };
-        if (item1.type !== item2.type) return { success: false, error: "Diferente tipo" };
-        
-        const newItem = JSON.parse(JSON.stringify(item1));
-        newItem.id = this.getUniqueId();
-        newItem.enchant += 1; 
-
-        for (let key in item2.stats) {
-            if (Math.random() > 0.5) newItem.stats[key] = item2.stats[key];
-        }
-        
-        if(newItem.stats.damage) newItem.stats.damage += 1;
-        if(newItem.stats.defense) newItem.stats.defense += 1;
-        if(newItem.stats.hp) newItem.stats.hp += 5;
-
-        return { success: true, item: newItem };
     }
 
     getProfessionLevel(profKey) {
@@ -301,14 +360,16 @@ class RPGSystem {
         const possibleMats = biome.materials[tier] || biome.materials[1];
         const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
         
-        // --- CAMBIO: El carbón SIEMPRE es común ---
+        // Carbón común
         let rarity = this.getDynamicRarity(levelId);
         if (matKey === 'coal') rarity = 'common';
-        // ------------------------------------------
 
         return { key: matKey, rarity: rarity, amount: 1 };
     }
 
+    // ... (generateDailyQuests, addRandomQuest, updateQuestProgress, claimQuestReward se mantienen igual) ...
+    // Asegúrate de copiarlos del archivo original o mantenerlos si no hay cambios lógicos
+    
     generateDailyQuests() {
         const ONE_DAY = 24 * 60 * 60 * 1000;
         const now = Date.now();

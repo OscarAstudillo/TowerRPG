@@ -164,13 +164,20 @@ export const initialState = {
 
 export const gameState = JSON.parse(JSON.stringify(initialState));
 
+// Modificamos RARITY para seguir tu regla:
+// Blanco (Common): Base 100% (1.0), 0 atributos extra (Total 2 base)
+// Verde (Uncommon): Base 110% (1.1), 1 atributo extra
+// Azul (Rare): Base 121% (1.21), 2 atributos extra
+// Morado (Epic): Base 133% (1.33), 3 atributos extra
+// Legendario (Legendary): Base 146% (1.46), 4 atributos extra
+
 export const RARITY = {
-    common:    { id: 'common',    name: 'Común',      color: 0xffffff, mult: 1.0, statCount: 0 },
-    uncommon:  { id: 'uncommon',  name: 'Poco Común', color: 0x00ff00, mult: 1.2, statCount: 1 },
-    rare:      { id: 'rare',      name: 'Raro',       color: 0x0000ff, mult: 1.5, statCount: 2 },
-    epic:      { id: 'epic',      name: 'Épico',      color: 0x800080, mult: 2.0, statCount: 3 },
-    mythic:    { id: 'mythic',    name: 'Mítico',     color: 0xff0000, mult: 2.5, statCount: 4 },
-    legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 3.0, statCount: 5 }
+    common:    { id: 'common',    name: 'Común',      color: 0xffffff, mult: 1.0,   statCount: 0 },
+    uncommon:  { id: 'uncommon',  name: 'Poco Común', color: 0x00ff00, mult: 1.1,   statCount: 1 },
+    rare:      { id: 'rare',      name: 'Raro',       color: 0x0000ff, mult: 1.21,  statCount: 2 },
+    epic:      { id: 'epic',      name: 'Épico',      color: 0x800080, mult: 1.33,  statCount: 3 },
+    legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 1.46,  statCount: 4 },
+    mythic:    { id: 'mythic',    name: 'Mítico',     color: 0xff0000, mult: 1.61,  statCount: 5 } // Opcional si usas mítico
 };
 
 // --- GESTIÓN DE HÉROES Y EQUIPAMIENTO ---
