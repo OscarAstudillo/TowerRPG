@@ -361,12 +361,26 @@ export default class GameScene extends Phaser.Scene {
             type = 'coin_bag';
         } else {
             const matRoll = Math.random();
-            if (this.difficultyMode === 1) {
-                type = matRoll < 0.5 ? 'wood' : 'copper'; 
-            } else if (this.difficultyMode === 2) {
-                type = matRoll < 0.5 ? 'cedar' : 'iron'; 
+            
+            // --- LÓGICA DE DROP: NORMAL vs ENDLESS ---
+            if (this.isEndless) {
+                // Tier según oleada
+                if (this.currentWave <= 30) { // Tier 1
+                    type = matRoll < 0.5 ? 'wood' : 'copper';
+                } else if (this.currentWave <= 60) { // Tier 2
+                    type = matRoll < 0.5 ? 'cedar' : 'iron';
+                } else { // Tier 3 (61+)
+                    type = matRoll < 0.5 ? 'ebony' : 'mithril';
+                }
             } else {
-                type = matRoll < 0.5 ? 'ebony' : 'mithril'; 
+                // Lógica normal por dificultad seleccionada
+                if (this.difficultyMode === 1) {
+                    type = matRoll < 0.5 ? 'wood' : 'copper'; 
+                } else if (this.difficultyMode === 2) {
+                    type = matRoll < 0.5 ? 'cedar' : 'iron'; 
+                } else {
+                    type = matRoll < 0.5 ? 'ebony' : 'mithril'; 
+                }
             }
         }
         

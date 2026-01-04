@@ -1,3 +1,4 @@
+// src/scenes/WorldMapScene.js
 import Phaser from 'phaser';
 import { gameState } from '../config/GameState.js';
 import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js';
@@ -16,8 +17,7 @@ export default class WorldMapScene extends Phaser.Scene {
     constructor() {
         super('WorldMapScene');
         this.currentBiomeIndex = 0;
-        this.biomeKeys = Object.keys(BIOMES);
-        // Dificultad seleccionada por defecto (1=Fácil)
+        this.biomeKeys = Object.keys(BIOMES); // Incluye 'endless' si está en Levels.js
         this.currentSelectedDifficulty = 1;
     }
 
@@ -27,35 +27,27 @@ export default class WorldMapScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
-        // Fondo (se actualiza luego)
         this.bgImage = this.add.image(w/2, h/2, 'bg_forest')
             .setDisplaySize(w, h)
             .setDepth(-10);
         
-        // Título
         this.add.text(w/2, 50, "MAPA DEL MUNDO", {
             fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold', stroke: '#000', strokeThickness: 4
         }).setOrigin(0.5);
 
-        // Contenedores
         this.infoPanelContainer = this.add.container(w * 0.76, h * 0.5);
         this.levelsContainer = this.add.container(w * 0.35, h * 0.5); 
         
-        // --- SELECTOR DE DIFICULTAD ---
         this.createDifficultySelector(w);
-        this.createEndlessButton(w, h);
         this.createBiomeSelect(w, h);
         this.createBiomeInfoPanel();
         
-        
-        // Inicializar vista
         this.updateBiomeView();
 
-        // Botón Volver
         const backBtn = this.add.rectangle(100, h - 50, 150, 50, 0x8b0000)
             .setInteractive({ useHandCursor: true })
             .setStrokeStyle(2, 0xffffff);
-        const backText = this.add.text(100, h - 50, "VOLVER", {
+        this.add.text(100, h - 50, "VOLVER", {
             fontFamily: 'Cinzel', fontSize: '20px', color: '#fff'
         }).setOrigin(0.5);
         
@@ -71,9 +63,9 @@ export default class WorldMapScene extends Phaser.Scene {
         
         this.diffButtons = [];
         const diffs = [
-            { val: 1, label: 'FÁCIL', color: 0x00aa00 },   // Verde
-            { val: 2, label: 'NORMAL', color: 0x0000aa },  // Azul
-            { val: 3, label: 'DIFÍCIL', color: 0xaa0000 }  // Rojo
+            { val: 1, label: 'FÁCIL', color: 0x00aa00 },
+            { val: 2, label: 'NORMAL', color: 0x0000aa },
+            { val: 3, label: 'DIFÍCIL', color: 0xaa0000 }
         ];
 
         const totalW = (diffs.length * 150);
@@ -81,84 +73,24 @@ export default class WorldMapScene extends Phaser.Scene {
 
         diffs.forEach((d, i) => {
             const btn = this.add.container(offset + (i * 150), y);
-            
             const bg = this.add.rectangle(0, 0, 140, 40, 0x222222).setInteractive({useHandCursor:true});
             bg.setStrokeStyle(2, d.color);
-            
             const txt = this.add.text(0, 0, d.label, { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
-            
             const lock = this.add.text(50, 0, "🔒", { fontSize: '16px' }).setOrigin(0.5).setVisible(false);
 
-            bg.on('pointerdown', () => {
-                this.trySelectDifficulty(d.val);
-            });
+            bg.on('pointerdown', () => this.trySelectDifficulty(d.val));
 
             btn.add([bg, txt, lock]);
-            
-            btn.bg = bg;
-            btn.lock = lock;
-            btn.diffValue = d.val;
-            btn.baseColor = d.color;
-            
+            btn.bg = bg; btn.lock = lock; btn.diffValue = d.val; btn.baseColor = d.color;
             this.add.existing(btn);
             this.diffButtons.push(btn);
         });
     }
 
-    createEndlessButton(w, h) {
-        // Verificar requisitos: 30 estrellas en dificultad 1 (Fácil) en los 3 biomas
-        const starsForest = this.getBiomeTotalStars('forest', 1);
-        const starsMountain = this.getBiomeTotalStars('mountain', 1);
-        const starsVolcano = this.getBiomeTotalStars('volcano', 1);
-        
-        const isUnlocked = (starsForest >= 30 && starsMountain >= 30 && starsVolcano >= 30);
-        // Para pruebas rápidas, puedes descomentar: const isUnlocked = true;
-
-        const btn = this.add.container(w * 0.5, h * 0.85); // Abajo al centro
-        
-        const bg = this.add.rectangle(0, 0, 220, 50, isUnlocked ? 0x4b0082 : 0x222222)
-            .setStrokeStyle(2, isUnlocked ? 0xff00ff : 0x555555)
-            .setInteractive({ useHandCursor: isUnlocked });
-            
-        const text = this.add.text(0, 0, "MODO INFINITO", { 
-            fontFamily: 'Cinzel', fontSize: '18px', fontStyle: 'bold', 
-            color: isUnlocked ? '#ff00ff' : '#888888' 
-        }).setOrigin(0.5);
-        
-        if (!isUnlocked) {
-            this.add.text(0, 35, "Requiere 30★ Fácil en todos los biomas", {
-                fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa'
-            }).setOrigin(0.5);
-            const lock = this.add.text(-120, 0, "🔒", { fontSize: '20px' }).setOrigin(0.5);
-            btn.add(lock);
-        } else {
-            // Efecto de brillo si está desbloqueado
-            this.tweens.add({
-                targets: bg,
-                alpha: 0.8,
-                yoyo: true,
-                repeat: -1,
-                duration: 1000
-            });
-            
-            bg.on('pointerdown', () => {
-                SoundManager.playSound('ui_click');
-                this.scene.start('GameScene', { 
-                    biome: 'endless', 
-                    level: 999, // ID especial
-                    difficulty: 1, // La dificultad escala sola
-                    config: LEVEL_CONFIG[999]
-                });
-            });
-        }
-        
-        btn.add([bg, text]);
-        this.add.existing(btn);
-    }
-
     trySelectDifficulty(diff) {
         const currentBiome = this.biomeKeys[this.currentBiomeIndex];
-        
+        if (currentBiome === 'endless') return; // Bloquear cambio de dificultad en endless
+
         if (diff > 1) {
             const prevDiff = diff - 1;
             const stars = this.getBiomeTotalStars(currentBiome, prevDiff);
@@ -166,29 +98,20 @@ export default class WorldMapScene extends Phaser.Scene {
             if (stars < 30) {
                 this.cameras.main.shake(100, 0.005);
                 SoundManager.playSound('ui_click'); 
-                
                 const toast = this.add.text(this.scale.width/2, this.scale.height/2, 
                     `¡BLOQUEADO!\nNecesitas 30 estrellas en dificultad anterior.\nTienes: ${stars}/30`, 
                     { fontSize:'24px', backgroundColor:'#000000', color:'#ff0000', padding: {x:10, y:10}, align: 'center' }
                 ).setOrigin(0.5).setDepth(2000);
-                
-                this.tweens.add({
-                    targets: toast,
-                    alpha: 0,
-                    duration: 2000,
-                    delay: 1000,
-                    onComplete: () => toast.destroy()
-                });
+                this.tweens.add({ targets: toast, alpha: 0, duration: 2000, delay: 1000, onComplete: () => toast.destroy() });
                 return;
             }
         }
 
         this.currentSelectedDifficulty = diff;
         SoundManager.playSound('ui_click');
-        
         this.updateDifficultyButtonsVisuals();
+        this.levelsContainer.removeAll(true); // Limpiar contenedor antes de recrear
         this.createLevelButtons(currentBiome);
-        // ACTUALIZAR INFO PANEL PARA MOSTRAR JEFES DE LA NUEVA DIFICULTAD
         this.updateInfoPanelContent(currentBiome); 
     }
 
@@ -203,35 +126,33 @@ export default class WorldMapScene extends Phaser.Scene {
 
     updateDifficultyButtonsVisuals() {
         const currentBiome = this.biomeKeys[this.currentBiomeIndex];
+        const isEndless = (currentBiome === 'endless');
+        this.diffButtons.forEach(btn => btn.setVisible(!isEndless));
 
-        this.diffButtons.forEach(btn => {
-            const d = btn.diffValue;
-            let locked = false;
-            
-            if (d > 1) {
-                const prevDiff = d - 1;
-                const stars = this.getBiomeTotalStars(currentBiome, prevDiff);
-                if (stars < 30) locked = true;
-            }
-
-            btn.lock.setVisible(locked);
-            
-            if (this.currentSelectedDifficulty === d) {
-                btn.bg.setFillStyle(0x555555);
-                btn.bg.setStrokeStyle(3, 0xffd700); 
-            } else {
-                btn.bg.setFillStyle(locked ? 0x111111 : 0x222222);
-                btn.bg.setStrokeStyle(1, locked ? 0x555555 : btn.baseColor);
-            }
-        });
+        if (!isEndless) {
+            this.diffButtons.forEach(btn => {
+                const d = btn.diffValue;
+                let locked = false;
+                if (d > 1) {
+                    const prevDiff = d - 1;
+                    const stars = this.getBiomeTotalStars(currentBiome, prevDiff);
+                    if (stars < 30) locked = true;
+                }
+                btn.lock.setVisible(locked);
+                if (this.currentSelectedDifficulty === d) {
+                    btn.bg.setFillStyle(0x555555);
+                    btn.bg.setStrokeStyle(3, 0xffd700); 
+                } else {
+                    btn.bg.setFillStyle(locked ? 0x111111 : 0x222222);
+                    btn.bg.setStrokeStyle(1, locked ? 0x555555 : btn.baseColor);
+                }
+            });
+        }
     }
 
     createBiomeSelect(w, h) {
-        const leftArrow = this.add.text(100, h/2, "<", { fontSize: '64px', color: '#ffd700' })
-            .setInteractive({ useHandCursor: true }).setOrigin(0.5);
-        const rightArrow = this.add.text(w - 100, h/2, ">", { fontSize: '64px', color: '#ffd700' })
-            .setInteractive({ useHandCursor: true }).setOrigin(0.5);
-
+        const leftArrow = this.add.text(100, h/2, "<", { fontSize: '64px', color: '#ffd700' }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
+        const rightArrow = this.add.text(w - 100, h/2, ">", { fontSize: '64px', color: '#ffd700' }).setInteractive({ useHandCursor: true }).setOrigin(0.5);
         leftArrow.on('pointerdown', () => this.changeBiome(-1));
         rightArrow.on('pointerdown', () => this.changeBiome(1));
     }
@@ -244,7 +165,6 @@ export default class WorldMapScene extends Phaser.Scene {
         this.enemiesListText = this.add.text(0, 0, "", { fontFamily: 'Roboto', fontSize: '15px', color: '#dddddd', align: 'center', wordWrap: { width: 360 } }).setOrigin(0.5);
         const dropsHeader = this.add.text(0, 100, "-- RECURSOS --", { fontFamily: 'Cinzel', fontSize: '20px', color: '#aaffaa' }).setOrigin(0.5);
         this.dropsListText = this.add.text(0, 180, "", { fontFamily: 'Roboto', fontSize: '15px', color: '#dddddd', align: 'center', wordWrap: { width: 360 } }).setOrigin(0.5);
-
         this.infoPanelContainer.add([bg, title, this.loreText, enemiesHeader, this.enemiesListText, dropsHeader, this.dropsListText]);
     }
 
@@ -252,9 +172,7 @@ export default class WorldMapScene extends Phaser.Scene {
         this.currentBiomeIndex += dir;
         if (this.currentBiomeIndex < 0) this.currentBiomeIndex = this.biomeKeys.length - 1;
         if (this.currentBiomeIndex >= this.biomeKeys.length) this.currentBiomeIndex = 0;
-        
         this.currentSelectedDifficulty = 1;
-        
         this.updateBiomeView();
     }
 
@@ -267,11 +185,11 @@ export default class WorldMapScene extends Phaser.Scene {
             if (this.textures.exists('Fondo_Bosque')) targetBgKey = 'Fondo_Bosque';
             else if (this.textures.exists('bg_map_forest')) targetBgKey = 'bg_map_forest';
         }
-        if (biomeKey === 'mountain') {
+        else if (biomeKey === 'mountain') {
             if (this.textures.exists('Fondo_Montaña')) targetBgKey = 'Fondo_Montaña';
             else if (this.textures.exists('bg_map_mountain')) targetBgKey = 'bg_map_mountain';
         }
-        if (biomeKey === 'volcano') {
+        else if (biomeKey === 'volcano') {
             if (this.textures.exists('Fondo_Volcan')) targetBgKey = 'Fondo_Volcan';
             else if (this.textures.exists('bg_map_volcano')) targetBgKey = 'bg_map_volcano';
         }
@@ -298,38 +216,34 @@ export default class WorldMapScene extends Phaser.Scene {
         this.updateInfoPanelContent(biomeKey);
     }
 
-    // --- CORRECCIÓN AQUÍ: Adaptado a la nueva estructura de Enemies.js ---
     updateInfoPanelContent(biomeKey) {
         const lore = BIOME_LORE[biomeKey] || "Una zona misteriosa e inexplorada.";
         this.loreText.setText(lore);
+
+        if (biomeKey === 'endless') {
+            this.enemiesListText.setText("¡TODOS LOS ENEMIGOS!");
+            this.dropsListText.setText("Tier 1, 2 y 3 (Según Oleada)");
+            return;
+        }
 
         const biomeConfig = BIOME_ENEMIES[biomeKey];
         let uniqueEnemies = new Set();
         
         if (biomeConfig) {
-            // 1. Agregar Mobs Normales (Tiers) - Siempre están disponibles
             if (biomeConfig.tiers) {
                 biomeConfig.tiers.forEach(tier => {
-                    if (Array.isArray(tier)) {
-                        tier.forEach(k => uniqueEnemies.add(k));
-                    }
+                    if (Array.isArray(tier)) tier.forEach(k => uniqueEnemies.add(k));
                 });
             }
 
-            // 2. Agregar Jefes según la dificultad seleccionada
-            // Mapear dificultad numérica (1, 2, 3) a claves de texto ('easy', 'normal', 'hard')
             let diffKey = 'easy';
             if (this.currentSelectedDifficulty === 2) diffKey = 'normal';
             if (this.currentSelectedDifficulty === 3) diffKey = 'hard';
 
             const diffConfig = biomeConfig[diffKey];
             if (diffConfig) {
-                if (diffConfig.miniBosses) {
-                    diffConfig.miniBosses.forEach(k => uniqueEnemies.add(k));
-                }
-                if (diffConfig.bosses) {
-                    Object.values(diffConfig.bosses).forEach(k => uniqueEnemies.add(k));
-                }
+                if (diffConfig.miniBosses) diffConfig.miniBosses.forEach(k => uniqueEnemies.add(k));
+                if (diffConfig.bosses) Object.values(diffConfig.bosses).forEach(k => uniqueEnemies.add(k));
             }
         }
 
@@ -357,6 +271,40 @@ export default class WorldMapScene extends Phaser.Scene {
     }
 
     createLevelButtons(biomeKey) {
+        // --- CASO ENDLESS (1 solo botón grande) ---
+        if (biomeKey === 'endless') {
+            const starsForest = this.getBiomeTotalStars('forest', 1);
+            const starsMountain = this.getBiomeTotalStars('mountain', 1);
+            const starsVolcano = this.getBiomeTotalStars('volcano', 1);
+            const isUnlocked = (starsForest >= 30 && starsMountain >= 30 && starsVolcano >= 30);
+
+            const btn = this.add.container(0, 0);
+            const bg = this.add.rectangle(0, 0, 250, 80, isUnlocked ? 0x4b0082 : 0x111111).setStrokeStyle(3, isUnlocked ? 0xff00ff : 0x555555);
+            const txt = this.add.text(0, 0, isUnlocked ? "ENTRAR AL ABISMO" : "BLOQUEADO", { fontFamily: 'Cinzel', fontSize: '24px', fontStyle: 'bold' }).setOrigin(0.5);
+            
+            btn.add([bg, txt]);
+            
+            if (!isUnlocked) {
+                const req = this.add.text(0, 60, "Requiere 30★ en Fácil\nen todos los biomas.", { fontFamily: 'Roboto', fontSize: '14px', color: '#ffaaaa', align: 'center' }).setOrigin(0.5);
+                this.levelsContainer.add(req);
+            } else {
+                bg.setInteractive({ useHandCursor: true });
+                bg.on('pointerdown', () => {
+                    SoundManager.playSound('ui_click');
+                    this.scene.start('GameScene', { 
+                        biome: 'endless', 
+                        level: 999, 
+                        difficulty: 1, 
+                        config: LEVEL_CONFIG[999] 
+                    });
+                });
+                this.tweens.add({ targets: btn, scale: 1.05, duration: 800, yoyo: true, repeat: -1 });
+            }
+            this.levelsContainer.add(btn);
+            return;
+        }
+
+        // --- CASO NORMAL (10 niveles) ---
         let startX = -120; 
         let startY = -150;
         let x = startX;
