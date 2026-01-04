@@ -5,47 +5,31 @@ export const BIOMES = {
         name: "Bosque Ancestral", 
         desc: "Madera y Pieles.", 
         color: 0x0d3b14, 
-        pathColor: 0xd2b48c, // Tierra
+        pathColor: 0xd2b48c, 
         materials: { 1: ['wood', 'hide', 'scraps'], 2: ['cedar', 'leather', 'cotton'], 3: ['ebony', 'scale', 'silk'] }
     },
     mountain: { 
         name: "Montaña Rocosa", 
         desc: "Minerales y Piedra.", 
         color: 0x2b2b2b,
-        pathColor: 0x505050, // Piedra
+        pathColor: 0x505050, 
         materials: { 1: ['copper', 'coal'], 2: ['iron', 'coal'], 3: ['mithril', 'iron'] }
     },
     volcano: { 
         name: "Volcán Activo", 
         desc: "Calor extremo.", 
         color: 0x220505,
-        pathColor: 0x5c0a0a, // Magma seca
+        pathColor: 0x5c0a0a, 
         materials: { 1: ['copper', 'coal'], 2: ['iron', 'coal'], 3: ['mithril', 'iron'] }
     },
-
-    endless: { name: 'El Vacío', color: 0x220033, pathColor: 0x440066, music: 'bgm_boss' }
-};
-
-export const LEVEL_CONFIG = {
-    1: { waves: 3, hpMult: 1.0, dropRate: 0.15, tier: 1 },
-    2: { waves: 4, hpMult: 1.2, dropRate: 0.18, tier: 1 },
-    3: { waves: 5, hpMult: 1.5, dropRate: 0.20, tier: 1 },
-    4: { waves: 6, hpMult: 2.0, dropRate: 0.22, tier: 2 },
-    5: { waves: 7, hpMult: 2.5, dropRate: 0.25, tier: 2 },
-    6: { waves: 8, hpMult: 3.0, dropRate: 0.28, tier: 2 },
-    7: { waves: 9, hpMult: 4.0, dropRate: 0.30, tier: 2 },
-    8: { waves: 10, hpMult: 5.5, dropRate: 0.35, tier: 3 },
-    9: { waves: 12, hpMult: 7.0, dropRate: 0.40, tier: 3 },
-    10: { waves: 15, hpMult: 10.0, dropRate: 0.50, tier: 3 },
-    999: { 
-        id: 999, 
-        name: 'Modo Infinito', 
-        mapGrid: MAP_LAYOUTS.endless_1, 
-        waves: 9999, // Infinitas en la práctica
-        hpMult: 1.0, // Base, se escala dinámicamente
-        isEndless: true 
+    endless: { 
+        name: 'El Vacío', 
+        desc: "El desafío final.", 
+        color: 0x220033, 
+        pathColor: 0x440066 
     }
 };
+
 
 /* =============================================================================
    LEYENDA DE LA GRILLA (30x15):
@@ -54,7 +38,7 @@ export const LEVEL_CONFIG = {
    2 = TORRE (Sitio de construcción)
    ============================================================================= */
 
-const MAPS = {
+const MAPS_LAYOUTS = {
     // --- BOSQUE (1-3: 1 Camino) ---
     forest_1: [ // Nivel 1: Recta Simple (Zona Baja)
         [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
@@ -601,6 +585,27 @@ const MAPS = {
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1], // SALIDA FINAL
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     ],
+};
+
+export const LEVEL_CONFIG = {
+    1: { waves: 3, hpMult: 1.0, dropRate: 0.15, tier: 1 },
+    2: { waves: 4, hpMult: 1.2, dropRate: 0.18, tier: 1 },
+    3: { waves: 5, hpMult: 1.5, dropRate: 0.20, tier: 1 },
+    4: { waves: 6, hpMult: 2.0, dropRate: 0.22, tier: 2 },
+    5: { waves: 7, hpMult: 2.5, dropRate: 0.25, tier: 2 },
+    6: { waves: 8, hpMult: 3.0, dropRate: 0.28, tier: 2 },
+    7: { waves: 9, hpMult: 4.0, dropRate: 0.30, tier: 2 },
+    8: { waves: 10, hpMult: 5.5, dropRate: 0.35, tier: 3 },
+    9: { waves: 12, hpMult: 7.0, dropRate: 0.40, tier: 3 },
+    10: { waves: 15, hpMult: 10.0, dropRate: 0.50, tier: 3 },
+    999: { 
+        id: 999, 
+        name: 'Modo Infinito', 
+        mapGrid: MAPS.endless_1, 
+        waves: 9999, // Infinitas en la práctica
+        hpMult: 1.0, // Base, se escala dinámicamente
+        isEndless: true 
+    }
 };
 
 // --- FUNCIÓN DE ENRIQUECIMIENTO (TEXTURIZACIÓN ALEATORIA) ---
