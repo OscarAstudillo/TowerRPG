@@ -228,14 +228,14 @@ export default class InventoryPanel {
         const sellBtn = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
 
         const totalContentHeight = (currentY + 60) - (-250); 
-        const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95).setStrokeStyle(3, item.color);
+        const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95).setStrokeStyle(3, item.color).setInteractive();
         
         this.detailContainer.add([bg, title, statsTxt, equipBtn, fuseBtn, sellBtn]);
     }
 
     createActionBtn(x, y, text, color, callback) {
         const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 240, 45, color).setInteractive({ useHandCursor: true });
+        const bg = this.scene.add.rectangle(0, 0, 240, 45, color).setInteractive({ useHandCursor: true }).setInteractive();
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);
@@ -436,7 +436,7 @@ export default class InventoryPanel {
 
     createItemPreview(item, label) {
         const container = this.scene.add.container(0, 0);
-        const bg = this.scene.add.rectangle(0, 0, 200, 180, 0x111111).setStrokeStyle(2, 0x444444);
+        const bg = this.scene.add.rectangle(0, 0, 200, 180, 0x111111).setStrokeStyle(2, 0x444444).setInteractive();
         
         const lbl = this.scene.add.text(0, -70, label, { fontSize: '12px', color: '#888', fontStyle: 'italic' }).setOrigin(0.5);
         
