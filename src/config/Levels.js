@@ -21,7 +21,9 @@ export const BIOMES = {
         color: 0x220505,
         pathColor: 0x5c0a0a, // Magma seca
         materials: { 1: ['copper', 'coal'], 2: ['iron', 'coal'], 3: ['mithril', 'iron'] }
-    }
+    },
+
+    endless: { name: 'El Vacío', color: 0x220033, pathColor: 0x440066, music: 'bgm_boss' }
 };
 
 export const LEVEL_CONFIG = {
@@ -34,7 +36,15 @@ export const LEVEL_CONFIG = {
     7: { waves: 9, hpMult: 4.0, dropRate: 0.30, tier: 2 },
     8: { waves: 10, hpMult: 5.5, dropRate: 0.35, tier: 3 },
     9: { waves: 12, hpMult: 7.0, dropRate: 0.40, tier: 3 },
-    10: { waves: 15, hpMult: 10.0, dropRate: 0.50, tier: 3 }
+    10: { waves: 15, hpMult: 10.0, dropRate: 0.50, tier: 3 },
+    999: { 
+        id: 999, 
+        name: 'Modo Infinito', 
+        mapGrid: MAP_LAYOUTS.endless_1, 
+        waves: 9999, // Infinitas en la práctica
+        hpMult: 1.0, // Base, se escala dinámicamente
+        isEndless: true 
+    }
 };
 
 /* =============================================================================

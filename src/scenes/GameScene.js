@@ -1,3 +1,4 @@
+// src/scenes/GameScene.js
 import Phaser from 'phaser';
 import Player from '../entities/player/Player.js';
 import Enemy from '../entities/enemies/Enemy.js';
@@ -34,6 +35,7 @@ export default class GameScene extends Phaser.Scene {
     init(data) {
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
+        this.isEndless = (this.biome === 'endless'); // Detectar si es modo infinito
         this.difficultyMode = data.difficulty || 1; 
         this.config = data.config || {}; 
         
@@ -62,6 +64,9 @@ export default class GameScene extends Phaser.Scene {
         const modeMult = GAME_CONSTANTS.DIFFICULTY.MODE_MULTIPLIER[this.difficultyMode] || 1.0;
         this.levelDifficultyFactor = levelScaling * modeMult;
         
+        // En Endless, la dificultad base empieza en 1.0 y escala dinámicamente
+        if (this.isEndless) this.levelDifficultyFactor = 1.0;
+
         this.spawnMult = 1;
         this.isBossWave = false;
         this.bossSpawned = false;
@@ -413,16 +418,35 @@ export default class GameScene extends Phaser.Scene {
         EventBus.emit('wave-timer-toggle', false);
         this.waveActive = true;
         this.currentWave++;
-        this.isBossWave = (this.currentWave === this.totalWaves);
-        this.bossSpawned = false;
         
-        EventBus.emit('wave-changed', { current: this.currentWave, total: this.totalWaves, isBoss: this.isBossWave });
+        // --- LÓGICA ENDLESS / NORMAL PARA BOSS FINAL ---
+        this.isBossWave = false; 
+        if (!this.isEndless) {
+            this.isBossWave = (this.currentWave === this.totalWaves);
+        }
+        
+        EventBus.emit('wave-changed', { current: this.currentWave, total: this.isEndless ? '∞' : this.totalWaves, isBoss: this.isBossWave });
         
         let baseCount = 8 + (this.currentWave * 2); 
+        if (this.isEndless) baseCount = 10 + Math.floor(this.currentWave * 0.5); // Escalado suave en endless
+
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
+        
+        // --- LÓGICA DE SPAWN BOSSES EN ENDLESS ---
+        let isSpecialWave = false;
+        let specialType = null;
+        if (this.isEndless) {
+            if (this.currentWave % 10 === 0) { isSpecialWave = true; specialType = 'boss'; totalEnemies = 1; } // Boss cada 10
+            else if (this.currentWave % 5 === 0) { isSpecialWave = true; specialType = 'mini'; totalEnemies = 5; } // MiniBoss cada 5
+        }
+
         let spawnDelay = 1000 - (this.currentWave * 50); 
         if (spawnDelay < 200) spawnDelay = 200; 
-        if (this.isBossWave) { this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000"); totalEnemies = 5; }
+        
+        if (this.isBossWave || (this.isEndless && specialType === 'boss')) { 
+            this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡JEFE FINAL!", "#ff0000"); 
+            totalEnemies = this.isEndless ? 1 : 5; 
+        }
         
         let spawned = 0;
         this.spawnTimer = this.time.addEvent({ delay: spawnDelay, repeat: totalEnemies - 1, callback: () => {
@@ -430,7 +454,13 @@ export default class GameScene extends Phaser.Scene {
                 if (pathCount > 1) { if (this.currentWave === 1) targetPathIndex = 0; else if (this.currentWave === 2) targetPathIndex = 1; else targetPathIndex = spawned % pathCount; }
                 if (!this.paths[targetPathIndex]) targetPathIndex = 0;
                 
-                this.spawnEnemy(targetPathIndex); 
+                // Spawn especial de Endless
+                if (this.isEndless && isSpecialWave && spawned === totalEnemies - 1) {
+                    this.spawnEndlessBoss(specialType);
+                } else {
+                    this.spawnEnemy(targetPathIndex); 
+                }
+                
                 spawned++;
                 
                 if (this.isBossWave && spawned === totalEnemies) this.time.delayedCall(3000, () => this.spawnBoss());
@@ -443,28 +473,81 @@ export default class GameScene extends Phaser.Scene {
         const selectedPath = this.paths[pathIndex] || this.paths[0]; 
         const pathPoints = selectedPath.getSpacedPoints(150); 
         
-        let tierIdx = 0; 
-        if (this.currentWave >= 3) tierIdx = 1; 
-        if (this.currentWave >= 5) tierIdx = 2;
-        
-        const biomeConfig = BIOME_ENEMIES[this.biome]; 
-        if (!biomeConfig) return; 
-        
-        // Mobs Normales siguen en 'tiers'
-        const possibleMobs = biomeConfig.tiers[Math.min(tierIdx, biomeConfig.tiers.length - 1)]; 
-        const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
+        let mobKey = 'slime';
+        let difficultyFactor = this.levelDifficultyFactor;
+
+        if (this.isEndless) {
+            // Lógica Endless: Mezcla de biomas y escalado por %
+            let tierKey = 'easy'; // T1
+            if (this.currentWave > 60) tierKey = 'hard'; // T3
+            else if (this.currentWave > 30) tierKey = 'normal'; // T2
+
+            // Escalado: 1% acumulativo por oleada
+            difficultyFactor = Math.pow(1.01, this.currentWave);
+
+            const biomes = ['forest', 'mountain', 'volcano'];
+            const randomBiome = biomes[Math.floor(Math.random() * biomes.length)];
+            const config = BIOME_ENEMIES[randomBiome];
+            
+            let tierIdx = 0;
+            if (tierKey === 'normal') tierIdx = 1;
+            if (tierKey === 'hard') tierIdx = 2;
+            
+            const possibleMobs = config.tiers[Math.min(tierIdx, config.tiers.length-1)];
+            mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
+
+        } else {
+            // Lógica Normal
+            let tierIdx = 0; 
+            if (this.currentWave >= 3) tierIdx = 1; 
+            if (this.currentWave >= 5) tierIdx = 2;
+            
+            const biomeConfig = BIOME_ENEMIES[this.biome]; 
+            const possibleMobs = biomeConfig.tiers[Math.min(tierIdx, biomeConfig.tiers.length - 1)]; 
+            mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
+        }
         
         let enemy = this.enemies.getFirstDead();
         if (!enemy) {
-            enemy = new Enemy(this, pathPoints, this.levelDifficultyFactor, mobKey);
+            enemy = new Enemy(this, pathPoints, difficultyFactor, mobKey);
             this.enemies.add(enemy);
         } else {
-            enemy.initEnemy(this.levelDifficultyFactor, mobKey, pathPoints);
+            enemy.initEnemy(difficultyFactor, mobKey, pathPoints);
         }
     }
 
-    // --- CORRECCIÓN DE SPAWNBOSS ---
+    spawnEndlessBoss(type) {
+        const biomes = ['forest', 'mountain', 'volcano'];
+        const randomBiome = biomes[Math.floor(Math.random() * biomes.length)];
+        const config = BIOME_ENEMIES[randomBiome];
+        
+        let tierKey = 'easy';
+        if (this.currentWave > 60) tierKey = 'hard';
+        else if (this.currentWave > 30) tierKey = 'normal';
+
+        const diffData = config[tierKey];
+        let pool = [];
+        if (type === 'boss') {
+            pool = diffData.bosses ? Object.values(diffData.bosses) : [];
+        } else {
+            pool = diffData.miniBosses || [];
+        }
+
+        let bossKey = 'slime';
+        if (pool.length > 0) bossKey = pool[Math.floor(Math.random() * pool.length)];
+
+        const pathPoints = this.paths[0].getSpacedPoints(150);
+        let difficultyFactor = Math.pow(1.01, this.currentWave) * 1.5; 
+
+        let boss = new Enemy(this, pathPoints, difficultyFactor, bossKey);
+        this.enemies.add(boss);
+        boss.setScale(1.3);
+        this.showFloatingText(boss.x, boss.y, type === 'boss' ? "¡BOSS!" : "¡ELITE!", "crit");
+    }
+
     spawnBoss() {
+        if (this.isEndless) return; // En endless se maneja en startWave
+
         this.bossSpawned = true; 
         const biomeConfig = BIOME_ENEMIES[this.biome]; 
         if (!biomeConfig) return;
@@ -476,29 +559,26 @@ export default class GameScene extends Phaser.Scene {
         
         let bossKey = 'slime'; 
 
-        // 1. Determinar el objeto de configuración según dificultad
+        // Determinar configuración según dificultad
         let diffKey = 'easy';
         if (this.difficultyMode === 2) diffKey = 'normal';
         if (this.difficultyMode === 3) diffKey = 'hard';
 
         const difficultyData = biomeConfig[diffKey];
 
-        // Validación de seguridad por si la dificultad no existe
         if (!difficultyData) {
-            console.warn(`No se encontró configuración para dificultad ${diffKey} en bioma ${this.biome}`);
+            console.warn(`No config for ${diffKey} in ${this.biome}`);
             return;
         }
 
-        // 2. Seleccionar Jefe (Boss Nivel 5/10) o Mini-Jefe (Otros)
+        // Seleccionar Boss
         if (this.level === 5 || this.level === 10) { 
-            // Acceso seguro al objeto bosses
             if (difficultyData.bosses && difficultyData.bosses[this.level]) {
                 bossKey = difficultyData.bosses[this.level]; 
                 this.showFloatingText(this.scale.width/2, 200, "¡JEFE DE ZONA!", "crit"); 
             }
         } 
         else { 
-            // Acceso seguro al array miniBosses
             const minis = difficultyData.miniBosses; 
             if (minis && minis.length > 0) {
                 bossKey = minis[Math.floor(Math.random() * minis.length)]; 
@@ -506,7 +586,6 @@ export default class GameScene extends Phaser.Scene {
             }
         }
         
-        // 3. Crear el Boss
         let boss = this.enemies.getFirstDead();
         const bossDifficulty = this.levelDifficultyFactor * 1.5;
         
@@ -519,9 +598,10 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.countActive() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
+    checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.countActive() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves && !this.isEndless) this.victory(); else this.startWaveTimer(20); } }
     getTowerFromObject(obj) { if (obj instanceof Tower) return obj; if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); return null; }
     
+    // --- UI Y MEJORAS ---
     createUpgradeUI() { 
         this.upgradeContainer = this.add.container(0, 0).setDepth(2000).setVisible(false); 
         const bg = this.add.rectangle(0, 0, 300, 220, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive(); 
@@ -688,7 +768,79 @@ export default class GameScene extends Phaser.Scene {
         if (gameState.baseHp <= 0) this.gameOver(); 
     }
     
-    gameOver() { this.physics.pause(); if (this.spawnTimer) this.spawnTimer.remove(); this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); }
+    gameOver() { 
+        this.physics.pause(); 
+        if (this.spawnTimer) this.spawnTimer.remove(); 
+        
+        if (this.isEndless) {
+            // EN MODO INFINITO, PERDER ES RECOGER EL COFRE
+            this.finishEndlessRun();
+        } else {
+            this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); 
+        }
+    }
+
+    finishEndlessRun() {
+        const wavesCleared = this.currentWave - 1; 
+        if (wavesCleared < 1) {
+            this.scene.start('MainMenuScene');
+            return;
+        }
+
+        // --- CÁLCULO DE RECOMPENSAS ENDLESS ---
+        let totalGold = wavesCleared * 100;
+        let totalXP = wavesCleared * 50;
+
+        let lootBox = {};
+        
+        const addLoot = (tierList, amount) => {
+            for(let i=0; i<amount; i++) {
+                const mat = tierList[Math.floor(Math.random() * tierList.length)];
+                const rarity = Math.random() > 0.9 ? 'rare' : (Math.random() > 0.7 ? 'uncommon' : 'common');
+                if (!lootBox[mat]) lootBox[mat] = { common:0, uncommon:0, rare:0, epic:0, legendary:0 };
+                lootBox[mat][rarity]++;
+            }
+        };
+
+        const t1Mats = ['wood', 'copper', 'hide', 'cloth_simple'];
+        const t2Mats = ['cedar', 'iron', 'leather_rigid', 'cloth_fine'];
+        const t3Mats = ['ebony', 'mithril', 'leather_dragon', 'cloth_royal']; 
+
+        let t1Count = Math.min(wavesCleared, 30);
+        addLoot(t1Mats, t1Count * 2); 
+
+        if (wavesCleared > 30) {
+            let t2Count = Math.min(wavesCleared - 30, 30);
+            addLoot(t2Mats, t2Count * 2);
+        }
+
+        if (wavesCleared > 60) {
+            let t3Count = wavesCleared - 60;
+            addLoot(t3Mats, t3Count * 2);
+        }
+
+        let milestones = Math.floor(wavesCleared / 10);
+        if (milestones > 0) {
+            totalGold += milestones * 1000;
+        }
+
+        this.showFloatingText(this.scale.width/2, this.scale.height/2, "¡FIN DEL ABISMO!", "#aa00aa", 3000);
+        
+        this.time.delayedCall(2000, () => {
+            this.scene.start('ChestScene', { 
+                biome: 'endless', 
+                level: 999, 
+                winData: { 
+                    gold: totalGold, 
+                    xp: totalXP, 
+                    baseHp: 0, 
+                    enemyLoot: lootBox,
+                    isEndlessResult: true, 
+                    wavesReached: wavesCleared
+                } 
+            });
+        });
+    }
     
     onEnemyKilled(enemy) { 
         try { 

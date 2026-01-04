@@ -2,8 +2,8 @@
 
 export const WAVE_CONFIG = {
     // Configuración General de Oleadas
-    BASE_ENEMIES: 8,
-    ENEMIES_INC_PER_WAVE: 2, // Enemigos extra por oleada
+    BASE_ENEMIES: 10,
+    ENEMIES_INC_PER_WAVE: 3, // Enemigos extra por oleada
     SPAWN_DELAY_START: 1200,
     SPAWN_DELAY_MIN: 400,
 

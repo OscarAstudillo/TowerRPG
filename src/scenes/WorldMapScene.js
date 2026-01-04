@@ -8,7 +8,8 @@ import SoundManager from '../systems/SoundManager.js';
 const BIOME_LORE = {
     forest: "El Bosque Ancestral, hogar de criaturas que protegen la naturaleza con ferocidad. Se dice que los árboles susurran secretos de magia antigua.",
     mountain: "Las Cumbres de Hierro, una tierra implacable donde solo los más fuertes sobreviven. Bandidos y elementales custodian ricas vetas de mineral.",
-    volcano: "Las Tierras de Ceniza. El calor es sofocante y el suelo tiembla bajo los pasos de demonios y bestias de fuego nacidas del núcleo del mundo."
+    volcano: "Las Tierras de Ceniza. El calor es sofocante y el suelo tiembla bajo los pasos de demonios y bestias de fuego nacidas del núcleo del mundo.",
+    endless: "Una dimensión retorcida donde el tiempo no existe. Las criaturas de todos los reinos convergen aquí para probar la valía de los héroes legendarios."
 };
 
 export default class WorldMapScene extends Phaser.Scene {
@@ -42,9 +43,10 @@ export default class WorldMapScene extends Phaser.Scene {
         
         // --- SELECTOR DE DIFICULTAD ---
         this.createDifficultySelector(w);
-        
+        this.createEndlessButton(w, h);
         this.createBiomeSelect(w, h);
         this.createBiomeInfoPanel();
+        
         
         // Inicializar vista
         this.updateBiomeView();
@@ -101,6 +103,57 @@ export default class WorldMapScene extends Phaser.Scene {
             this.add.existing(btn);
             this.diffButtons.push(btn);
         });
+    }
+
+    createEndlessButton(w, h) {
+        // Verificar requisitos: 30 estrellas en dificultad 1 (Fácil) en los 3 biomas
+        const starsForest = this.getBiomeTotalStars('forest', 1);
+        const starsMountain = this.getBiomeTotalStars('mountain', 1);
+        const starsVolcano = this.getBiomeTotalStars('volcano', 1);
+        
+        const isUnlocked = (starsForest >= 30 && starsMountain >= 30 && starsVolcano >= 30);
+        // Para pruebas rápidas, puedes descomentar: const isUnlocked = true;
+
+        const btn = this.add.container(w * 0.5, h * 0.85); // Abajo al centro
+        
+        const bg = this.add.rectangle(0, 0, 220, 50, isUnlocked ? 0x4b0082 : 0x222222)
+            .setStrokeStyle(2, isUnlocked ? 0xff00ff : 0x555555)
+            .setInteractive({ useHandCursor: isUnlocked });
+            
+        const text = this.add.text(0, 0, "MODO INFINITO", { 
+            fontFamily: 'Cinzel', fontSize: '18px', fontStyle: 'bold', 
+            color: isUnlocked ? '#ff00ff' : '#888888' 
+        }).setOrigin(0.5);
+        
+        if (!isUnlocked) {
+            this.add.text(0, 35, "Requiere 30★ Fácil en todos los biomas", {
+                fontFamily: 'Roboto', fontSize: '12px', color: '#aaaaaa'
+            }).setOrigin(0.5);
+            const lock = this.add.text(-120, 0, "🔒", { fontSize: '20px' }).setOrigin(0.5);
+            btn.add(lock);
+        } else {
+            // Efecto de brillo si está desbloqueado
+            this.tweens.add({
+                targets: bg,
+                alpha: 0.8,
+                yoyo: true,
+                repeat: -1,
+                duration: 1000
+            });
+            
+            bg.on('pointerdown', () => {
+                SoundManager.playSound('ui_click');
+                this.scene.start('GameScene', { 
+                    biome: 'endless', 
+                    level: 999, // ID especial
+                    difficulty: 1, // La dificultad escala sola
+                    config: LEVEL_CONFIG[999]
+                });
+            });
+        }
+        
+        btn.add([bg, text]);
+        this.add.existing(btn);
     }
 
     trySelectDifficulty(diff) {
