@@ -67,7 +67,7 @@ export const CLASS_RESTRICTIONS = {
 };
 
 export const initialState = {
-    gold: 500001,
+    gold: 300,
     selectedClass: null,
     
     playerStats: {
@@ -93,31 +93,31 @@ export const initialState = {
     },
 
     materials: {
-        wood: { common: 0, uncommon: 0, rare: 1000, epic: 0, legendary: 0, mythic: 0 },
-        copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        hide: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        coal: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
+        wood: { common: 9, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
+        copper: { common: 9, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
+        hide: { common: 9, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
+        iron: { common: 9, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
+        coal: { common: 9, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        scraps: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
+        scraps: { common: 9, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         cotton: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         silk: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         leather: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         scale: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
 
-        ingot_copper: { common: 0, uncommon: 0, rare: 1001, epic: 0, legendary: 0, mythic: 0 },
+        ingot_copper: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         ingot_iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         ingot_steel: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         ingot_mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        plank_wood: { common: 0, uncommon: 0, rare: 1000, epic: 0, legendary: 0, mythic: 0 },
+        plank_wood: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         plank_cedar: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         plank_ebony: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        cloth_simple: { common: 0, uncommon: 0, rare: 1000, epic: 0, legendary: 0, mythic: 0 },
+        cloth_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         cloth_fine: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         cloth_royal: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
-        leather_simple: { common: 0, uncommon: 0, rare: 1000, epic: 0, legendary: 0, mythic: 0 },
+        leather_simple: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         leather_rigid: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         leather_dragon: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 }
     },
