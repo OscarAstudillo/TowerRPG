@@ -20,7 +20,42 @@ export const GAME_CONSTANTS = {
         ELITE_MULTIPLIER: 2
     },
 
-    // --- EQUIPAMIENTO Y ESTADÍSTICAS (NUEVO) ---
+    // --- LÍMITES DE ESTADÍSTICAS (NUEVO: Para Balanceo) ---
+    STATS_CAPS: {
+        // Reducción de daño física máxima según tipo de armadura
+        ARMOR_REDUCTION: {
+            plate: 0.85,   // 85% Máximo
+            leather: 0.65, // 65% Máximo
+            cloth: 0.50,   // 50% Máximo
+            default: 0.50  // Por defecto
+        },
+        // Stats porcentuales con límite hard-cap (100%)
+        CRIT_CHANCE: 100,
+        DOUBLE_ATTACK: 100,
+        CDR: 75,           // Recomendado 75%
+        BLOCK_CHANCE: 75,  // Bloquear todo es roto, mejor 75%
+        DODGE_CHANCE: 75,  // Evasión
+        
+        // Stats sin límite estricto (pero lógicos)
+        LIFESTEAL: 100,    // 100% del daño se cura
+        THORNS: 500        // Reflejo de daño
+    },
+
+    // --- DIFICULTAD Y ESCALADO DE ENEMIGOS (NUEVO) ---
+    DIFFICULTY: {
+        // Escalado por Nivel de Mapa (1-10)
+        // Fórmula: StatBase * (LEVEL_SCALING_FACTOR ^ (NivelMapa - 1))
+        LEVEL_SCALING_FACTOR: 1.15, // +15% stats por nivel de mapa
+        
+        // Multiplicador extra por Selector de Dificultad (Fácil, Normal, Difícil)
+        MODE_MULTIPLIER: {
+            1: 1.0, // Fácil
+            2: 1.5, // Normal
+            3: 2.5  // Difícil
+        }
+    },
+
+    // --- EQUIPAMIENTO Y ESTADÍSTICAS ---
     EQUIPMENT: {
         // Regla: Tier N+1 es 100% más fuerte (Doble)
         // Fórmula: StatBase * (2 ^ (Tier - 1))
@@ -30,12 +65,11 @@ export const GAME_CONSTANTS = {
         // Fórmula: Stat * (1.05 ^ Nivel)
         FUSION_PER_LEVEL_MULT: 1.05,
 
-        // Regla: Rareza sube 10% respecto a la anterior (definido en GameState pero escalado aquí si se requiere)
+        // Regla: Rareza sube 10% respecto a la anterior
         RARITY_STEP_MULT: 1.10
     },
 
     // Definición de Stats Base por Arquetipo (Estilo RPG)
-    // Esto asegura que un "Peto de Placas" siempre de Defensa y Vida, mientras que uno de cuero da Vida y Velocidad.
     BASE_STATS_RULES: {
         // ARMAS
         sword:   { primary: 'damage', secondary: 'attackSpeed' }, // Daño + Vel
@@ -50,7 +84,7 @@ export const GAME_CONSTANTS = {
         shield:  { primary: 'defense', secondary: 'blockChance'}, // Defensa + Bloqueo
 
         // ACCESORIOS
-        accessory: { primary: 'damage', secondary: 'lifesteal' }, // Daño + Robo de vida (Genérico)
+        accessory: { primary: 'damage', secondary: 'lifesteal' }, // Daño + Robo de vida
         ring:      { primary: 'critChance', secondary: 'damage' }
     },
 

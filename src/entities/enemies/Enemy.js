@@ -1,6 +1,7 @@
 // src/entities/enemies/Enemy.js
 import Phaser from 'phaser';
 import { ENEMY_DB } from '../../config/Enemies.js';
+import { GAME_CONSTANTS } from '../../config/GameConstants.js'; // Importar constantes para recompensas
 
 export default class Enemy extends Phaser.GameObjects.Container {
     constructor(scene, path, levelDifficulty, typeKey = 'slime') {
@@ -13,24 +14,45 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.path = path;
         this.follower = { t: 0, vec: new Phaser.Math.Vector2() };
         this.typeKey = typeKey;
-        this.levelDifficulty = levelDifficulty;
+        this.levelDifficulty = levelDifficulty || 1; // Nivel del mapa (1-10)
 
+        // Cargar datos base del enemigo
         const data = ENEMY_DB[typeKey] || ENEMY_DB['slime'];
         
         this.name = data.name;
-        this.hp = Math.floor(data.hp * levelDifficulty);
-        this.maxHp = this.hp;
+
+        // --- LÓGICA DE ESCALADO DE STATS ---
+        // Factor de dificultad: 1.15 ^ (Nivel - 1)
+        // Nivel 1 = x1.0, Nivel 10 = x3.5 aprox.
+        const scaleFactor = Math.pow(GAME_CONSTANTS.DIFFICULTY.LEVEL_SCALING_FACTOR || 1.15, this.levelDifficulty - 1);
+
+        // Vida Escalada
+        this.maxHp = Math.floor(data.hp * scaleFactor);
+        this.hp = this.maxHp;
+
+        // Daño Escalado (Nuevo)
+        this.damage = Math.floor((data.damage || 5) * scaleFactor);
+
+        // Armadura Escalada (Suave: Raíz cuadrada del factor)
+        // Ejemplo: Si factor es x4, armadura es x2.
+        const armorFactor = Math.sqrt(scaleFactor);
+        this.baseArmor = Math.floor((data.armor || 0) * armorFactor);
+        this.armor = this.baseArmor;
+
+        // Velocidad (Fija, no escala)
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
-        this.armor = data.armor || 0;
-        this.baseArmor = this.armor; 
+        // Recompensas Escaladas
+        const baseCoin = GAME_CONSTANTS.REWARDS ? GAME_CONSTANTS.REWARDS.COIN_BASE : 15;
+        const baseXP = GAME_CONSTANTS.REWARDS ? GAME_CONSTANTS.REWARDS.XP_BASE : 10;
+        this.coinReward = Math.floor(baseCoin * scaleFactor);
+        this.xpReward = Math.floor(baseXP * scaleFactor);
+        // -----------------------------------
+
         this.isFlying = data.flying || false; 
         this.isHealer = data.healer || false;
-        
         this.drops = data.drops || [];
-        this.coinReward = Math.floor(15 * levelDifficulty);
-        this.xpReward = Math.floor(10 * levelDifficulty);
-        this.leakDamage = (data.hp > 2000) ? 5 : 1; 
+        this.leakDamage = (this.maxHp > 2000) ? 5 : 1; 
 
         // Visual Colors
         let color = 0xff0000;
@@ -46,7 +68,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
         const size = (this.maxHp > 2000) ? 40 : 20;
 
         // --- CAMBIO A SPRITE ---
-        this.sprite = scene.add.sprite(0, 0, 'base_enemy');
+        const textureKey = `enemy_${typeKey}`;
+        if (scene.textures.exists(textureKey)) {
+            this.sprite = scene.add.sprite(0, 0, textureKey);
+        } else {
+            this.sprite = scene.add.sprite(0, 0, 'base_enemy');
+        }
         this.sprite.setTint(color); 
         this.sprite.setDisplaySize(size, size);
         this.add(this.sprite);
@@ -89,7 +116,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         }
         
         if (this.follower.t >= 1) {
-            this.die(false);
+            this.reachBase(); // Cambio: Usar reachBase para consistencia
             return;
         }
 
@@ -129,7 +156,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.burn.active = true;
             this.statusEffects.burn.damage = Math.max(this.statusEffects.burn.damage, effect.val);
             this.statusEffects.burn.timer = effect.duration;
-            this.sprite.setTint(0xff4500); // Cambio: setTint en lugar de setFillStyle
+            this.sprite.setTint(0xff4500); 
         } 
         else if (effect.type === 'poison') { 
             this.statusEffects.poison.active = true;
@@ -231,6 +258,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             return;
         }
         
+        // Fórmula de reducción de armadura estándar
         const reductionMult = 100 / (100 + this.armor);
         let dmg = Math.floor(amount * reductionMult);
         if (dmg < 1) dmg = 1; 
@@ -238,7 +266,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.hp -= dmg;
         if (this.scene && this.scene.showFloatingText) {
             const isCrit = Math.random() > 0.8; 
-            this.scene.showFloatingText(this.x, this.y - 30, `-${dmg}`, isCrit ? '#ffaa00' : '#ffffff', 800);
+            this.scene.showFloatingText(this.x, this.y - 30, `-${dmg}`, isCrit ? 'crit' : 'damage'); // Usar tipo 'crit' o 'damage'
         }
         if (this.hp <= 0) {
             this.die(true);
@@ -250,7 +278,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
     useBossSkill() {
         if (this.typeKey.includes('boss')) {
              if(this.scene && this.scene.showFloatingText) 
-                this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "#ff0000");
+                this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "crit");
         }
     }
 
@@ -267,7 +295,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             }
         });
         if (healed && this.scene.showFloatingText) 
-            this.scene.showFloatingText(this.x, this.y, "CURAR", "#ff69b4");
+            this.scene.showFloatingText(this.x, this.y, "CURAR", "heal");
     }
 
     checkAttackPlayer(time) {
@@ -277,11 +305,22 @@ export default class Enemy extends Phaser.GameObjects.Container {
         const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
         if (dist < 50) {
             if (time > this.lastAttackTime + 1000) {
-                player.takeDamage(this.leakDamage * 2); 
+                // Daño basado en el ataque del enemigo (nuevo stat)
+                player.takeDamage(this.damage); 
                 this.lastAttackTime = time;
                 this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 });
             }
         }
+    }
+
+    reachBase() {
+        if (this.isDead) return;
+        
+        // Daño al castillo basado en el ataque del enemigo (Leak Damage dinámico)
+        const damageToBase = Math.max(1, Math.floor(this.damage * 0.5)); // 50% de su ataque
+        if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(damageToBase);
+        
+        this.die(false); // Muerte sin recompensa
     }
 
     die(killedByPlayer) {
@@ -300,9 +339,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
                     }
                 });
             }
-        } else {
-            if (scene.onEnemyLeaks) scene.onEnemyLeaks(this.leakDamage);
-        }
+        } 
         
         this.destroy();
         

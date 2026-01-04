@@ -1,42 +1,38 @@
 // src/config/WaveConfig.js
 
 export const WAVE_CONFIG = {
-    // Configuración General
+    // Configuración General de Oleadas
     BASE_ENEMIES: 8,
-    ENEMIES_INC_PER_WAVE: 2, // Enemigos extra por cada oleada superada
-    SPAWN_DELAY_START: 1000,
-    SPAWN_DELAY_MIN: 300,
+    ENEMIES_INC_PER_WAVE: 2, // Enemigos extra por oleada
+    SPAWN_DELAY_START: 1200,
+    SPAWN_DELAY_MIN: 400,
 
-    // Escalamiento de Stats por Nivel Global del mapa
-    SCALING: {
-        HP_MULT: 1.15,    // +15% Vida por nivel
-        SPEED_MULT: 1.01, // +1% Velocidad por nivel
-        ARMOR_MULT: 1.05  // +5% Armadura por nivel
-    },
+    // NOTA: El escalado de stats (HP, Daño, Armadura) ya NO se maneja aquí.
+    // Se calcula en Enemy.js basado en el nivel del mapa.
 
     // Definición de Enemigos por Bioma y Tier de dificultad
-    // tier1: Niveles 1-4, tier2: 5-8, tier3: 9-10
+    // Esto se usa para saber QUÉ enemigos spawnear, no sus stats.
     BIOMES: {
         forest: {
             minLevel: 1, maxLevel: 10,
             tier1: ['slime', 'goblin'],
-            tier2: ['goblin', 'wolf'],
-            tier3: ['wolf', 'ent'],
-            boss: 'orc_warrior'
+            tier2: ['goblin', 'wolf', 'boar'],
+            tier3: ['wolf', 'ent', 'eagle', 'shaman'],
+            boss: 'boss_rasta' // Boss por defecto si no se especifica otro
         },
         mountain: {
-            minLevel: 11, maxLevel: 20,
-            tier1: ['skeleton', 'bat'],
-            tier2: ['skeleton_warrior', 'bat'],
-            tier3: ['golem', 'skeleton_mage'],
-            boss: 'stone_golem'
+            minLevel: 1, maxLevel: 10, // Ahora paralelo al bosque
+            tier1: ['bandit', 'miner_dwarf'],
+            tier2: ['rock_elemental', 'harpy', 'bandit'],
+            tier3: ['golem_copper', 'harpy', 'rock_elemental'],
+            boss: 'boss_andres'
         },
         volcano: {
-            minLevel: 21, maxLevel: 30,
+            minLevel: 1, maxLevel: 10, // Ahora paralelo al bosque
             tier1: ['fire_imp', 'magma_cube'],
-            tier2: ['fire_elemental', 'demon'],
-            tier3: ['demon_lord', 'fire_dragon'],
-            boss: 'infernal_lord'
+            tier2: ['fire_elemental', 'succubus', 'fire_imp'],
+            tier3: ['fire_elemental', 'succubus', 'magma_cube'],
+            boss: 'boss_ifrit'
         }
     }
 };
