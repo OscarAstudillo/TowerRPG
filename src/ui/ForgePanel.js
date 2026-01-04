@@ -196,7 +196,7 @@ export default class ForgePanel {
 
     createFusionSlot(x, y, item, labelText, onClear) {
         const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 100, 100, 0x000000).setStrokeStyle(2, 0x444444);
+        const bg = this.scene.add.rectangle(0, 0, 100, 100, 0x000000).setStrokeStyle(2, 0x444444).setInteractive();
         const label = this.scene.add.text(0, -65, labelText, { fontSize: '12px', color: '#888' }).setOrigin(0.5);
 
         if (item) {
@@ -221,7 +221,7 @@ export default class ForgePanel {
         this.selectedRecipe = recipe;
         this.selectedRarity = 'common'; // Reset a común al abrir
 
-        const bg = this.scene.add.rectangle(0, 0, 450, 700, 0x111111, 0.98).setStrokeStyle(3, 0xffffff);
+        const bg = this.scene.add.rectangle(0, 0, 450, 700, 0x111111, 0.98).setStrokeStyle(3, 0xffffff).setInteractive();
         this.modalTitle = this.scene.add.text(0, -310, recipe.name.toUpperCase(), { fontFamily: 'Cinzel', fontSize: '26px', align:'center', wordWrap:{width:400} }).setOrigin(0.5);
 
         // Selector de Rareza
@@ -378,7 +378,7 @@ export default class ForgePanel {
     createDetailCard(item, headerText) {
         const container = this.scene.add.container(0, 0);
         const rColor = RARITY[item.rarity].color;
-        const bg = this.scene.add.rectangle(0, 0, 220, 250, 0x222222).setStrokeStyle(3, rColor);
+        const bg = this.scene.add.rectangle(0, 0, 220, 250, 0x222222).setStrokeStyle(3, rColor).setInteractive();
         const header = this.scene.add.text(0, -100, headerText, { fontSize: '12px', color: '#aaa', fontStyle: 'italic' }).setOrigin(0.5);
         const name = this.scene.add.text(0, -60, item.name, { fontFamily: 'Cinzel', fontSize: '18px', color: '#' + rColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 200} }).setOrigin(0.5);
         const enchantText = this.scene.add.text(0, -20, `Nivel: +${item.enchant||0}`, { fontSize: '24px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
@@ -438,7 +438,7 @@ export default class ForgePanel {
 
     createActionBtn(x, y, text, callback) {
         const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 240, 45, 0x006400).setInteractive({ useHandCursor: true });
+        const bg = this.scene.add.rectangle(0, 0, 240, 45, 0x006400).setInteractive({ useHandCursor: true }).setInteractive();
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);

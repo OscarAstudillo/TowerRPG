@@ -87,7 +87,7 @@ export default class RefiningPanel {
         this.selectedRecipe = recipe;
         this.selectedRarity = 'common'; // Default
 
-        const bg = this.scene.add.rectangle(0, 0, 450, 500, 0x111111, 0.98).setStrokeStyle(3, 0xffffff);
+        const bg = this.scene.add.rectangle(0, 0, 450, 500, 0x111111, 0.98).setStrokeStyle(3, 0xffffff).setInteractive();
         const title = this.scene.add.text(0, -200, recipe.name.toUpperCase(), { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffffff' }).setOrigin(0.5);
 
         // Selector de Rareza
