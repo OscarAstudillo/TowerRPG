@@ -38,7 +38,7 @@ export const BIOMES = {
    2 = TORRE (Sitio de construcción)
    ============================================================================= */
 
-const MAPS_LAYOUTS = {
+const MAPS = {
     // --- BOSQUE (1-3: 1 Camino) ---
     forest_1: [ // Nivel 1: Recta Simple (Zona Baja)
         [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
