@@ -1,4 +1,3 @@
-// src/scenes/GameScene.js
 import Phaser from 'phaser';
 import Player from '../entities/player/Player.js';
 import Enemy from '../entities/enemies/Enemy.js';
@@ -8,7 +7,7 @@ import BuildSite from '../entities/towers/BuildSite.js';
 import Loot from '../entities/items/Loot.js';
 import { gameState, updatePlayerStats, getCurrentHero, TOWER_COSTS } from '../config/GameState.js'; 
 import { TOWER_TYPES } from '../config/TowerStats.js';
-import { GAME_CONSTANTS } from '../config/GameConstants.js'; // Importar constantes de dificultad
+import { GAME_CONSTANTS } from '../config/GameConstants.js'; 
 import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import { BIOMES, getLevelData } from '../config/Levels.js'; 
@@ -35,7 +34,6 @@ export default class GameScene extends Phaser.Scene {
     init(data) {
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
-        // Dificultad seleccionada por el jugador (1=Fácil, 2=Normal, 3=Difícil)
         this.difficultyMode = data.difficulty || 1; 
         this.config = data.config || {}; 
         
@@ -57,17 +55,11 @@ export default class GameScene extends Phaser.Scene {
         this.isPaused = false;
         this.time.paused = false;
 
-        this.totalWaves = this.currentLevelData.waves || 5; // Por defecto 5 oleadas
+        this.totalWaves = this.currentLevelData.waves || 5; 
         
         // --- CÁLCULO DE DIFICULTAD GLOBAL ---
-        // 1. Escalado por Nivel de Mapa (Exponencial 15%)
-        // Nivel 1 = 1.0, Nivel 10 = ~3.5
         const levelScaling = Math.pow(GAME_CONSTANTS.DIFFICULTY.LEVEL_SCALING_FACTOR, this.level - 1);
-        
-        // 2. Escalado por Modo de Dificultad (Fácil/Normal/Difícil)
         const modeMult = GAME_CONSTANTS.DIFFICULTY.MODE_MULTIPLIER[this.difficultyMode] || 1.0;
-
-        // Multiplicador Final que se pasará a los enemigos
         this.levelDifficultyFactor = levelScaling * modeMult;
         
         this.spawnMult = 1;
@@ -100,15 +92,13 @@ export default class GameScene extends Phaser.Scene {
         const h = this.scale.height;
         this.physics.world.setBounds(0, 0, w, h); 
 
-        // Oro inicial ajustado por dificultad (más difícil = menos oro inicial)
         const baseGold = 500 + (this.level * 50);
-        this.coins = Math.floor(baseGold / (this.difficultyMode * 0.8)); // Pequeño ajuste
+        this.coins = Math.floor(baseGold / (this.difficultyMode * 0.8)); 
         
         this.currentWave = 0; 
         this.waveInProgress = false;
         this.sessionLoot = {}; 
         
-        // Vida del Castillo
         gameState.baseHp = 20;
         this.maxBaseHp = 20; 
 
@@ -116,7 +106,6 @@ export default class GameScene extends Phaser.Scene {
         this.createUpgradeUI(); 
         this.createPauseMenu(); 
 
-        // UI Desacoplada
         this.gameUI = new GameUI(this);
         EventBus.emit('gold-changed', this.coins);
         EventBus.emit('base-damaged', { current: gameState.baseHp, max: this.maxBaseHp });
@@ -352,9 +341,7 @@ export default class GameScene extends Phaser.Scene {
         this.checkWaveStatus();
     }
 
-    // --- NUEVO: SISTEMA DE SPAWN LOOT POR DIFICULTAD ---
     spawnLoot(x, y) { 
-        // 30% chance de dropear algo (Ajustable en GAME_CONSTANTS)
         const chance = GAME_CONSTANTS.DROPS.GLOBAL_CHANCE || 0.30;
         if (Math.random() > chance) return; 
         
@@ -368,7 +355,6 @@ export default class GameScene extends Phaser.Scene {
         } else if (roll < (weights.POTION + weights.COIN_BAG)) {
             type = 'coin_bag';
         } else {
-            // Materiales según Dificultad (Tier)
             const matRoll = Math.random();
             if (this.difficultyMode === 1) {
                 type = matRoll < 0.5 ? 'wood' : 'copper'; 
@@ -393,7 +379,6 @@ export default class GameScene extends Phaser.Scene {
                 const gold = Phaser.Math.Between(30, 60) * this.difficultyMode; 
                 this.coins += gold; 
                 EventBus.emit('gold-changed', this.coins); 
-                // Efecto de moneda
                 if(this.spawnCoinEffect) this.spawnCoinEffect(lootItem.x, lootItem.y);
                 this.showFloatingText(lootItem.x, lootItem.y, `+$${gold}`, "gold"); 
             } 
@@ -458,10 +443,6 @@ export default class GameScene extends Phaser.Scene {
         const selectedPath = this.paths[pathIndex] || this.paths[0]; 
         const pathPoints = selectedPath.getSpacedPoints(150); 
         
-        // Seleccionar Tier de enemigos según progreso de oleadas
-        // Oleada 1-2: Tier 1 (Early)
-        // Oleada 3-4: Tier 2 (Mid)
-        // Oleada 5+: Tier 3 (Late)
         let tierIdx = 0; 
         if (this.currentWave >= 3) tierIdx = 1; 
         if (this.currentWave >= 5) tierIdx = 2;
@@ -469,11 +450,10 @@ export default class GameScene extends Phaser.Scene {
         const biomeConfig = BIOME_ENEMIES[this.biome]; 
         if (!biomeConfig) return; 
         
-        // Asegurarse de que el tier existe, si no usar el último
+        // Mobs Normales siguen en 'tiers'
         const possibleMobs = biomeConfig.tiers[Math.min(tierIdx, biomeConfig.tiers.length - 1)]; 
         const mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
         
-        // Crear enemigo con el factor de dificultad del NIVEL DEL MAPA
         let enemy = this.enemies.getFirstDead();
         if (!enemy) {
             enemy = new Enemy(this, pathPoints, this.levelDifficultyFactor, mobKey);
@@ -483,31 +463,51 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
+    // --- CORRECCIÓN DE SPAWNBOSS ---
     spawnBoss() {
         this.bossSpawned = true; 
         const biomeConfig = BIOME_ENEMIES[this.biome]; 
         if (!biomeConfig) return;
+        
         if (!this.paths || this.paths.length === 0) return;
         const randomPathIndex = Phaser.Math.Between(0, this.paths.length - 1); 
         const selectedPath = this.paths[randomPathIndex]; 
         const pathPoints = selectedPath.getSpacedPoints(150); 
         
-        let bossKey = 'slime'; // Fallback
-        
-        // Jefes especiales en niveles 5 y 10
+        let bossKey = 'slime'; 
+
+        // 1. Determinar el objeto de configuración según dificultad
+        let diffKey = 'easy';
+        if (this.difficultyMode === 2) diffKey = 'normal';
+        if (this.difficultyMode === 3) diffKey = 'hard';
+
+        const difficultyData = biomeConfig[diffKey];
+
+        // Validación de seguridad por si la dificultad no existe
+        if (!difficultyData) {
+            console.warn(`No se encontró configuración para dificultad ${diffKey} en bioma ${this.biome}`);
+            return;
+        }
+
+        // 2. Seleccionar Jefe (Boss Nivel 5/10) o Mini-Jefe (Otros)
         if (this.level === 5 || this.level === 10) { 
-            bossKey = biomeConfig.bosses[this.level]; 
-            this.showFloatingText(this.scale.width/2, 200, "¡JEFE DE ZONA!", "crit"); 
+            // Acceso seguro al objeto bosses
+            if (difficultyData.bosses && difficultyData.bosses[this.level]) {
+                bossKey = difficultyData.bosses[this.level]; 
+                this.showFloatingText(this.scale.width/2, 200, "¡JEFE DE ZONA!", "crit"); 
+            }
         } 
         else { 
-            // Mini-Jefes en otros niveles
-            const minis = biomeConfig.miniBosses; 
-            bossKey = minis[Math.floor(Math.random() * minis.length)]; 
-            this.showFloatingText(this.scale.width/2, 200, "¡LÍDER ELITE!", "#ff8800"); 
+            // Acceso seguro al array miniBosses
+            const minis = difficultyData.miniBosses; 
+            if (minis && minis.length > 0) {
+                bossKey = minis[Math.floor(Math.random() * minis.length)]; 
+                this.showFloatingText(this.scale.width/2, 200, "¡LÍDER ELITE!", "#ff8800"); 
+            }
         }
         
+        // 3. Crear el Boss
         let boss = this.enemies.getFirstDead();
-        // El boss recibe un boost extra de stats (x1.5) además del nivel del mapa
         const bossDifficulty = this.levelDifficultyFactor * 1.5;
         
         if (!boss) {
@@ -522,7 +522,6 @@ export default class GameScene extends Phaser.Scene {
     checkWaveStatus() { if (this.isBossWave && !this.bossSpawned) return; if (this.waveActive && this.enemies.countActive() === 0 && (!this.spawnTimer || this.spawnTimer.getProgress() === 1)) { this.waveActive = false; if (this.currentWave >= this.totalWaves) this.victory(); else this.startWaveTimer(20); } }
     getTowerFromObject(obj) { if (obj instanceof Tower) return obj; if (obj.parentContainer instanceof Tower) return this.getTowerFromObject(obj.parentContainer); return null; }
     
-    // --- UI HELPERS (Mantenidos) ---
     createUpgradeUI() { 
         this.upgradeContainer = this.add.container(0, 0).setDepth(2000).setVisible(false); 
         const bg = this.add.rectangle(0, 0, 300, 220, 0x000000, 0.9).setStrokeStyle(2, 0xffffff).setInteractive(); 
@@ -705,7 +704,6 @@ export default class GameScene extends Phaser.Scene {
             }
             this.createExplosion(enemy.x, enemy.y, enemy.bodyShape ? enemy.bodyShape.fillColor : 0xff0000); 
             
-            // Efecto moneda voladora
             this.spawnCoinEffect(enemy.x, enemy.y);
             this.showFloatingText(enemy.x, enemy.y - 30, `+$${reward}`, "gold"); 
             
@@ -732,7 +730,6 @@ export default class GameScene extends Phaser.Scene {
         this.hitEmitter.explode(5); 
     }
 
-    // EFECTOS VISUALES MEJORADOS
     showFloatingText(x, y, message, type = 'normal', duration = 800) { 
         let color = '#ffffff';
         let fontSize = '20px';
