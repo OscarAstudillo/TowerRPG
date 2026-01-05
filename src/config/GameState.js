@@ -2,27 +2,19 @@
 import { ITEM_SETS } from './ItemSets.js';
 import { TALENTS } from './Talents.js';
 
-// --- CONSTANTES GLOBALES FALTANTES (ESTO SOLUCIONA EL ERROR) ---
+// --- CONSTANTES GLOBALES ---
 export const BASE_STATS = {
-    hp: 20,    // Vida base del castillo
-    gold: 400  // Oro inicial base (si no lo sobreescribe el nivel)
+    hp: 20,    
+    gold: 400  
 };
 
 export const TOWER_COSTS = {
-    archer: 100,
-    cannon: 150,
-    mage: 120,
-    tesla: 180,
-    poison: 130,
-    quake: 200
+    archer: 100, cannon: 150, mage: 120, tesla: 180, poison: 130, quake: 200
 };
 
 export const ENEMY_STATS = {
-    hpMult: 1,
-    speedMult: 1,
-    coinMult: 1
+    hpMult: 1, speedMult: 1, coinMult: 1
 };
-// -------------------------------------------------------------
 
 const CLASS_BASE_STATS = {
     guerrero: { hp: 150, damage: 15, defense: 5, attackSpeed: 1000, range: 100 },
@@ -32,38 +24,12 @@ const CLASS_BASE_STATS = {
     paladin: { hp: 180, damage: 12, defense: 8, attackSpeed: 1100, range: 100 }
 };
 
-// --- DEFINICIÓN DE RESTRICCIONES DE EQUIPO ---
 export const CLASS_RESTRICTIONS = {
-    guerrero: {
-        allowedArmor: ['plate'],
-        allowedWeapon: ['sword'],
-        allowedOffhand: ['shield', 'sword'], // Puede usar espada en offhand (Dual)
-        canDualWield: true
-    },
-    paladin: {
-        allowedArmor: ['plate'],
-        allowedWeapon: ['sword'],
-        allowedOffhand: ['shield'],
-        canDualWield: false
-    },
-    arquero: {
-        allowedArmor: ['leather'],
-        allowedWeapon: ['bow'],
-        allowedOffhand: [], // Arco ocupa 2 manos
-        canDualWield: false
-    },
-    asesino: {
-        allowedArmor: ['leather'],
-        allowedWeapon: ['dagger'],
-        allowedOffhand: ['dagger'], // Puede usar daga en offhand
-        canDualWield: true
-    },
-    mago: {
-        allowedArmor: ['cloth'],
-        allowedWeapon: ['staff'],
-        allowedOffhand: [], // Bastón ocupa 2 manos
-        canDualWield: false
-    }
+    guerrero: { allowedArmor: ['plate'], allowedWeapon: ['sword'], allowedOffhand: ['shield', 'sword'], canDualWield: true },
+    paladin: { allowedArmor: ['plate'], allowedWeapon: ['sword'], allowedOffhand: ['shield'], canDualWield: false },
+    arquero: { allowedArmor: ['leather'], allowedWeapon: ['bow'], allowedOffhand: [], canDualWield: false },
+    asesino: { allowedArmor: ['leather'], allowedWeapon: ['dagger'], allowedOffhand: ['dagger'], canDualWield: true },
+    mago: { allowedArmor: ['cloth'], allowedWeapon: ['staff'], allowedOffhand: [], canDualWield: false }
 };
 
 export const initialState = {
@@ -79,8 +45,9 @@ export const initialState = {
         blockChance: 0
     },
 
-    inventory: [],
-    // Este es el equipamiento "ACTIVO" en pantalla
+    inventory: [], // Mantener por compatibilidad (si hay lógica vieja)
+    equipmentInventory: [], // <--- NUEVO: Aquí se guardan las armas/armaduras forjadas
+    
     equipment: { mainHand: null, offHand: null, armor: null, accessory: null },
     
     towerEquipment: {
@@ -130,33 +97,12 @@ export const initialState = {
         refining: { level: 1, xp: 0, maxXp: 100 }
     },
 
-    quests: {
-        active: [],
-        lastRefresh: 0
-    },
-
-    heroes: {}, 
-    talents: [],
-    completedLevels: {}, 
-    unlockedRecipes: [], 
-    activeSets: [],
+    quests: { active: [], lastRefresh: 0 },
+    heroes: {}, talents: [], completedLevels: {}, unlockedRecipes: [], activeSets: [],
     
-    // --- NUEVO: SISTEMA DE DIFICULTAD Y ESTRELLAS ---
-    // Guardamos estrellas por nivel: "bioma_dificultad_nivel": estrellas (ej: "forest_1_1": 3)
     levelStars: {}, 
-    // Dificultad desbloqueada por bioma: 1=Fácil, 2=Normal, 3=Difícil
-    biomeDifficulty: { 
-        forest: 1, 
-        mountain: 1, 
-        volcano: 1 
-    },
-    // Nivel máximo desbloqueado (para mantener compatibilidad con dificultad 1/Normal)
-    biomeLevels: {
-        forest: 1,
-        mountain: 1,
-        volcano: 1
-    },
-    // ------------------------------------------------
+    biomeDifficulty: { forest: 1, mountain: 1, volcano: 1 },
+    biomeLevels: { forest: 1, mountain: 1, volcano: 1 },
     
     maxLevel: 1, 
     baseHp: 20
@@ -164,106 +110,62 @@ export const initialState = {
 
 export const gameState = JSON.parse(JSON.stringify(initialState));
 
-// Modificamos RARITY para seguir tu regla:
-// Blanco (Common): Base 100% (1.0), 0 atributos extra (Total 2 base)
-// Verde (Uncommon): Base 110% (1.1), 1 atributo extra
-// Azul (Rare): Base 121% (1.21), 2 atributos extra
-// Morado (Epic): Base 133% (1.33), 3 atributos extra
-// Legendario (Legendary): Base 146% (1.46), 4 atributos extra
-
 export const RARITY = {
     common:    { id: 'common',    name: 'Común',      color: 0xffffff, mult: 1.0,   statCount: 0 },
     uncommon:  { id: 'uncommon',  name: 'Poco Común', color: 0x00ff00, mult: 1.1,   statCount: 1 },
     rare:      { id: 'rare',      name: 'Raro',       color: 0x0000ff, mult: 1.21,  statCount: 2 },
     epic:      { id: 'epic',      name: 'Épico',      color: 0x800080, mult: 1.33,  statCount: 3 },
     legendary: { id: 'legendary', name: 'Legendario', color: 0xffaa00, mult: 1.46,  statCount: 4 },
-    mythic:    { id: 'mythic',    name: 'Mítico',     color: 0xff0000, mult: 1.61,  statCount: 5 } // Opcional si usas mítico
+    mythic:    { id: 'mythic',    name: 'Mítico',     color: 0xff0000, mult: 1.61,  statCount: 5 } 
 };
 
-// --- GESTIÓN DE HÉROES Y EQUIPAMIENTO ---
+// ... (Resto de funciones saveHeroEquipment, loadHeroEquipment, etc. se mantienen igual) ...
+// Puedes copiarlas de tu archivo original, no han cambiado, solo la estructura inicial arriba.
 
-// Guarda el equipo actual en la memoria del héroe
 export function saveHeroEquipment(classId) {
     if (!classId || !gameState.heroes[classId]) return;
-    // Clonamos el estado actual del equipo para guardarlo en el héroe
     gameState.heroes[classId].savedEquipment = JSON.parse(JSON.stringify(gameState.equipment));
 }
 
-// Carga el equipo desde la memoria del héroe al estado activo
 export function loadHeroEquipment(classId) {
     if (!classId || !gameState.heroes[classId]) return;
-    
     const saved = gameState.heroes[classId].savedEquipment;
     if (saved) {
         gameState.equipment = JSON.parse(JSON.stringify(saved));
     } else {
-        // Si no tiene equipo guardado (nuevo), limpiar slots
         gameState.equipment = { mainHand: null, offHand: null, armor: null, accessory: null };
     }
 }
 
 export function initHero(classId) {
     if (!classId) return null;
-    
-    // Si no existe el héroe, crearlo
     if (!gameState.heroes[classId]) {
         gameState.heroes[classId] = { 
-            level: 1, 
-            xp: 0, 
-            maxXp: 100, 
-            statPoints: 0, 
-            talentPoints: 0, 
-            talents: [], 
+            level: 1, xp: 0, maxXp: 100, statPoints: 0, talentPoints: 0, talents: [], 
             baseAttributes: { damage: 0, maxHp: 0, attackSpeed: 0, defense: 0 },
-            savedEquipment: { mainHand: null, offHand: null, armor: null, accessory: null } // Equipo vacío inicial
+            savedEquipment: { mainHand: null, offHand: null, armor: null, accessory: null }
         };
     }
-    
     gameState.selectedClass = classId;
-    
-    // IMPORTANTE: Cargar el equipo específico de este héroe
     loadHeroEquipment(classId);
-    
     updatePlayerStats();
     return gameState.heroes[classId];
 }
 
 export function getCurrentHero() {
     if (!gameState.selectedClass) return null;
-    if (!gameState.heroes[gameState.selectedClass]) {
-        return initHero(gameState.selectedClass);
-    }
+    if (!gameState.heroes[gameState.selectedClass]) return initHero(gameState.selectedClass);
     return gameState.heroes[gameState.selectedClass];
 }
 
-// --- VALIDACIÓN DE RESTRICCIONES ---
 export function canEquipItem(classId, item) {
     if (!classId || !item) return false;
-    
-    // Joyería siempre permitida
-    if (item.type === 'accessory') return true;
-    
-    // Torres siempre permitidas en su panel
-    if (item.type === 'tower_part') return true;
-
+    if (item.type === 'accessory' || item.type === 'tower_part') return true;
     const rules = CLASS_RESTRICTIONS[classId];
-    if (!rules) return true; // Si no hay reglas, permitir (fallback)
-
-    // Validar Armadura
-    if (item.type === 'armor') {
-        return rules.allowedArmor.includes(item.subType);
-    }
-
-    // Validar Arma
-    if (item.type === 'weapon') {
-        return rules.allowedWeapon.includes(item.subType);
-    }
-
-    // Validar Offhand (Escudo o Arma secundaria)
-    if (item.type === 'offhand') {
-        return rules.allowedOffhand.includes(item.subType);
-    }
-
+    if (!rules) return true;
+    if (item.type === 'armor') return rules.allowedArmor.includes(item.subType);
+    if (item.type === 'weapon') return rules.allowedWeapon.includes(item.subType);
+    if (item.type === 'offhand') return rules.allowedOffhand.includes(item.subType);
     return false;
 }
 
@@ -283,7 +185,6 @@ export function getTalentBonuses() {
 
 export function updatePlayerStats() {
     if (!gameState.selectedClass) return;
-
     const hero = getCurrentHero();
     const classBase = CLASS_BASE_STATS[gameState.selectedClass] || { hp: 100, damage: 10, defense: 0, attackSpeed: 1000, range: 100 };
     const levelBonus = (hero ? hero.level - 1 : 0);
@@ -305,13 +206,12 @@ export function updatePlayerStats() {
     }
 
     const talentBonuses = getTalentBonuses();
-    
+    // (Lógica de stats igual...)
     stats.maxHp += talentBonuses.maxHp; stats.damage += talentBonuses.damage; stats.defense += talentBonuses.defense; stats.regenHp += talentBonuses.regenHp; stats.lifesteal += talentBonuses.lifesteal; stats.critChance += talentBonuses.critChance; stats.critDamage += talentBonuses.critDamage; stats.attackSpeed -= talentBonuses.attackSpeed; stats.thorns += talentBonuses.thorns; stats.cdr += talentBonuses.cdr; stats.doubleAttack += talentBonuses.double_strike; stats.blockChance += talentBonuses.block_chance;
     if (talentBonuses.maxHpMult > 0) stats.maxHp = Math.floor(stats.maxHp * (1 + talentBonuses.maxHpMult));
     if (talentBonuses.damageMult > 0) stats.damage = Math.floor(stats.damage * (1 + talentBonuses.damageMult));
     if (talentBonuses.rangeMult > 0) stats.range = Math.floor(stats.range * (1 + talentBonuses.rangeMult));
 
-    // Equipamiento
     const equipment = [ gameState.equipment.mainHand, gameState.equipment.offHand, gameState.equipment.armor, gameState.equipment.accessory ];
     const setCount = {};
     equipment.forEach(item => {

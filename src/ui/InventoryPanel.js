@@ -51,7 +51,7 @@ export default class InventoryPanel {
             .setInteractive({ useHandCursor: true }).setOrigin(0.5);
         btn.on('pointerdown', () => {
             this.category = cat;
-            this.page = 0; // Resetear página al cambiar categoría
+            this.page = 0; 
             this.detailContainer.setVisible(false);
             this.refresh();
             this.container.list.forEach(c => { if(c.setColor && c.text && c !== this.infoText && c !== this.pageText && c !== this.prevBtn && c !== this.nextBtn) c.setColor('#888'); });
@@ -79,14 +79,15 @@ export default class InventoryPanel {
     }
 
     renderEquipment() {
-        const allItems = gameState.inventory.filter(i => {
+        // --- CORRECCIÓN: Usar equipmentInventory ---
+        const inv = gameState.equipmentInventory || [];
+        const allItems = inv.filter(i => {
             if (!i) return false;
             if (this.category === 'all') return i.type !== 'tower_part';
             if (this.category === 'tower_part') return i.type === 'tower_part';
             return false;
         });
 
-        // Lógica de Paginación
         const totalPages = Math.ceil(allItems.length / this.itemsPerPage) || 1;
         if (this.page < 0) this.page = 0;
         if (this.page >= totalPages) this.page = totalPages - 1;
@@ -99,7 +100,14 @@ export default class InventoryPanel {
         let col = 0, row = 0;
         pageItems.forEach(item => {
             const itemCont = this.scene.add.container(col * 180, row * 50);
-            const bg = this.scene.add.rectangle(85, 20, 170, 40, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, item.color);
+            
+            // Color del borde según rareza
+            let strokeColor = 0xffffff;
+            if (item.rarity && RARITY[item.rarity]) strokeColor = RARITY[item.rarity].color;
+            
+            const bg = this.scene.add.rectangle(85, 20, 170, 40, 0x333333)
+                .setInteractive({useHandCursor:true})
+                .setStrokeStyle(1, strokeColor);
             
             let iconKey = 'icon_sword';
             if(item.type === 'bow') iconKey = 'icon_bow';
@@ -128,14 +136,12 @@ export default class InventoryPanel {
     renderMaterials() {
         const allMatKeys = Object.keys(gameState.materials).sort();
         
-        // Filtrar solo los materiales que tenemos (>0)
         const activeMats = allMatKeys.filter(k => {
             const matCounts = gameState.materials[k];
             const total = Object.values(matCounts).reduce((a, b) => a + b, 0);
             return total > 0;
         });
 
-        // Lógica de Paginación
         const totalPages = Math.ceil(activeMats.length / this.itemsPerPage) || 1;
         if (this.page < 0) this.page = 0;
         if (this.page >= totalPages) this.page = totalPages - 1;
@@ -193,16 +199,20 @@ export default class InventoryPanel {
 
         const panelWidth = 360; 
         
+        let colorHex = '#ffffff';
+        if (item.rarity && RARITY[item.rarity]) colorHex = '#' + RARITY[item.rarity].color.toString(16).padStart(6,'0');
+
         const titleName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
 
         const title = this.scene.add.text(0, -220, titleName, { 
-            fontFamily: 'Cinzel', fontSize: '20px', color: '#' + item.color.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 320} 
+            fontFamily: 'Cinzel', fontSize: '20px', color: colorHex, align: 'center', wordWrap: {width: 320} 
         }).setOrigin(0.5, 0);
 
         const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
-        let infoText = `Nivel: +${item.enchant}\nRareza: ${RARITY[item.rarity].name}\n\n-- STATS --\n${statsStr}`;
+        let rarityName = item.rarity ? RARITY[item.rarity].name : 'Desconocido';
+        let infoText = `Nivel: +${item.enchant || 0}\nRareza: ${rarityName}\n\n-- STATS --\n${statsStr}`;
         
-        if (ITEM_SETS) {
+        if (ITEM_SETS && item.recipeId) {
             for (let setKey in ITEM_SETS) {
                 const set = ITEM_SETS[setKey];
                 if (set.items.includes(item.recipeId)) {
@@ -228,14 +238,16 @@ export default class InventoryPanel {
         const sellBtn = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
 
         const totalContentHeight = (currentY + 60) - (-250); 
-        const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95).setStrokeStyle(3, item.color).setInteractive();
+        const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95)
+            .setStrokeStyle(3, item.rarity ? RARITY[item.rarity].color : 0xffffff)
+            .setInteractive();
         
         this.detailContainer.add([bg, title, statsTxt, equipBtn, fuseBtn, sellBtn]);
     }
 
     createActionBtn(x, y, text, color, callback) {
         const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 240, 45, color).setInteractive({ useHandCursor: true }).setInteractive();
+        const bg = this.scene.add.rectangle(0, 0, 240, 45, color).setInteractive({ useHandCursor: true });
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);
@@ -244,12 +256,11 @@ export default class InventoryPanel {
 
     safeAddItemToInventory(item) {
         if (!item) return;
-        const exists = gameState.inventory.some(i => i.id === item.id);
-        if (!exists) gameState.inventory.push(item);
-        else {
-            item.id = RPGSystem.getUniqueId(); 
-            gameState.inventory.push(item);
-        }
+        // --- CORRECCIÓN: Usar equipmentInventory ---
+        if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
+        // Generar ID si es nuevo (o duplicado)
+        item.id = RPGSystem.getUniqueId(); 
+        gameState.equipmentInventory.push(item);
     }
 
     actionEquip(item) {
@@ -260,10 +271,12 @@ export default class InventoryPanel {
             return;
         }
 
-        const idx = gameState.inventory.findIndex(i => String(i.id) === String(item.id));
+        // --- CORRECCIÓN: Buscar en equipmentInventory ---
+        const inv = gameState.equipmentInventory;
+        const idx = inv.findIndex(i => String(i.id) === String(item.id));
         if (idx === -1) return;
         
-        gameState.inventory.splice(idx, 1);
+        inv.splice(idx, 1);
         
         if (item.type === 'tower_part') {
             const type = item.towerType || item.subType;
@@ -286,7 +299,6 @@ export default class InventoryPanel {
             };
             let targetSlot = slotMap[item.type] || slotMap[item.subType];
             
-            // Dual Wield
             const classRules = CLASS_RESTRICTIONS[gameState.selectedClass];
             if (item.type === 'weapon' && classRules && classRules.canDualWield) {
                 if (gameState.equipment.mainHand && !gameState.equipment.offHand) {
@@ -323,12 +335,14 @@ export default class InventoryPanel {
     }
 
     actionSell(item) {
-        const idx = gameState.inventory.findIndex(i => i.id === item.id);
+        // --- CORRECCIÓN: Buscar en equipmentInventory ---
+        const inv = gameState.equipmentInventory;
+        const idx = inv.findIndex(i => i.id === item.id);
         if(idx === -1) return;
         
         const price = 50; 
         gameState.gold += price;
-        gameState.inventory.splice(idx, 1);
+        inv.splice(idx, 1);
         
         SaveSystem.save();
         this.detailContainer.setVisible(false);
@@ -338,6 +352,7 @@ export default class InventoryPanel {
         if(this.scene.showCentralAlert) this.scene.showCentralAlert(`Vendido por ${price} oro`, '#ffff00');
     }
 
+    // --- LÓGICA DE FUSIÓN EN MOCHILA ---
     createFusionModals(cx, cy) {
         this.fusionListModal = this.scene.add.container(cx, cy).setVisible(false).setDepth(2000);
         const fBg = this.scene.add.rectangle(0, 0, 600, 500, 0x000000).setStrokeStyle(2, 0x00ffff).setInteractive();
@@ -358,7 +373,9 @@ export default class InventoryPanel {
 
     populateFusionList() {
         this.fusionList.removeAll(true);
-        const candidates = gameState.inventory.filter(i => 
+        // --- CORRECCIÓN: Usar equipmentInventory ---
+        const inv = gameState.equipmentInventory || [];
+        const candidates = inv.filter(i => 
             String(i.id) !== String(this.itemToFuse1.id) && 
             i.recipeId === this.itemToFuse1.recipeId &&
             i.rarity === this.itemToFuse1.rarity &&
@@ -366,15 +383,16 @@ export default class InventoryPanel {
         );
         
         if (candidates.length === 0) {
-            this.fusionList.add(this.scene.add.text(0, 0, "No hay items idénticos (+nivel) para fusionar", { fontFamily: 'Roboto', color:'#aaa' }).setOrigin(0.5));
+            this.fusionList.add(this.scene.add.text(0, 0, "No hay items idénticos para fusionar", { fontFamily: 'Roboto', color:'#aaa' }).setOrigin(0.5));
             return;
         }
 
         let y = 0;
         candidates.slice(0, 7).forEach(item => {
-            const btn = this.scene.add.rectangle(0, y, 450, 45, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, item.color);
+            let rColor = item.rarity && RARITY[item.rarity] ? RARITY[item.rarity].color : 0xffffff;
+            const btn = this.scene.add.rectangle(0, y, 450, 45, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rColor);
             const txt = this.scene.add.text(0, y, `${item.name} (+${item.enchant})`, { fontFamily: 'Roboto', fontSize:'16px' }).setOrigin(0.5);
-            // AQUÍ CAMBIAMOS: En lugar de executeFusion, llamamos a showFusionConfirmation
+            // AQUÍ CAMBIAMOS: Llamar a showFusionConfirmation
             btn.on('pointerdown', () => this.showFusionConfirmation(item));
             this.fusionList.add([btn, txt]);
             y += 55;
@@ -458,7 +476,14 @@ export default class InventoryPanel {
     executeFusion(item2) {
         const res = RPGSystem.fuseSpecificItems(this.itemToFuse1, item2);
         if (res.success) {
-            gameState.inventory = gameState.inventory.filter(i => i.id !== this.itemToFuse1.id && i.id !== item2.id);
+            // Eliminar los viejos
+            const inv = gameState.equipmentInventory;
+            let idx = inv.findIndex(i => i.id === this.itemToFuse1.id);
+            if (idx > -1) inv.splice(idx, 1);
+            idx = inv.findIndex(i => i.id === item2.id);
+            if (idx > -1) inv.splice(idx, 1);
+
+            // Agregar el nuevo
             this.safeAddItemToInventory(res.item);
             
             this.fusionListModal.setVisible(false);
@@ -469,7 +494,7 @@ export default class InventoryPanel {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(`FUSIÓN EXITOSA: ${res.item.name}`, '#00ff00');
             if (SoundManager.playSound) SoundManager.playSound('upgrade');
         } else {
-            if(this.scene.showCentralAlert) this.scene.showCentralAlert(res.error || "Fallo en la fusión", '#ff0000');
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(res.error || "Fallo", '#ff0000');
         }
     }
 }
