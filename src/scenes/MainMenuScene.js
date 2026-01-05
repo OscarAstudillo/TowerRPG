@@ -1,4 +1,3 @@
-// src/scenes/MainMenuScene.js
 import Phaser from 'phaser';
 import { gameState, updatePlayerStats, saveHeroEquipment } from '../config/GameState.js';
 import SaveSystem from '../systems/SaveSystem.js';
@@ -13,6 +12,7 @@ import TalentTree from '../ui/TalentTree.js';
 import RefiningPanel from '../ui/RefiningPanel.js';
 import TowersPanel from '../ui/TowersPanel.js';
 import QuestBoard from '../ui/QuestBoard.js';
+import ProfessionsPanel from '../ui/ProfessionsPanel.js'; // <--- IMPORTADO
 
 export default class MainMenuScene extends Phaser.Scene {
     constructor() {
@@ -28,7 +28,7 @@ export default class MainMenuScene extends Phaser.Scene {
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
         
-        // --- 1. LÓGICA DE CARGA DE DATOS (MANTENIDA) ---
+        // --- 1. LÓGICA DE CARGA DE DATOS ---
         if (!this.hasLoaded) {
             const loaded = SaveSystem.load();
             
@@ -64,34 +64,29 @@ export default class MainMenuScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
-        // Definimos el margen izquierdo para el menú
         const menuWidth = 280; 
         const menuMargin = 20;
-        const contentX = menuWidth + menuMargin; // Donde empieza el contenido (ej: 300px)
-        const contentW = w - contentX - 20; // Ancho disponible para paneles (con margen derecho)
-        const contentCenterX = contentX + (contentW / 2); // Centro de la zona de contenido
+        const contentX = menuWidth + menuMargin; 
+        const contentW = w - contentX - 20; 
+        const contentCenterX = contentX + (contentW / 2); 
 
-        // Fondo (Ocupa toda la pantalla)
+        // Fondo
         if (this.textures.exists('title_bg')) {
             this.add.image(w / 2, h / 2, 'title_bg').setDisplaySize(w, h);
         }
-        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.85); // Overlay oscuro
+        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.85);
 
-        // Título Principal (Centrado en la zona de contenido)
+        // Título Principal
         this.add.text(contentCenterX, h * 0.08, "TOWER RPG", this.fontTitle).setOrigin(0.5);
         this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffd700' }).setOrigin(1, 0.5);
 
         // Contenedores Principales
-        // Menú: Centrado verticalmente en su columna izquierda
         this.menuContainer = this.add.container(menuWidth / 2 + 10, h / 2); 
         
         // --- 3. CREAR MENÚ LATERAL ---
         this.createMenuPanel(menuWidth, h);
 
         // --- 4. INICIALIZAR PANELES DE LÓGICA ---
-        // IMPORTANTE: Instanciamos los paneles con 'contentW' para que calculen su centro relativo a ese ancho.
-        // Luego movemos sus contenedores a 'contentX'.
-        
         this.heroPanel = new HeroPanel(this, 0, 0, contentW, h);
         this.heroPanel.container.setPosition(contentX, 0);
 
@@ -109,20 +104,21 @@ export default class MainMenuScene extends Phaser.Scene {
 
         this.towersPanel = new TowersPanel(this, 0, 0, contentW, h);
         this.towersPanel.container.setPosition(contentX, 0);
+        
+        // --- INSTANCIA DEL NUEVO PANEL DE PROFESIONES ---
+        this.professionsPanel = new ProfessionsPanel(this, 0, 0, contentW, h);
+        this.professionsPanel.container.setPosition(contentX, 0);
 
-        // QuestBoard es un modal (cubre todo), lo dejamos full screen para que el bloqueo funcione bien
         this.questBoard = new QuestBoard(this, 0, 0, w, h);
 
         // Iniciar en la pestaña por defecto
         this.switchTab('hero');
 
-        // Footer
-        this.add.text(w - 20, h - 20, "Ver. 0.9.6 - Dev Build", { fontFamily: 'Roboto', fontSize: '12px', color: '#444' }).setOrigin(1, 1);
+        this.add.text(w - 20, h - 20, "Ver. 0.9.7 - Dev Build", { fontFamily: 'Roboto', fontSize: '12px', color: '#444' }).setOrigin(1, 1);
     }
 
     createMenuPanel(width, height) {
-        // Fondo del menú lateral (Izquierda)
-        const bgHeight = height - 40; // Un poco de margen arriba/abajo
+        const bgHeight = height - 40; 
         const bg = this.add.rectangle(0, 0, width, bgHeight, 0x111111, 0.95).setStrokeStyle(2, 0x444444);
         
         const title = this.add.text(0, -bgHeight/2 + 40, "MENÚ", { fontFamily: 'Cinzel', fontSize: '28px', color: '#fff' }).setOrigin(0.5);
@@ -137,19 +133,18 @@ export default class MainMenuScene extends Phaser.Scene {
             { label: "FORJA", icon: "🔨", key: 'forge', action: () => this.switchTab('forge') },
             { label: "REFINAR", icon: "🔥", key: 'refining', action: () => this.switchTab('refining') },
             { label: "MISIONES", icon: "📜", key: 'quests', action: () => this.questBoard.toggle() },
+            { label: "PROFESIONES", icon: "🔨", key: 'profs', action: () => this.switchTab('profs') }, // <--- AQUÍ ESTÁ EL BOTÓN
             { label: "CAMBIAR HÉROE", icon: "👤", key: 'change', action: () => this.changeHero() },
             { label: "RESET", icon: "❌", key: 'reset', action: () => this.resetGame() }
         ];
 
         this.menuButtons = [];
-        // Calculamos posición inicial basada en la altura del panel
         let y = -bgHeight/2 + 100;
         
         buttons.forEach(btnData => {
             const btn = this.add.container(0, y);
             btn.key = btnData.key;
 
-            // Estilo especial para JUGAR
             const isPlay = btnData.key === 'play';
             const color = isPlay ? 0x006400 : 0x222222;
             const stroke = isPlay ? 0x00ff00 : 0x666666;
@@ -168,12 +163,11 @@ export default class MainMenuScene extends Phaser.Scene {
 
             btnBg.on('pointerover', () => btnBg.setFillStyle(isPlay ? 0x008000 : 0x333333));
             btnBg.on('pointerout', () => {
-                // Mantener color si está seleccionado
                 if (this.selectedTab === btnData.key && !isPlay) btnBg.setFillStyle(0x444444);
                 else btnBg.setFillStyle(color);
             });
 
-            btn.bg = btnBg; // Referencia para actualizar
+            btn.bg = btnBg; 
             btn.add([btnBg, icon, label]);
             this.menuContainer.add(btn);
             this.menuButtons.push(btn);
@@ -185,7 +179,7 @@ export default class MainMenuScene extends Phaser.Scene {
     updateMenuVisuals(selectedKey) {
         this.selectedTab = selectedKey;
         this.menuButtons.forEach(btn => {
-            if (btn.key === 'play' || btn.key === 'change' || btn.key === 'reset') return; // Botones de acción no cambian estado permanente
+            if (btn.key === 'play' || btn.key === 'change' || btn.key === 'reset') return; 
             
             if (btn.key === selectedKey) {
                 btn.bg.setFillStyle(0x444444);
@@ -205,7 +199,8 @@ export default class MainMenuScene extends Phaser.Scene {
         this.talentsPanel.hide();
         this.refiningPanel.hide();
         this.towersPanel.hide();
-        // Misiones es un popup, no un panel principal, pero lo gestionamos
+        this.professionsPanel.hide(); // <--- IMPORTANTE
+
         if (key !== 'quests') this.questBoard.hide();
 
         this.updateMenuVisuals(key);
@@ -217,6 +212,7 @@ export default class MainMenuScene extends Phaser.Scene {
             case 'talents': this.talentsPanel.show(); break;
             case 'refining': this.refiningPanel.show(); break;
             case 'towers': this.towersPanel.show(); break;
+            case 'profs': this.professionsPanel.show(); break; // <--- CASE NUEVO
         }
     }
 
@@ -235,7 +231,6 @@ export default class MainMenuScene extends Phaser.Scene {
         }
     }
 
-    // --- FUNCIONES DE UTILIDAD (MANTENIDAS) ---
     updateGoldText() {
         if(this.goldText) this.goldText.setText(`ORO: ${gameState.gold}`);
     }
@@ -271,22 +266,17 @@ export default class MainMenuScene extends Phaser.Scene {
             if(t.slot2) equippedIds.add(getId(t.slot2)); 
         });
         
-        let cleanInv = []; 
-        const seenIdsInInv = new Set();
-        
-        gameState.inventory.forEach(item => { 
-            if (!item) return; 
-            if (!item.id || typeof item.id !== 'string') item.id = RPGSystem.getUniqueId(); 
-            
-            const id = item.id; 
-            if (equippedIds.has(id)) return;
-            
-            if (seenIdsInInv.has(id)) { item.id = RPGSystem.getUniqueId(); } 
-            seenIdsInInv.add(item.id); 
-            cleanInv.push(item); 
-        });
-        
-        gameState.inventory = cleanInv; 
+        // Limpieza de inventario (equipmentInventory y inventory legacy)
+        if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
+        // Mover items viejos si existen
+        if (gameState.inventory && gameState.inventory.length > 0) {
+            gameState.inventory.forEach(item => {
+                if(item.type !== 'tower_part' && item.type !== 'weapon' && item.type !== 'armor') return; // Solo equipo
+                gameState.equipmentInventory.push(item);
+            });
+            gameState.inventory = []; // Limpiar legacy
+        }
+
         SaveSystem.save(); 
     }
 }
