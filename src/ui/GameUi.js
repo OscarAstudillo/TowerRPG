@@ -9,7 +9,7 @@ import ForgePanel from './ForgePanel.js';
 import RefiningPanel from './RefiningPanel.js';
 import QuestBoard from './QuestBoard.js';
 import TowersPanel from './TowersPanel.js';
-import ProfessionsPanel from './ProfessionsPanel.js'; // <--- IMPORTANTE
+import ProfessionsPanel from './ProfessionsPanel.js'; // <--- ESTA IMPORTACIÓN ES CRÍTICA
 
 export default class GameUI {
     constructor(scene) {
@@ -17,9 +17,11 @@ export default class GameUI {
         this.width = scene.scale.width;
         this.height = scene.scale.height;
         
+        // Contenedores principales
         this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
         this.towerCards = [];
         
+        // Estilos
         this.theme = { accent: 0xffffff };
         
         this.createPanels(); 
@@ -29,13 +31,17 @@ export default class GameUI {
         this.createWaveTimer();
         this.createBottomMenu(); 
         
+        // --- ESCUCHA DE EVENTOS ---
         this.setupListeners();
+        
+        // Actualización inicial
         this.updateStats();
     }
 
     createPanels() {
         const w = this.width;
         const h = this.height;
+        // Instancia de todos los paneles
         this.heroPanel = new HeroPanel(this.scene, w/2, h/2, w, h);
         this.inventoryPanel = new InventoryPanel(this.scene, w/2, h/2, w, h);
         this.talentsPanel = new TalentTree(this.scene, w/2, h/2, w, h);
@@ -43,7 +49,7 @@ export default class GameUI {
         this.refiningPanel = new RefiningPanel(this.scene, w/2, h/2, w, h);
         this.questBoard = new QuestBoard(this.scene, w/2, h/2, w, h);
         this.towersPanel = new TowersPanel(this.scene, w/2, h/2, w, h);
-        this.professionsPanel = new ProfessionsPanel(this.scene, w/2, h/2, w, h); // <--- NUEVO
+        this.professionsPanel = new ProfessionsPanel(this.scene, w/2, h/2, w, h); // Instancia del nuevo panel
 
         this.allPanels = [
             this.heroPanel, this.inventoryPanel, this.talentsPanel, 
@@ -55,6 +61,7 @@ export default class GameUI {
     createBottomMenu() {
         const menuY = this.height - 40;
         
+        // Definición de los 7 botones
         const buttons = [
             { label: "HÉROE", icon: "👤", panel: this.heroPanel },
             { label: "MOCHILA", icon: "🎒", panel: this.inventoryPanel },
@@ -62,18 +69,29 @@ export default class GameUI {
             { label: "FORJA", icon: "⚒️", panel: this.forgePanel },
             { label: "REFINAR", icon: "⚗️", panel: this.refiningPanel },
             { label: "MISIONES", icon: "📜", panel: this.questBoard },
-            { label: "PROFESIONES", icon: "🔨", panel: this.professionsPanel } // <--- NUEVO
+            { label: "PROFS", icon: "🔨", panel: this.professionsPanel } // Etiqueta corta para que quepa mejor
         ];
 
-        const btnWidth = 90; // Reducido un poco para que quepan todos
-        const startX = this.width / 2 - ((buttons.length * (btnWidth + 5)) / 2) + (btnWidth/2);
+        // Ajuste de ancho para que quepan 7 botones
+        const btnWidth = 85; 
+        const gap = 5;
+        // Centrar dinámicamente según la cantidad de botones
+        const totalWidth = buttons.length * (btnWidth + gap);
+        const startX = (this.width - totalWidth) / 2 + (btnWidth / 2);
         
+        // Fondo del menú (opcional, visual)
+        const bg = this.scene.add.rectangle(this.width/2, menuY, totalWidth + 20, 70, 0x000000, 0.8).setDepth(90);
+
         buttons.forEach((btn, i) => {
-            const x = startX + (i * (btnWidth + 5));
+            const x = startX + (i * (btnWidth + gap));
             
-            const btnBg = this.scene.add.rectangle(x, menuY, btnWidth, 60, 0x222222).setStrokeStyle(2, 0x555555).setInteractive({useHandCursor:true}).setDepth(91);
+            const btnBg = this.scene.add.rectangle(x, menuY, btnWidth, 60, 0x222222)
+                .setStrokeStyle(2, 0x555555)
+                .setInteractive({useHandCursor:true})
+                .setDepth(91);
+
             const icon = this.scene.add.text(x, menuY - 15, btn.icon, { fontSize: '24px' }).setOrigin(0.5).setDepth(92);
-            const label = this.scene.add.text(x, menuY + 15, btn.label, { fontFamily: 'Roboto', fontSize: '9px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(92);
+            const label = this.scene.add.text(x, menuY + 15, btn.label, { fontFamily: 'Roboto', fontSize: '10px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(92);
 
             btnBg.on('pointerdown', () => {
                 this.togglePanel(btn.panel);
@@ -86,7 +104,10 @@ export default class GameUI {
 
     togglePanel(targetPanel) {
         const isVisible = targetPanel.container.visible;
+        // Cerrar todos
         this.allPanels.forEach(p => p.hide());
+        
+        // Si no estaba visible, abrirlo
         if (!isVisible) {
             targetPanel.show();
         }
@@ -101,6 +122,10 @@ export default class GameUI {
         EventBus.on('skill-cooldown', this.updateSkillCooldown, this);
         EventBus.on('wave-timer-tick', this.updateWaveTimer, this);
         EventBus.on('wave-timer-toggle', (visible) => this.waveTimerContainer.setVisible(visible), this);
+        
+        EventBus.on('profession-levelup', (data) => {
+            if(this.showCentralAlert) this.showCentralAlert(`¡NIVEL UP: ${data.key.toUpperCase()}!`, '#00ff00');
+        });
 
         this.scene.events.once('shutdown', () => {
             EventBus.off('gold-changed');
@@ -111,6 +136,7 @@ export default class GameUI {
             EventBus.off('skill-cooldown');
             EventBus.off('wave-timer-tick');
             EventBus.off('wave-timer-toggle');
+            EventBus.off('profession-levelup');
         });
     }
 
@@ -300,6 +326,14 @@ export default class GameUI {
         const txt = this.scene.add.text(this.width/2, this.height/2 - 100, msg, {
             fontFamily: 'Cinzel', fontSize: '30px', fontStyle:'bold', color: color, stroke: '#000', strokeThickness: 5
         }).setOrigin(0.5).setDepth(3000);
-        this.scene.tweens.add({ targets: txt, scale: 1.5, alpha: 0, duration: 1500, ease: 'Power2', onComplete: () => txt.destroy() });
+        
+        this.scene.tweens.add({
+            targets: txt,
+            scale: 1.5,
+            alpha: 0,
+            duration: 1500,
+            ease: 'Power2',
+            onComplete: () => txt.destroy()
+        });
     }
 }
