@@ -79,8 +79,18 @@ export default class ForgePanel {
     hide() { this.container.setVisible(false); }
 
     refresh() {
+        // --- ACTUALIZACIÓN DE INFO DE PROFESIONES Y PROBABILIDAD ---
         const p = gameState.professions;
-        this.profText.setText(`Armas: ${p.weaponsmith.level} | Armaduras: ${p.armorsmith.level} | Joyas: ${p.jewelry.level}`);
+        
+        // Determinar profesión activa para mostrar chance
+        let activeProf = 'smithing';
+        if (this.category === 'accessory') activeProf = 'jewelcrafting';
+        if (this.category === 'tower_part') activeProf = 'engineering';
+        
+        const chance = RPGSystem.getProfessionChance(activeProf);
+        const chancePct = (chance * 100).toFixed(1);
+
+        this.profText.setText(`Armas: ${p.weaponsmith?.level || 1} | Armaduras: ${p.armorsmith?.level || 1} | Joyas: ${p.jewelcrafting?.level || 1} \n Chance Encantamiento (+1 a +6): ${chancePct}%`);
 
         this.forgeSubFilterContainer.removeAll(true);
         this.recipesContainer.removeAll(true);
@@ -167,7 +177,9 @@ export default class ForgePanel {
         let currentY = this.height * 0.68;
         let col = 0;
 
-        gameState.inventory.forEach(item => {
+        // --- CORRECCIÓN: Usar equipmentInventory para Fusión ---
+        const inv = gameState.equipmentInventory || []; // Usar el inventario correcto
+        inv.forEach(item => {
             if (!item.stats) return; 
             if (this.category === 'weapon' && item.type !== 'weapon') return;
             if (this.category === 'armor' && (item.type !== 'armor' && item.type !== 'offhand')) return;
@@ -278,20 +290,18 @@ export default class ForgePanel {
         const rarityMult = Math.pow(GAME_CONSTANTS.EQUIPMENT.RARITY_STEP_MULT, rarityIndex);
         const totalMult = tierMult * rarityMult;
 
-        // Determinar arquetipo para mostrar correctamente (esto es visual, RPGSystem lo hace real)
         const subType = recipe.subType || recipe.type;
         const archetype = GAME_CONSTANTS.BASE_STATS_RULES ? GAME_CONSTANTS.BASE_STATS_RULES[subType] : null; 
         
         if (archetype) {
             const val1 = Math.ceil(recipe.baseStats[archetype.primary] * totalMult);
             const val2 = archetype.secondary === 'attackSpeed' ? 
-                         Math.round(recipe.baseStats.attackSpeed / totalMult) : // Speed baja
-                         Math.ceil(recipe.baseStats[archetype.secondary] * totalMult); // Otros suben
+                         Math.round(recipe.baseStats.attackSpeed / totalMult) : 
+                         Math.ceil(recipe.baseStats[archetype.secondary] * totalMult); 
             
             statsStr += `• ${archetype.primary.toUpperCase()}: ${val1}\n`;
             statsStr += `• ${archetype.secondary.toUpperCase()}: ${val2}\n`;
         } else {
-            // Fallback
             for (let k in recipe.baseStats) {
                 statsStr += `• ${k.toUpperCase()}: ${Math.ceil(recipe.baseStats[k] * totalMult)}\n`;
             }
@@ -315,7 +325,6 @@ export default class ForgePanel {
             const reqQty = ingredients[matKey];
             const matDef = RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey] || {name: matKey};
             
-            // Lógica de consumo de rareza (Carbón es siempre común)
             const checkRarity = (matKey === 'coal') ? 'common' : this.selectedRarity;
             const owned = gameState.materials[matKey] ? (gameState.materials[matKey][checkRarity] || 0) : 0;
             
@@ -397,17 +406,20 @@ export default class ForgePanel {
 
     safeAddItemToInventory(item) {
         if (!item) return;
-        const exists = gameState.inventory.some(i => i.id === item.id);
-        if (!exists) gameState.inventory.push(item);
-        else {
-            item.id = RPGSystem.getUniqueId(); 
-            gameState.inventory.push(item);
-        }
+        // --- CORRECCIÓN: Usar equipmentInventory ---
+        if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
+        
+        // Generar ID único real si no lo tiene
+        if (!item.id || item.id.startsWith("ITEM_")) item.id = RPGSystem.getUniqueId();
+        
+        gameState.equipmentInventory.push(item);
     }
 
     handleCraft() {
         const recipe = this.selectedRecipe;
         const rarityKey = this.selectedRarity;
+        
+        // --- LLAMADA AL NUEVO RPG SYSTEM CON ENCANTAMIENTO ---
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         
         if (result.success) {
@@ -415,7 +427,22 @@ export default class ForgePanel {
             if(this.scene.updateGoldText) this.scene.updateGoldText();
             SaveSystem.save();
             this.updateDetailView();
-            if(this.scene.showCentralAlert) this.scene.showCentralAlert(`¡FORJADO: ${result.item.name}!`, '#00ff00');
+            
+            // --- FEEDBACK DE ENCANTAMIENTO (+0 a +6) ---
+            let msg = `¡FORJADO: ${result.item.name}!`;
+            let color = '#00ff00';
+            
+            if (result.enchantBonus > 0) {
+                msg = `¡CRÍTICO! ${result.item.name} +${result.enchantBonus}`;
+                color = '#ff00ff'; // Morado épico
+                SoundManager.playSound('upgrade'); 
+            } else {
+                SoundManager.playSound('build');
+            }
+
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(msg, color);
+            this.refresh(); // Actualizar niveles de profesión en UI
+
         } else {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(result.error, '#ff0000');
         }
@@ -423,13 +450,27 @@ export default class ForgePanel {
 
     executeFusion() {
         if (!this.selectedItemA || !this.selectedItemB) return;
-        const result = RPGSystem.fuseItems(this.selectedItemA, this.selectedItemB);
+        
+        // Usar método de fusión específico para equipmentInventory
+        const result = RPGSystem.fuseSpecificItems(this.selectedItemA, this.selectedItemB);
+        
         if (result.success) {
+            // Remover los ítems viejos del inventario de equipo
+            const inv = gameState.equipmentInventory;
+            const idxA = inv.indexOf(this.selectedItemA);
+            if (idxA > -1) inv.splice(idxA, 1);
+            const idxB = inv.indexOf(this.selectedItemB);
+            if (idxB > -1) inv.splice(idxB, 1);
+            
+            // Añadir el nuevo
+            this.safeAddItemToInventory(result.item);
+            
             SaveSystem.save();
             this.selectedItemA = null;
             this.selectedItemB = null;
             this.refresh();
-            if(this.scene.showCentralAlert) this.scene.showCentralAlert(`¡ÉXITO! Objeto mejorado a +${result.newItem.upgradeLevel || result.newItem.enchant}`, '#ffd700');
+            
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(`¡ÉXITO! Objeto mejorado a +${result.item.enchant}`, '#ffd700');
             if (SoundManager.playSound) SoundManager.playSound('upgrade');
         } else {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(result.error || "Fallo", '#ff0000');
@@ -438,7 +479,7 @@ export default class ForgePanel {
 
     createActionBtn(x, y, text, callback) {
         const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 240, 45, 0x006400).setInteractive({ useHandCursor: true }).setInteractive();
+        const bg = this.scene.add.rectangle(0, 0, 240, 45, 0x006400).setInteractive({ useHandCursor: true });
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);
