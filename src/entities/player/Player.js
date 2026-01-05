@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { gameState, getCurrentHero } from '../../config/GameState.js';
 import { TALENTS } from '../../config/Talents.js';
+import { PLAYER_SKILLS } from '../../config/GameConstants.js'; // Importar constantes de habilidades
 import SoundManager from '../../systems/SoundManager.js'; 
 
 export default class Player extends Phaser.GameObjects.Container {
@@ -33,6 +34,12 @@ export default class Player extends Phaser.GameObjects.Container {
         this.skillCooldown = 0;
         this.skillMaxCooldown = 5000; 
 
+        // --- NUEVAS VARIABLES DE ESTADO PARA SKILLS ---
+        this.isDashing = false;
+        this.dashTimer = 0;
+        this.cooldowns = { dash: 0, q: 0, e: 0 };
+        this.lastDirection = { x: 1, y: 0 }; // Recordar última dirección para el dash
+
         this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -25, 38, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
@@ -41,6 +48,13 @@ export default class Player extends Phaser.GameObjects.Container {
         this.respawnTimer = 0;
         this.originalStats = {}; 
         
+        // Input Keys adicionales
+        this.skillKeys = scene.input.keyboard.addKeys({
+            dash: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+            skillQ: Phaser.Input.Keyboard.KeyCodes.Q,
+            skillE: Phaser.Input.Keyboard.KeyCodes.E
+        });
+
         this.loadPassives();
     }
 
@@ -54,6 +68,21 @@ export default class Player extends Phaser.GameObjects.Container {
         }
 
         const stats = gameState.playerStats;
+
+        // Actualizar cooldowns de habilidades
+        if (this.cooldowns.dash > 0) this.cooldowns.dash -= delta;
+        if (this.cooldowns.q > 0) this.cooldowns.q -= delta;
+        if (this.cooldowns.e > 0) this.cooldowns.e -= delta;
+
+        // --- LÓGICA DE DASH (Si está activo, bloquea movimiento normal) ---
+        if (this.isDashing) {
+            this.dashTimer -= delta;
+            if (this.dashTimer <= 0) {
+                this.isDashing = false;
+                if (this.bodySprite) this.bodySprite.setAlpha(1); // Restaurar opacidad
+            }
+            return; // Salir para mantener la velocidad del dash
+        }
 
         const cursors = this.scene.input.keyboard.createCursorKeys();
         const wasd = this.scene.input.keyboard.addKeys({ 
@@ -71,6 +100,23 @@ export default class Player extends Phaser.GameObjects.Container {
 
         if (cursors.up.isDown || wasd.W.isDown) velocityY = -1;
         else if (cursors.down.isDown || wasd.S.isDown) velocityY = 1;
+
+        // Guardar dirección si nos movemos
+        if (velocityX !== 0 || velocityY !== 0) {
+            this.lastDirection = { x: velocityX, y: velocityY };
+        }
+
+        // --- ACTIVACIÓN DE SKILLS ---
+        if (this.skillKeys.dash.isDown && this.cooldowns.dash <= 0 && (velocityX !== 0 || velocityY !== 0)) {
+            this.performDash(velocityX, velocityY);
+            return; // Iniciar dash inmediatamente
+        }
+        if (Phaser.Input.Keyboard.JustDown(this.skillKeys.skillQ) && this.cooldowns.q <= 0) {
+            this.performSkillQ();
+        }
+        if (Phaser.Input.Keyboard.JustDown(this.skillKeys.skillE) && this.cooldowns.e <= 0) {
+            this.performSkillE();
+        }
 
         if (velocityX !== 0 && velocityY !== 0) {
             velocityX *= 0.707;
@@ -104,6 +150,83 @@ export default class Player extends Phaser.GameObjects.Container {
             this.die();
         }
     }
+
+    // --- NUEVOS MÉTODOS DE HABILIDADES ---
+    performDash(dirX, dirY) {
+        if (!PLAYER_SKILLS) return;
+        this.isDashing = true;
+        this.dashTimer = PLAYER_SKILLS.DASH.DURATION;
+        this.cooldowns.dash = PLAYER_SKILLS.DASH.COOLDOWN;
+        
+        const speed = (gameState.playerStats.moveSpeed || 160) * PLAYER_SKILLS.DASH.SPEED_MULT;
+        
+        // Normalizar vector
+        const vec = new Phaser.Math.Vector2(dirX, dirY).normalize().scale(speed);
+        this.body.setVelocity(vec.x, vec.y);
+        
+        // Efecto visual
+        if (this.bodySprite) this.bodySprite.setAlpha(0.6);
+    }
+
+    performSkillQ() {
+        if (!PLAYER_SKILLS) return;
+        this.cooldowns.q = PLAYER_SKILLS.SKILL_Q.COOLDOWN;
+        const damage = gameState.playerStats.damage * PLAYER_SKILLS.SKILL_Q.DAMAGE_MULT;
+        const range = PLAYER_SKILLS.SKILL_Q.RANGE;
+
+        // Efecto Visual (Círculo expansivo)
+        const circle = this.scene.add.circle(this.x, this.y, 10, PLAYER_SKILLS.SKILL_Q.COLOR, 0.5);
+        this.scene.tweens.add({
+            targets: circle, scale: range / 10, alpha: 0, duration: 300, onComplete: () => circle.destroy()
+        });
+
+        // Daño en área
+        if (this.enemies) {
+            this.enemies.children.iterate(enemy => {
+                if (enemy && enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= range) {
+                    enemy.takeDamage(damage);
+                    // Knockback simple
+                    const angle = Phaser.Math.Angle.Between(this.x, this.y, enemy.x, enemy.y);
+                    if(enemy.body) enemy.body.setVelocity(Math.cos(angle) * 200, Math.sin(angle) * 200);
+                }
+            });
+        }
+    }
+
+    performSkillE() {
+        if (!PLAYER_SKILLS) return;
+        this.cooldowns.e = PLAYER_SKILLS.SKILL_E.COOLDOWN;
+        const damage = gameState.playerStats.damage * PLAYER_SKILLS.SKILL_E.DAMAGE_MULT;
+        const range = PLAYER_SKILLS.SKILL_E.RANGE;
+        
+        // Dirección hacia el mouse
+        const pointer = this.scene.input.activePointer;
+        const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
+        
+        // Efecto Visual
+        const line = this.scene.add.rectangle(this.x, this.y, range, PLAYER_SKILLS.SKILL_E.WIDTH, PLAYER_SKILLS.SKILL_E.COLOR, 0.7);
+        line.setOrigin(0, 0.5);
+        line.rotation = angle;
+        this.scene.tweens.add({
+            targets: line, alpha: 0, scaleY: 0, duration: 200, onComplete: () => line.destroy()
+        });
+
+        // Daño Cónico/Lineal simplificado
+        if (this.enemies) {
+            this.enemies.children.iterate(enemy => {
+                if (enemy && enemy.active) {
+                    const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
+                    if (dist <= range) {
+                        const angleToEnemy = Phaser.Math.Angle.Between(this.x, this.y, enemy.x, enemy.y);
+                        let diff = Math.abs(angle - angleToEnemy);
+                        if (diff > Math.PI) diff = (Math.PI * 2) - diff;
+                        if (diff < 0.5) enemy.takeDamage(damage);
+                    }
+                }
+            });
+        }
+    }
+    // -------------------------------------
 
     loadPassives() {
         this.passives = { blockChance: 0, doubleStrike: 0, pierce: 0, frostHit: 0 };
@@ -169,8 +292,6 @@ export default class Player extends Phaser.GameObjects.Container {
         }
     }
 
-    // ... (castSkill, takeDamage, die, respawn SIN CAMBIOS) ...
-    // Asegúrate de mantener esos métodos igual que en tu código original
     castSkill() {
         if (this.skillCooldown > 0) return { success: false };
         const hero = getCurrentHero();
@@ -224,6 +345,8 @@ export default class Player extends Phaser.GameObjects.Container {
     }
 
     takeDamage(amount) {
+        if (this.isDashing) return; // Invulnerable durante dash
+
         const stats = gameState.playerStats;
         if (Math.random() * 100 < stats.blockChance) {
             this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");

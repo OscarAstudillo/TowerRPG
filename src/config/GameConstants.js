@@ -20,75 +20,55 @@ export const GAME_CONSTANTS = {
         ELITE_MULTIPLIER: 2
     },
 
-    // --- LÍMITES DE ESTADÍSTICAS (NUEVO: Para Balanceo) ---
+    // --- LÍMITES DE ESTADÍSTICAS ---
     STATS_CAPS: {
-        // Reducción de daño física máxima según tipo de armadura
         ARMOR_REDUCTION: {
-            plate: 0.85,   // 85% Máximo
-            leather: 0.65, // 65% Máximo
-            cloth: 0.50,   // 50% Máximo
-            default: 0.50  // Por defecto
+            plate: 0.85,   
+            leather: 0.65, 
+            cloth: 0.50,   
+            default: 0.50  
         },
-        // Stats porcentuales con límite hard-cap (100%)
         CRIT_CHANCE: 100,
         DOUBLE_ATTACK: 100,
-        CDR: 75,           // Recomendado 75%
-        BLOCK_CHANCE: 75,  // Bloquear todo es roto, mejor 75%
-        DODGE_CHANCE: 75,  // Evasión
-        
-        // Stats sin límite estricto (pero lógicos)
-        LIFESTEAL: 100,    // 100% del daño se cura
-        THORNS: 500        // Reflejo de daño
+        CDR: 75,           
+        BLOCK_CHANCE: 75,  
+        DODGE_CHANCE: 75,  
+        LIFESTEAL: 100,    
+        THORNS: 500        
     },
 
-    // --- DIFICULTAD Y ESCALADO DE ENEMIGOS (NUEVO) ---
+    // --- DIFICULTAD Y ESCALADO ---
     DIFFICULTY: {
-        // Escalado por Nivel de Mapa (1-10)
-        // Fórmula: StatBase * (LEVEL_SCALING_FACTOR ^ (NivelMapa - 1))
-        LEVEL_SCALING_FACTOR: 1.15, // +15% stats por nivel de mapa
-        
-        // Multiplicador extra por Selector de Dificultad (Fácil, Normal, Difícil)
+        LEVEL_SCALING_FACTOR: 1.15,
         MODE_MULTIPLIER: {
-            1: 1.0, // Fácil
-            2: 1.5, // Normal
-            3: 2.5  // Difícil
+            1: 1.0, 
+            2: 1.5, 
+            3: 2.5  
         }
     },
 
-    // --- EQUIPAMIENTO Y ESTADÍSTICAS ---
+    // --- EQUIPAMIENTO ---
     EQUIPMENT: {
-        // Regla: Tier N+1 es 100% más fuerte (Doble)
-        // Fórmula: StatBase * (2 ^ (Tier - 1))
         TIER_MULTIPLIER_BASE: 2.0, 
-
-        // Regla: Cada fusión da +5% stats
-        // Fórmula: Stat * (1.05 ^ Nivel)
         FUSION_PER_LEVEL_MULT: 1.05,
-
-        // Regla: Rareza sube 10% respecto a la anterior
         RARITY_STEP_MULT: 1.10
     },
 
-    // Definición de Stats Base por Arquetipo (Estilo RPG)
+    // --- ARQUETIPOS DE STATS ---
     BASE_STATS_RULES: {
-        // ARMAS
-        sword:   { primary: 'damage', secondary: 'attackSpeed' }, // Daño + Vel
-        bow:     { primary: 'damage', secondary: 'range' },       // Daño + Rango
-        staff:   { primary: 'damage', secondary: 'cdr' },         // Daño + Reducción CD
-        dagger:  { primary: 'damage', secondary: 'critChance' },  // Daño + Crítico
-
-        // ARMADURAS
-        plate:   { primary: 'defense', secondary: 'hp' },         // Mucha Defensa + Vida
-        leather: { primary: 'hp',      secondary: 'moveSpeed' },  // Vida + Velocidad
-        cloth:   { primary: 'hp',      secondary: 'cdr' },        // Vida + Reducción CD
-        shield:  { primary: 'defense', secondary: 'blockChance'}, // Defensa + Bloqueo
-
-        // ACCESORIOS
-        accessory: { primary: 'damage', secondary: 'lifesteal' }, // Daño + Robo de vida
+        sword:   { primary: 'damage', secondary: 'attackSpeed' }, 
+        bow:     { primary: 'damage', secondary: 'range' },       
+        staff:   { primary: 'damage', secondary: 'cdr' },         
+        dagger:  { primary: 'damage', secondary: 'critChance' },  
+        plate:   { primary: 'defense', secondary: 'hp' },         
+        leather: { primary: 'hp',      secondary: 'moveSpeed' },  
+        cloth:   { primary: 'hp',      secondary: 'cdr' },        
+        shield:  { primary: 'defense', secondary: 'blockChance'}, 
+        accessory: { primary: 'damage', secondary: 'lifesteal' }, 
         ring:      { primary: 'critChance', secondary: 'damage' }
     },
 
-    // --- DROPS Y PROBABILIDADES ---
+    // --- DROPS ---
     DROPS: {
         GLOBAL_CHANCE: 0.40,
         WEIGHTS: {
@@ -99,7 +79,7 @@ export const GAME_CONSTANTS = {
         MATERIAL_QTY: { MIN: 1, MAX: 3 }
     },
 
-    // --- CRAFTEO Y FORJA ---
+    // --- CRAFTEO ---
     CRAFTING: {
         GOLD_COST_MULTIPLIER: 1.0, 
         MATERIAL_REQ_AMOUNT: 3,
@@ -116,5 +96,39 @@ export const GAME_CONSTANTS = {
     // --- INVENTARIO ---
     INVENTORY: {
         SELL_RETURN_RATE: 0.5 
+    }
+};
+
+// --- HABILIDADES DEL JUGADOR (NUEVO) ---
+export const PLAYER_SKILLS = {
+    DASH: {
+        DURATION: 200,      // Duración del impulso en ms
+        SPEED_MULT: 3.0,    // Multiplicador de velocidad
+        COOLDOWN: 2000      // 2 segundos
+    },
+    SKILL_Q: {
+        NAME: 'Whirlwind',
+        DAMAGE_MULT: 1.5,   // 150% del daño base
+        RANGE: 150,         // Radio del área
+        COOLDOWN: 5000,     // 5 segundos
+        COLOR: 0x00ffff     // Color del efecto visual
+    },
+    SKILL_E: {
+        NAME: 'Thrust',
+        DAMAGE_MULT: 2.5,   // 250% del daño base
+        RANGE: 250,         // Distancia frontal
+        WIDTH: 60,          // Ancho del ataque
+        COOLDOWN: 8000,     // 8 segundos
+        COLOR: 0xff00ff
+    }
+};
+
+// --- HABILIDADES DE JEFES (NUEVO) ---
+export const BOSS_SKILLS = {
+    AOE_SMASH: {
+        WARN_TIME: 1500,    // Tiempo de advertencia
+        RADIUS: 200,        // Radio de explosión
+        DAMAGE: 30,         // Daño base
+        COOLDOWN: 6000      // Frecuencia
     }
 };

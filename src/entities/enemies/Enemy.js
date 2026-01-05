@@ -1,7 +1,6 @@
-// src/entities/enemies/Enemy.js
 import Phaser from 'phaser';
 import { ENEMY_DB } from '../../config/Enemies.js';
-import { GAME_CONSTANTS } from '../../config/GameConstants.js'; 
+import { GAME_CONSTANTS, BOSS_SKILLS } from '../../config/GameConstants.js'; 
 
 export default class Enemy extends Phaser.GameObjects.Container {
     constructor(scene, path, levelDifficulty, typeKey = 'slime') {
@@ -42,6 +41,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.isHealer = data.healer || false;
         this.drops = data.drops || [];
         this.leakDamage = (this.maxHp > 2000) ? 5 : 1; 
+        
+        // --- IDENTIFICAR SI ES BOSS ---
+        this.isBoss = (typeKey.includes('boss') || typeKey.includes('mini'));
+        this.skillTimer = 0;
+        this.isCasting = false; // Estado para detener movimiento mientras castea
 
         // Visual Colors
         let color = 0xff0000;
@@ -51,10 +55,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         if (this.isFlying) color = 0x00ffff; 
         if (this.isHealer) color = 0xff69b4; 
-        if (typeKey.includes('boss')) color = 0x4b0082; 
+        if (this.isBoss) color = 0x4b0082; // Bosses morados
 
         this.originalColor = color; 
-        const size = (this.maxHp > 2000) ? 40 : 20;
+        const size = (this.maxHp > 2000 || this.isBoss) ? 40 : 20; // Bosses más grandes
 
         const textureKey = `enemy_${typeKey}`;
         if (scene.textures.exists(textureKey)) {
@@ -73,7 +77,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.setSize(size, size);
 
         this.lastAttackTime = 0;
-        this.skillTimer = 0; 
         this.isShielded = false;
 
         this.statusEffects = {
@@ -91,6 +94,22 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.updateDebuffs(delta);
         if (!this.active) return;
 
+        // --- LÓGICA DE BOSS ---
+        if (this.isBoss) {
+            if (this.isCasting) return; // Si está casteando, no se mueve
+
+            this.skillTimer += delta;
+            // Usar cooldown definido en constantes o default 6000ms
+            const cd = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.COOLDOWN : 6000;
+            
+            if (this.skillTimer > cd) {
+                this.startBossSkill();
+                this.skillTimer = 0;
+                return; // Importante: salir para no mover en este frame
+            }
+        }
+
+        // --- MOVIMIENTO ---
         if (!this.isShielded && !this.statusEffects.stun.active) {
             let speedMod = 1.0;
             if (this.statusEffects.slow.active) speedMod *= (1 - this.statusEffects.slow.factor);
@@ -122,20 +141,82 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.hpBar.width = (this.width + 8) * hpPct; 
         this.hpBar.setFillStyle(hpPct < 0.3 ? 0xff0000 : 0x00ff00);
 
-        if (this.typeKey.includes('boss')) {
-            this.skillTimer += delta;
-            if (this.skillTimer > 5000) { this.useBossSkill(); this.skillTimer = 0; }
-        }
         if (this.isHealer) {
-            this.skillTimer += delta;
-            if (this.skillTimer > 3000) { this.performHeal(); this.skillTimer = 0; }
+            // Reutilizamos skillTimer para healers si no es boss, o creamos uno nuevo
+            if (!this.isBoss) {
+                 this.skillTimer += delta;
+                 if (this.skillTimer > 3000) { this.performHeal(); this.skillTimer = 0; }
+            }
         }
+        
         this.checkAttackPlayer(time);
     }
 
-    // ... (applyStatus, updateDebuffs, clearTint, takeTrueDamage, takeDamage, useBossSkill, performHeal, checkAttackPlayer se mantienen IGUAL) ...
-    // COPIAR DE TU VERSIÓN ANTERIOR PARA MANTENER FUNCIONALIDAD, NO HAY CAMBIOS AQUÍ
-    // ...
+    // --- NUEVA LÓGICA DE SKILL DE BOSS ---
+    startBossSkill() {
+        if (!this.active || !this.scene) return;
+        this.isCasting = true;
+        
+        // Configuración del skill
+        const radius = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.RADIUS : 150;
+        const warnTime = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.WARN_TIME : 1500;
+
+        // 1. Indicador Visual (Círculo rojo en el suelo)
+        const warningCircle = this.scene.add.circle(this.x, this.y, 10, 0xff0000, 0.3);
+        
+        // Animación de advertencia
+        this.scene.tweens.add({
+            targets: warningCircle,
+            scale: radius / 10, // Crecer hasta el radio real
+            alpha: 0.6,
+            duration: warnTime,
+            onComplete: () => {
+                this.executeBossSkill(warningCircle, radius);
+            }
+        });
+        
+        if (this.scene.showFloatingText) {
+            this.scene.showFloatingText(this.x, this.y - 50, "¡CUIDADO!", "#ff0000");
+        }
+    }
+
+    executeBossSkill(indicator, radius) {
+        if (!this.active) { 
+            if(indicator) indicator.destroy(); 
+            return; 
+        }
+
+        // Efecto Explosión
+        const explosion = this.scene.add.circle(this.x, this.y, radius, 0xffaa00, 0.8);
+        this.scene.tweens.add({
+            targets: explosion,
+            alpha: 0,
+            scale: 1.2,
+            duration: 300,
+            onComplete: () => explosion.destroy()
+        });
+
+        // Daño al jugador
+        const player = this.scene.player; // Acceso directo al jugador en la escena
+        if (player && player.active && !player.isDead) {
+            const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+            if (dist <= radius) {
+                const dmg = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.DAMAGE : 30;
+                
+                // Si el jugador tiene método takeDamage, úsalo
+                if (player.takeDamage) player.takeDamage(dmg);
+                
+                // Knockback al jugador
+                const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
+                if(player.body) player.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
+            }
+        }
+
+        if(indicator) indicator.destroy();
+        this.isCasting = false; // Boss vuelve a moverse
+    }
+    // -------------------------------------
+
     applyStatus(effect) {
         if (!effect || !this.active || this.isShielded) return;
         if (effect.type === 'burn') {
@@ -223,12 +304,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
     clearTint() { if (this.active && this.sprite) this.sprite.setTint(this.originalColor); }
     takeTrueDamage(amount, color) { if (!this.active) return; this.hp -= amount; if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(amount)}`, color); if (this.hp <= 0) this.die(true); }
     takeDamage(amount) { if (this.isShielded) { if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); return; } const reductionMult = 100 / (100 + this.armor); let dmg = Math.floor(amount * reductionMult); if (dmg < 1) dmg = 1; this.hp -= dmg; if (this.scene && this.scene.showFloatingText) { const isCrit = Math.random() > 0.8; this.scene.showFloatingText(this.x, this.y - 30, `-${dmg}`, isCrit ? 'crit' : 'damage'); } if (this.hp <= 0) { this.die(true); } else { this.scene.tweens.add({ targets: this, alpha: 0.5, yoyo: true, duration: 50 }); } }
-    useBossSkill() { if (this.typeKey.includes('boss')) { if(this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 50, "¡ATAQUE ESPECIAL!", "crit"); } }
+    
     performHeal() { if (!this.scene || !this.scene.enemies) return; const healRange = 150; let healed = false; this.scene.enemies.children.iterate(e => { if (e !== this && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < healRange) { if (e.hp < e.maxHp) { e.hp = Math.min(e.maxHp, e.hp + 50); healed = true; } } }); if (healed && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "CURAR", "heal"); }
+    
     checkAttackPlayer(time) { if (!this.scene || !this.scene.player) return; const player = this.scene.player; if (!player.active || player.isDead) return; const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y); if (dist < 50) { if (time > this.lastAttackTime + 1000) { player.takeDamage(this.damage); this.lastAttackTime = time; this.scene.tweens.add({ targets: this, scale: 1.2, yoyo: true, duration: 100 }); } } }
+    
     reachBase() { if (this.isDead) return; const damageToBase = Math.max(1, Math.floor(this.damage * 0.5)); if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(damageToBase); this.die(false); }
 
-    // --- AQUÍ ESTÁ EL CAMBIO CLAVE PARA LOS DROPS ---
     die(killedByPlayer) {
         if (!this.scene) return;
         const scene = this.scene;
@@ -237,29 +319,25 @@ export default class Enemy extends Phaser.GameObjects.Container {
             if (scene.onEnemyKilled) scene.onEnemyKilled(this);
             
             if (this.drops && this.drops.length > 0) {
-                // Obtenemos la dificultad actual (1=Fácil, 2=Normal, 3=Difícil)
                 const difficulty = scene.difficultyMode || 1;
 
                 this.drops.forEach(dropDef => {
                     let [matKey, chance, min, max] = dropDef;
                     
-                    // --- LÓGICA DE ACTUALIZACIÓN DE TIER (SOLO NORMAL MOBS) ---
-                    // Los Bosses ya tienen su drop definido correctamente en ENEMY_DB
                     if (!this.typeKey.includes('boss') && !this.typeKey.includes('mini')) {
-                        if (difficulty === 2) { // NORMAL: Tier 1 -> Tier 2
+                        if (difficulty === 2) { 
                             if (matKey === 'copper') matKey = 'iron';
                             if (matKey === 'wood') matKey = 'cedar';
                             if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_rigid';
                             if (matKey === 'cloth_simple') matKey = 'cloth_fine';
                         } 
-                        else if (difficulty === 3) { // DIFÍCIL: Tier 1 -> Tier 3
-                            if (matKey === 'copper') matKey = 'ingot_steel'; // O Mithril
+                        else if (difficulty === 3) { 
+                            if (matKey === 'copper') matKey = 'ingot_steel'; 
                             if (matKey === 'wood') matKey = 'plank_ebony';
                             if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_dragon';
                             if (matKey === 'cloth_simple') matKey = 'cloth_royal';
                         }
                     }
-                    // ----------------------------------------------------------
 
                     if (Math.random() < chance) {
                         const qty = Phaser.Math.Between(min, max);
