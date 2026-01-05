@@ -113,7 +113,10 @@ export default class GameScene extends Phaser.Scene {
 
         this.gameUI = new GameUI(this);
         EventBus.emit('gold-changed', this.coins);
-        EventBus.emit('base-damaged', { current: gameState.baseHp, max: this.maxBaseHp });
+        
+        // --- CORRECCIÓN AQUÍ: Enviamos solo el valor numérico, no el objeto ---
+        EventBus.emit('base-damaged', gameState.baseHp); 
+        
         EventBus.emit('tower-selected', this.selectedTowerIndex);
         
         const centerX = this.scale.width / 2;
@@ -777,7 +780,9 @@ export default class GameScene extends Phaser.Scene {
     
     onEnemyLeaks(damage) { 
         gameState.baseHp -= damage; 
-        EventBus.emit('base-damaged', { current: gameState.baseHp, max: this.maxBaseHp }); 
+        // --- CORRECCIÓN AQUÍ: Enviamos solo el número ---
+        EventBus.emit('base-damaged', gameState.baseHp); 
+        
         this.cameras.main.flash(200, 255, 0, 0); 
         if (gameState.baseHp <= 0) this.gameOver(); 
     }
@@ -787,7 +792,6 @@ export default class GameScene extends Phaser.Scene {
         if (this.spawnTimer) this.spawnTimer.remove(); 
         
         if (this.isEndless) {
-            // EN MODO INFINITO, PERDER ES RECOGER EL COFRE
             this.finishEndlessRun();
         } else {
             this.scene.start('ResultScene', { success: false, levelId: this.currentLevelData.id }); 
@@ -801,7 +805,6 @@ export default class GameScene extends Phaser.Scene {
             return;
         }
 
-        // --- CÁLCULO DE RECOMPENSAS ENDLESS ---
         let totalGold = wavesCleared * 100;
         let totalXP = wavesCleared * 50;
 
