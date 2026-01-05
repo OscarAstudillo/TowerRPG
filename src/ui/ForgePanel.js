@@ -25,28 +25,6 @@ export default class ForgePanel {
         this.detailContainer = scene.add.container(width * 0.72, height * 0.62).setVisible(false).setDepth(2000);
         this.forgeSubFilterContainer = scene.add.container(0, 0);
         
-        // --- PESTAÑAS PRINCIPALES ---
-        this.currentMode = 'craft'; 
-        const modeY = height * 0.12; 
-        
-        const btnCraft = scene.add.text(width * 0.35, modeY, "FABRICAR", { fontFamily: 'Cinzel', fontSize: '24px', fontStyle: 'bold', color: '#ffd700', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-        const btnFuse = scene.add.text(width * 0.65, modeY, "FUSIONAR", { fontFamily: 'Cinzel', fontSize: '24px', fontStyle: 'bold', color: '#888', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-        btnCraft.on('pointerdown', () => {
-            this.currentMode = 'craft';
-            btnCraft.setColor('#ffd700');
-            btnFuse.setColor('#888');
-            this.refresh();
-        });
-
-        btnFuse.on('pointerdown', () => {
-            this.currentMode = 'fuse';
-            btnFuse.setColor('#ffd700');
-            btnCraft.setColor('#888');
-            this.refresh();
-        });
-        this.container.add([btnCraft, btnFuse]);
-
         const catY = height * 0.24;
         this.createCatBtn(width * 0.2, catY, "ARMAS", 'weapon');
         this.createCatBtn(width * 0.4, catY, "ARMADURAS", 'armor');
@@ -54,9 +32,6 @@ export default class ForgePanel {
         this.createCatBtn(width * 0.8, catY, "TORRES", 'tower_part');
 
         this.container.add([this.recipesContainer, this.detailContainer, this.forgeSubFilterContainer]);
-
-        this.selectedItemA = null;
-        this.selectedItemB = null;
     }
 
     createCatBtn(x, y, label, cat) {
@@ -66,8 +41,6 @@ export default class ForgePanel {
             this.category = cat;
             this.subFilter = 'all';
             this.detailContainer.setVisible(false);
-            this.selectedItemA = null;
-            this.selectedItemB = null;
             this.refresh();
             this.container.list.forEach(c => { if(c.setColor && c !== this.recipesContainer && c !== this.forgeSubFilterContainer && c !== this.profText && c.text !== "FABRICAR" && c.text !== "FUSIONAR" && c !== this.title) c.setColor('#888'); });
             btn.setColor('#ffd700');
@@ -79,10 +52,8 @@ export default class ForgePanel {
     hide() { this.container.setVisible(false); }
 
     refresh() {
-        // --- ACTUALIZACIÓN DE INFO DE PROFESIONES Y PROBABILIDAD ---
         const p = gameState.professions;
         
-        // Determinar profesión activa para mostrar chance
         let activeProf = 'smithing';
         if (this.category === 'accessory') activeProf = 'jewelcrafting';
         if (this.category === 'tower_part') activeProf = 'engineering';
@@ -95,11 +66,7 @@ export default class ForgePanel {
         this.forgeSubFilterContainer.removeAll(true);
         this.recipesContainer.removeAll(true);
 
-        if (this.currentMode === 'craft') {
-            this.renderCraftingUI();
-        } else {
-            this.renderFusionUI();
-        }
+        this.renderCraftingUI();
     }
 
     renderCraftingUI() {
@@ -151,87 +118,11 @@ export default class ForgePanel {
         });
     }
 
-    renderFusionUI() {
-        const cx = this.width / 2;
-        
-        this.recipesContainer.add(this.scene.add.text(cx, this.height * 0.32, "Selecciona 2 objetos IDÉNTICOS para mejorar el nivel", { fontFamily: 'Roboto', fontSize: '16px', color: '#aaa' }).setOrigin(0.5));
-
-        const slotA = this.createFusionSlot(cx - 120, this.height * 0.45, this.selectedItemA, "PRINCIPAL", (item) => { this.selectedItemA = null; this.refresh(); });
-        const iconPlus = this.scene.add.text(cx, this.height * 0.45, "+", { fontSize: '40px', color: '#ffd700' }).setOrigin(0.5);
-        const slotB = this.createFusionSlot(cx + 120, this.height * 0.45, this.selectedItemB, "SACRIFICIO", (item) => { this.selectedItemB = null; this.refresh(); });
-        
-        this.recipesContainer.add([slotA, iconPlus, slotB]);
-        
-        if (this.selectedItemA && this.selectedItemB) {
-            const fuseBtn = this.scene.add.rectangle(cx, this.height * 0.58, 200, 50, 0x800080).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0xffffff);
-            const fuseTxt = this.scene.add.text(cx, this.height * 0.58, "ANALIZAR FUSIÓN", { fontSize: '20px', fontStyle: 'bold', fontFamily: 'Cinzel' }).setOrigin(0.5);
-            
-            fuseBtn.on('pointerdown', () => this.showFusionConfirmation());
-            fuseBtn.on('pointerover', () => fuseBtn.setFillStyle(0xa020a0));
-            fuseBtn.on('pointerout', () => fuseBtn.setFillStyle(0x800080));
-
-            this.recipesContainer.add([fuseBtn, fuseTxt]);
-        }
-
-        let startX = this.width * 0.2; 
-        let currentY = this.height * 0.68;
-        let col = 0;
-
-        // --- CORRECCIÓN: Usar equipmentInventory para Fusión ---
-        const inv = gameState.equipmentInventory || []; // Usar el inventario correcto
-        inv.forEach(item => {
-            if (!item.stats) return; 
-            if (this.category === 'weapon' && item.type !== 'weapon') return;
-            if (this.category === 'armor' && (item.type !== 'armor' && item.type !== 'offhand')) return;
-            if (this.category === 'accessory' && item.type !== 'accessory') return;
-            if (item === this.selectedItemA || item === this.selectedItemB) return;
-
-            const slot = this.scene.add.rectangle(startX + (col * 80), currentY, 70, 70, 0x111111).setStrokeStyle(2, 0x444444).setInteractive({useHandCursor:true});
-            
-            let rarityColor = RARITY[item.rarity] ? RARITY[item.rarity].color : 0xffffff;
-            slot.setStrokeStyle(2, rarityColor);
-
-            const icon = this.scene.add.text(startX + (col * 80), currentY, item.name.substring(0, 2).toUpperCase(), { fontSize: '20px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-            
-            slot.on('pointerdown', () => {
-                if (!this.selectedItemA) this.selectedItemA = item;
-                else if (!this.selectedItemB) this.selectedItemB = item;
-                this.refresh();
-            });
-
-            this.recipesContainer.add([slot, icon]);
-
-            col++;
-            if (col > 7) { col = 0; currentY += 80; }
-        });
-    }
-
-    createFusionSlot(x, y, item, labelText, onClear) {
-        const container = this.scene.add.container(x, y);
-        const bg = this.scene.add.rectangle(0, 0, 100, 100, 0x000000).setStrokeStyle(2, 0x444444).setInteractive();
-        const label = this.scene.add.text(0, -65, labelText, { fontSize: '12px', color: '#888' }).setOrigin(0.5);
-
-        if (item) {
-            let rColor = RARITY[item.rarity].color;
-            bg.setStrokeStyle(3, rColor);
-            
-            const name = this.scene.add.text(0, 0, item.name, { fontSize: '12px', align: 'center', wordWrap:{width:90}, fontFamily: 'Cinzel', color: '#fff' }).setOrigin(0.5);
-            const level = this.scene.add.text(0, 30, `+${item.enchant||0}`, { fontSize: '16px', color: '#00ff00', fontStyle:'bold' }).setOrigin(0.5);
-            const clearBtn = this.scene.add.text(40, -40, "X", { color: '#ff0000', fontSize: '20px', fontStyle: 'bold' }).setInteractive({useHandCursor:true}).setOrigin(0.5);
-            clearBtn.on('pointerdown', onClear);
-            container.add([bg, label, name, level, clearBtn]);
-        } else {
-            const hint = this.scene.add.text(0, 0, "Vacío", { color: '#444', fontFamily: 'Roboto' }).setOrigin(0.5);
-            container.add([bg, label, hint]);
-        }
-        return container;
-    }
-
     selectRecipe(recipe) {
         this.detailContainer.removeAll(true);
         this.detailContainer.setVisible(true);
         this.selectedRecipe = recipe;
-        this.selectedRarity = 'common'; // Reset a común al abrir
+        this.selectedRarity = 'common'; 
 
         const bg = this.scene.add.rectangle(0, 0, 450, 700, 0x111111, 0.98).setStrokeStyle(3, 0xffffff).setInteractive();
         this.modalTitle = this.scene.add.text(0, -310, recipe.name.toUpperCase(), { fontFamily: 'Cinzel', fontSize: '26px', align:'center', wordWrap:{width:400} }).setOrigin(0.5);
@@ -280,10 +171,8 @@ export default class ForgePanel {
 
         this.modalTitle.setColor(hexColor);
         
-        // 1. Mostrar Stats Base (Escalados)
         let statsStr = `RAREZA: ${rarity.name} (x${rarity.mult.toFixed(2)})\n\n[STATS BASE]\n`;
         
-        // Simular escalado para previsualización (Tier * Rareza)
         const tier = recipe.tier || 1;
         const tierMult = Math.pow(GAME_CONSTANTS.EQUIPMENT.TIER_MULTIPLIER_BASE, tier - 1);
         const rarityIndex = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'].indexOf(this.selectedRarity);
@@ -308,7 +197,6 @@ export default class ForgePanel {
         }
         this.statsText.setText(statsStr);
 
-        // 2. Mostrar Posibles Atributos
         let attrText = `\n[ATRIBUTOS ALEATORIOS: ${rarity.statCount}]\nPosibles:\n`;
         const pool = RPGSystem.getStatPool(recipe);
         const poolNames = pool.map(s => s.key.toUpperCase()).join(", ");
@@ -316,7 +204,6 @@ export default class ForgePanel {
         
         this.possibleStatsText.setText(attrText);
 
-        // 3. Materiales Requeridos
         let matsStr = `\n[MATERIALES]\n`;
         let canCraft = true;
         const ingredients = recipe.ingredients || {};
@@ -344,74 +231,10 @@ export default class ForgePanel {
         if(canCraft) this.craftBtnBg.setInteractive(); else this.craftBtnBg.disableInteractive();
     }
 
-    // --- MÉTODOS DE FUSIÓN VISUAL (Ya mejorados anteriormente, los mantengo) ---
-    showFusionConfirmation() {
-        if (!this.selectedItemA || !this.selectedItemB) return;
-
-        if (this.selectedItemA.recipeId !== this.selectedItemB.recipeId) {
-            if(this.scene.showCentralAlert) this.scene.showCentralAlert("Deben ser el mismo objeto", '#ff0000');
-            return;
-        }
-
-        const cx = this.scene.scale.width / 2;
-        const cy = this.scene.scale.height / 2;
-        
-        const modalContainer = this.scene.add.container(0, 0).setDepth(3000);
-        const overlay = this.scene.add.rectangle(cx, cy, 2000, 2000, 0x000000, 0.9).setInteractive();
-        const panel = this.scene.add.rectangle(cx, cy, 700, 500, 0x1a1a1a).setStrokeStyle(4, 0xffd700);
-        
-        const title = this.scene.add.text(cx, cy - 200, "CONFIRMAR FUSIÓN", { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
-        
-        const cardA = this.createDetailCard(this.selectedItemA, "BASE (Se conserva)");
-        cardA.setPosition(cx - 180, cy - 20);
-        const plusSign = this.scene.add.text(cx, cy - 20, "+", { fontSize: '64px', color: '#fff' }).setOrigin(0.5);
-        const cardB = this.createDetailCard(this.selectedItemB, "MATERIAL (Se destruye)");
-        cardB.setPosition(cx + 180, cy - 20);
-
-        const nextLvl = (this.selectedItemA.enchant || 0) + 1;
-        const resultText = this.scene.add.text(cx, cy + 100, `Resultado: ${this.selectedItemA.name} +${nextLvl}`, { fontFamily: 'Roboto', fontSize: '20px', color: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
-
-        const btnCancel = this.scene.add.rectangle(cx - 120, cy + 180, 180, 50, 0x330000).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0xff5555);
-        const txtCancel = this.scene.add.text(cx - 120, cy + 180, "CANCELAR", { fontSize: '18px', fontStyle: 'bold', fontFamily: 'Cinzel' }).setOrigin(0.5);
-        
-        const btnConfirm = this.scene.add.rectangle(cx + 120, cy + 180, 180, 50, 0x004400).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
-        const txtConfirm = this.scene.add.text(cx + 120, cy + 180, "FORJAR AHORA", { fontSize: '18px', fontStyle: 'bold', fontFamily: 'Cinzel' }).setOrigin(0.5);
-
-        btnCancel.on('pointerdown', () => modalContainer.destroy());
-        overlay.on('pointerdown', () => modalContainer.destroy());
-        btnConfirm.on('pointerdown', () => { this.executeFusion(); modalContainer.destroy(); });
-
-        modalContainer.add([overlay, panel, title, cardA, cardB, plusSign, resultText, btnCancel, txtCancel, btnConfirm, txtConfirm]);
-    }
-
-    createDetailCard(item, headerText) {
-        const container = this.scene.add.container(0, 0);
-        const rColor = RARITY[item.rarity].color;
-        const bg = this.scene.add.rectangle(0, 0, 220, 250, 0x222222).setStrokeStyle(3, rColor).setInteractive();
-        const header = this.scene.add.text(0, -100, headerText, { fontSize: '12px', color: '#aaa', fontStyle: 'italic' }).setOrigin(0.5);
-        const name = this.scene.add.text(0, -60, item.name, { fontFamily: 'Cinzel', fontSize: '18px', color: '#' + rColor.toString(16).padStart(6,'0'), align: 'center', wordWrap: {width: 200} }).setOrigin(0.5);
-        const enchantText = this.scene.add.text(0, -20, `Nivel: +${item.enchant||0}`, { fontSize: '24px', color: '#fff', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        let statsStr = "";
-        if (item.stats) {
-            for (let k in item.stats) {
-                if (item.stats[k] !== 0) statsStr += `${k.toUpperCase()}: ${item.stats[k]}\n`;
-            }
-        }
-        const stats = this.scene.add.text(0, 30, statsStr, { fontSize: '14px', color: '#ccc', align: 'center', lineHeight: 20 }).setOrigin(0.5, 0);
-
-        container.add([bg, header, name, enchantText, stats]);
-        return container;
-    }
-
     safeAddItemToInventory(item) {
         if (!item) return;
-        // --- CORRECCIÓN: Usar equipmentInventory ---
         if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
-        
-        // Generar ID único real si no lo tiene
         if (!item.id || item.id.startsWith("ITEM_")) item.id = RPGSystem.getUniqueId();
-        
         gameState.equipmentInventory.push(item);
     }
 
@@ -419,7 +242,6 @@ export default class ForgePanel {
         const recipe = this.selectedRecipe;
         const rarityKey = this.selectedRarity;
         
-        // --- LLAMADA AL NUEVO RPG SYSTEM CON ENCANTAMIENTO ---
         const result = RPGSystem.craftItem(recipe.id, rarityKey);
         
         if (result.success) {
@@ -428,52 +250,22 @@ export default class ForgePanel {
             SaveSystem.save();
             this.updateDetailView();
             
-            // --- FEEDBACK DE ENCANTAMIENTO (+0 a +6) ---
             let msg = `¡FORJADO: ${result.item.name}!`;
             let color = '#00ff00';
             
             if (result.enchantBonus > 0) {
                 msg = `¡CRÍTICO! ${result.item.name} +${result.enchantBonus}`;
-                color = '#ff00ff'; // Morado épico
+                color = '#ff00ff'; 
                 SoundManager.playSound('upgrade'); 
             } else {
                 SoundManager.playSound('build');
             }
 
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(msg, color);
-            this.refresh(); // Actualizar niveles de profesión en UI
+            this.refresh(); 
 
         } else {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(result.error, '#ff0000');
-        }
-    }
-
-    executeFusion() {
-        if (!this.selectedItemA || !this.selectedItemB) return;
-        
-        // Usar método de fusión específico para equipmentInventory
-        const result = RPGSystem.fuseSpecificItems(this.selectedItemA, this.selectedItemB);
-        
-        if (result.success) {
-            // Remover los ítems viejos del inventario de equipo
-            const inv = gameState.equipmentInventory;
-            const idxA = inv.indexOf(this.selectedItemA);
-            if (idxA > -1) inv.splice(idxA, 1);
-            const idxB = inv.indexOf(this.selectedItemB);
-            if (idxB > -1) inv.splice(idxB, 1);
-            
-            // Añadir el nuevo
-            this.safeAddItemToInventory(result.item);
-            
-            SaveSystem.save();
-            this.selectedItemA = null;
-            this.selectedItemB = null;
-            this.refresh();
-            
-            if(this.scene.showCentralAlert) this.scene.showCentralAlert(`¡ÉXITO! Objeto mejorado a +${result.item.enchant}`, '#ffd700');
-            if (SoundManager.playSound) SoundManager.playSound('upgrade');
-        } else {
-            if(this.scene.showCentralAlert) this.scene.showCentralAlert(result.error || "Fallo", '#ff0000');
         }
     }
 
