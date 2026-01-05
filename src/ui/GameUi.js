@@ -9,7 +9,7 @@ import ForgePanel from './ForgePanel.js';
 import RefiningPanel from './RefiningPanel.js';
 import QuestBoard from './QuestBoard.js';
 import TowersPanel from './TowersPanel.js';
-import ProfessionsPanel from './ProfessionsPanel.js';
+import ProfessionsPanel from './ProfessionsPanel.js'; // <--- IMPRESCINDIBLE
 
 export default class GameUI {
     constructor(scene) {
@@ -17,7 +17,6 @@ export default class GameUI {
         this.width = scene.scale.width;
         this.height = scene.scale.height;
         
-        // Contenedor principal (Capa UI alta)
         this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
         this.towerCards = [];
         
@@ -25,8 +24,8 @@ export default class GameUI {
         
         this.createPanels(); 
         this.createTopHUD();
-        this.createTowerSelector(); // Abajo del todo
-        this.createBottomMenu();    // Justo encima del selector
+        this.createTowerSelector(); // Abajo
+        this.createBottomMenu();    // Arriba del selector
         this.createSkillButton();
         this.createWaveTimer();
         
@@ -44,7 +43,7 @@ export default class GameUI {
         this.refiningPanel = new RefiningPanel(this.scene, w/2, h/2, w, h);
         this.questBoard = new QuestBoard(this.scene, w/2, h/2, w, h);
         this.towersPanel = new TowersPanel(this.scene, w/2, h/2, w, h);
-        this.professionsPanel = new ProfessionsPanel(this.scene, w/2, h/2, w, h);
+        this.professionsPanel = new ProfessionsPanel(this.scene, w/2, h/2, w, h); // Instancia del panel
 
         this.allPanels = [
             this.heroPanel, this.inventoryPanel, this.talentsPanel, 
@@ -54,10 +53,8 @@ export default class GameUI {
     }
 
     createBottomMenu() {
-        // CORRECCIÓN: Subimos el menú para que no lo tape la barra de torres
-        // La barra de torres mide ~130px de alto y está pegada al fondo.
-        // Pondremos el menú en Y = height - 155 (encima de la barra)
-        const menuY = this.height - 155;
+        // Subimos el menú (Y) para que no lo tape la barra de torres (que está en h-65 y mide 130px)
+        const menuY = this.height - 150; 
         
         const buttons = [
             { label: "HÉROE", icon: "👤", panel: this.heroPanel },
@@ -66,34 +63,32 @@ export default class GameUI {
             { label: "FORJA", icon: "⚒️", panel: this.forgePanel },
             { label: "REFINAR", icon: "⚗️", panel: this.refiningPanel },
             { label: "MISIONES", icon: "📜", panel: this.questBoard },
-            { label: "PROFS", icon: "🔨", panel: this.professionsPanel }
+            { label: "PROFS", icon: "🔨", panel: this.professionsPanel } // 7º Botón
         ];
 
-        const btnWidth = 80; 
+        // Ajuste de ancho para que quepan 7 botones en ~1280px
+        const btnWidth = 90; 
         const gap = 5;
-        // Centramos los botones horizontalmente
         const totalWidth = buttons.length * (btnWidth + gap);
         const startX = (this.width - totalWidth) / 2 + (btnWidth / 2);
         
-        // Fondo semitransparente para el menú
-        const menuBg = this.scene.add.rectangle(this.width/2, menuY, totalWidth + 20, 50, 0x000000, 0.6);
-        this.container.add(menuBg);
+        // Fondo visual del menú
+        const bg = this.scene.add.rectangle(this.width/2, menuY, totalWidth + 20, 60, 0x000000, 0.7);
+        this.container.add(bg);
 
         buttons.forEach((btn, i) => {
             const x = startX + (i * (btnWidth + gap));
             
-            // Botón Fondo
-            const btnBg = this.scene.add.rectangle(0, 0, btnWidth, 40, 0x222222)
-                .setStrokeStyle(1, 0x555555)
+            // Botón
+            const btnBg = this.scene.add.rectangle(0, 0, btnWidth, 50, 0x222222)
+                .setStrokeStyle(2, 0x555555)
                 .setInteractive({useHandCursor:true});
 
-            // Icono y Texto
-            const label = this.scene.add.text(0, 0, `${btn.icon} ${btn.label}`, { 
-                fontFamily: 'Roboto', fontSize: '10px', fontStyle: 'bold' 
-            }).setOrigin(0.5);
+            const icon = this.scene.add.text(0, -10, btn.icon, { fontSize: '20px' }).setOrigin(0.5);
+            const label = this.scene.add.text(0, 15, btn.label, { fontFamily: 'Roboto', fontSize: '10px', fontStyle: 'bold' }).setOrigin(0.5);
 
-            // Grupo del botón
-            const btnContainer = this.scene.add.container(x, menuY, [btnBg, label]);
+            // Contenedor individual para posicionar
+            const btnContainer = this.scene.add.container(x, menuY, [btnBg, icon, label]);
 
             btnBg.on('pointerdown', () => {
                 this.togglePanel(btn.panel);
@@ -102,7 +97,6 @@ export default class GameUI {
             btnBg.on('pointerover', () => btnBg.setFillStyle(0x444444));
             btnBg.on('pointerout', () => btnBg.setFillStyle(0x222222));
             
-            // IMPORTANTE: Añadir al container principal para que se vea
             this.container.add(btnContainer);
         });
     }
@@ -111,13 +105,11 @@ export default class GameUI {
         const w = this.width;
         const h = this.height;
         
-        // Posición: Fondo de la pantalla
         this.towerSelectorContainer = this.scene.add.container(w/2, h - 65);
         
         const selectorBg = this.scene.add.rectangle(0, 0, 700, 130, 0x000000, 0.8).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
 
-        // Texto de Dinero (Integrado en la barra)
         const economyBg = this.scene.add.rectangle(0, -80, 200, 25, 0x000000, 0.9).setStrokeStyle(1, 0xffd700);
         this.economyText = this.scene.add.text(0, -80, 'ORO: 0', { fontFamily: 'Roboto', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.towerSelectorContainer.add([economyBg, this.economyText]);
@@ -153,8 +145,6 @@ export default class GameUI {
         this.container.add(this.towerSelectorContainer);
     }
 
-    // ... (El resto de métodos: togglePanel, updateStats, createTopHUD, etc. se mantienen IGUAL que antes) ...
-
     togglePanel(targetPanel) {
         const isVisible = targetPanel.container.visible;
         this.allPanels.forEach(p => p.hide());
@@ -170,10 +160,11 @@ export default class GameUI {
         EventBus.on('skill-cooldown', this.updateSkillCooldown, this);
         EventBus.on('wave-timer-tick', this.updateWaveTimer, this);
         EventBus.on('wave-timer-toggle', (visible) => this.waveTimerContainer.setVisible(visible), this);
+        
         EventBus.on('profession-levelup', (data) => {
             if(this.showCentralAlert) this.showCentralAlert(`¡NIVEL UP: ${data.key.toUpperCase()}!`, '#00ff00');
         });
-        
+
         this.scene.events.once('shutdown', () => {
             EventBus.off('gold-changed');
             EventBus.off('base-damaged');
@@ -189,13 +180,13 @@ export default class GameUI {
 
     createTopHUD() {
         const w = this.width;
-        const bg = this.scene.add.rectangle(w/2, 40, w, 60, 0x111111); // HUD más compacto arriba
+        const bg = this.scene.add.rectangle(w/2, 40, w, 60, 0x111111);
         const line = this.scene.add.rectangle(w/2, 70, w, 2, 0xffffff);
         
         this.livesText = this.scene.add.text(30, 20, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffffff' });
         this.castleText = this.scene.add.text(30, 45, '', { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#ffaaaa' });
         
-        this.xpContainer = this.scene.add.container(0, -10); // Ajuste posición
+        this.xpContainer = this.scene.add.container(0, -10);
         const xpLabel = this.scene.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' });
         this.xpBarBg = this.scene.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5);
         this.xpBarFill = this.scene.add.rectangle(330, 42, 0, 10, 0x00ffff).setOrigin(0, 0.5);
@@ -210,7 +201,6 @@ export default class GameUI {
     createSkillButton() {
         const w = this.width;
         const h = this.height;
-        // Mover botón de skill arriba a la derecha o a un lado para no estorbar
         const skillY = h - 220; 
 
         this.skillBtnContainer = this.scene.add.container(w - 60, skillY);

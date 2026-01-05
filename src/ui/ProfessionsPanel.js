@@ -9,10 +9,10 @@ export default class ProfessionsPanel {
         
         this.container = scene.add.container(0, 0).setVisible(false).setDepth(100);
 
-        // Fondo oscuro semitransparente
+        // Fondo
         const bg = scene.add.rectangle(width/2, height/2, width * 0.9, height * 0.9, 0x000000, 0.95)
             .setStrokeStyle(4, 0x00aaff)
-            .setInteractive(); // Bloquea clicks traseros
+            .setInteractive(); // Bloquea clicks
         this.container.add(bg);
 
         // Título
@@ -28,7 +28,6 @@ export default class ProfessionsPanel {
         closeBtn.on('pointerdown', () => this.hide());
         this.container.add(closeBtn);
 
-        // Contenedor para la lista de profesiones
         this.listContainer = scene.add.container(0, 0);
         this.container.add(this.listContainer);
     }
@@ -45,64 +44,52 @@ export default class ProfessionsPanel {
     refresh() {
         this.listContainer.removeAll(true);
         
-        // Configuración de las profesiones a mostrar
         const profDefs = [
-            { key: 'weaponsmith', name: 'FORJA DE ARMAS', icon: '⚔️', desc: 'Probabilidad de forjar armas con encantamiento (+1 a +6).' },
-            { key: 'armorsmith', name: 'FORJA DE ARMADURAS', icon: '🛡️', desc: 'Probabilidad de forjar armaduras con encantamiento (+1 a +6).' },
-            { key: 'jewelry', name: 'JOYERÍA', icon: '💍', desc: 'Probabilidad de crear joyas con encantamiento (+1 a +6).' },
-            // Si engineering no está en tu gameState, no explotará, mostrará nivel 1
-            { key: 'engineering', name: 'INGENIERÍA', icon: '⚙️', desc: 'Probabilidad de crear partes de torre mejoradas.' },
-            // Mapeamos 'refining' a la key correcta si es diferente en gameState
-            { key: 'refining', name: 'REFINAMIENTO', icon: '⚗️', desc: 'Probabilidad de obtener el doble de materiales al refinar.' }
+            { key: 'weaponsmith', name: 'FORJA DE ARMAS', icon: '⚔️', desc: 'Chance de encantar armas (+1 a +6).' },
+            { key: 'armorsmith', name: 'FORJA DE ARMADURAS', icon: '🛡️', desc: 'Chance de encantar armaduras (+1 a +6).' },
+            { key: 'jewelry', name: 'JOYERÍA', icon: '💍', desc: 'Chance de encantar joyas (+1 a +6).' },
+            { key: 'engineering', name: 'INGENIERÍA', icon: '⚙️', desc: 'Chance de mejorar partes de torre.' },
+            { key: 'refining', name: 'REFINAMIENTO', icon: '⚗️', desc: 'Chance de obtener doble material.' }
         ];
 
         let y = this.height * 0.25;
         const startX = this.width * 0.1;
 
         profDefs.forEach(def => {
-            // Manejo de keys para refinamiento/alquimia
             let pKey = def.key;
+            // Parche por si refining se llama alchemy en otro lado
             if(def.key === 'refining' && !gameState.professions.refining && gameState.professions.alchemy) pKey = 'alchemy';
 
             const profData = gameState.professions[pKey] || { level: 1, xp: 0, maxXp: 100 };
-            
-            // Calcular bonificación actual (0% a 50%)
             const chance = RPGSystem.getProfessionChance(pKey);
             const chancePct = (chance * 100).toFixed(1);
 
-            // Fila contenedora
             const row = this.scene.add.container(0, y);
             
-            // Icono grande
-            const icon = this.scene.add.text(startX, 0, def.icon, { fontSize: '40px' }).setOrigin(0.5);
+            const icon = this.scene.add.text(startX, 0, def.icon, { fontSize: '30px' }).setOrigin(0.5);
             
-            // Nombre y Nivel
-            const nameText = this.scene.add.text(startX + 50, -15, `${def.name} - Nivel ${profData.level}`, { 
-                fontFamily: 'Cinzel', fontSize: '20px', color: '#ffffff', fontStyle: 'bold' 
+            const nameText = this.scene.add.text(startX + 40, -12, `${def.name} (Nvl ${profData.level})`, { 
+                fontFamily: 'Cinzel', fontSize: '16px', color: '#ffffff', fontStyle: 'bold' 
             });
 
-            // Barra de XP (Fondo)
-            const barW = this.width * 0.5;
-            const barBg = this.scene.add.rectangle(startX + 50 + (barW/2), 15, barW, 10, 0x333333);
-            
-            // Barra de XP (Relleno)
+            // Barra XP
+            const barW = this.width * 0.4;
+            const barBg = this.scene.add.rectangle(startX + 40 + (barW/2), 10, barW, 6, 0x333333);
             const progress = Math.min(1, profData.xp / profData.maxXp);
-            const barFill = this.scene.add.rectangle(startX + 50, 15, barW * progress, 10, 0x00aaff).setOrigin(0, 0.5);
+            const barFill = this.scene.add.rectangle(startX + 40, 10, barW * progress, 6, 0x00aaff).setOrigin(0, 0.5);
             
-            // Texto numérico de XP
-            const xpText = this.scene.add.text(startX + 50 + barW + 15, 15, `${Math.floor(profData.xp)} / ${profData.maxXp} XP`, { 
-                fontSize: '12px', color: '#aaaaaa' 
+            const xpText = this.scene.add.text(startX + 50 + barW, 10, `${Math.floor(profData.xp)}/${profData.maxXp}`, { 
+                fontSize: '10px', color: '#aaaaaa' 
             }).setOrigin(0, 0.5);
 
-            // Descripción de Bonificación
-            const bonusText = this.scene.add.text(startX + 50, 40, `Bonificación Actual: ${chancePct}% ${def.desc}`, { 
-                fontFamily: 'Roboto', fontSize: '14px', color: '#ffd700' 
+            const bonusText = this.scene.add.text(startX + 40, 30, `Bonus: ${chancePct}% ${def.desc}`, { 
+                fontFamily: 'Roboto', fontSize: '12px', color: '#ffd700' 
             });
 
             row.add([icon, nameText, barBg, barFill, xpText, bonusText]);
             this.listContainer.add(row);
 
-            y += 100; // Espaciado vertical
+            y += 80;
         });
     }
 }
