@@ -12,13 +12,14 @@ export default class GameUI {
         // Contenedores principales
         this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
         this.towerCards = [];
+        this.skillButtons = {}; // Almacenar referencias a los botones de skill
         
         // Estilos
-        this.theme = { accent: 0xffffff }; // Puedes importar esto si lo prefieres
+        this.theme = { accent: 0xffffff };
         
         this.createTopHUD();
         this.createTowerSelector();
-        this.createSkillButton();
+        this.createSkillButtonsGroup(); // Renombrado para crear el grupo Q, Espacio, E
         this.createWaveTimer();
         
         // --- ESCUCHA DE EVENTOS ---
@@ -29,23 +30,20 @@ export default class GameUI {
     }
 
     setupListeners() {
-        // Eventos de Estado
         EventBus.on('gold-changed', this.updateGold, this);
         EventBus.on('base-damaged', this.updateBaseHealth, this);
         EventBus.on('hero-stats-update', this.updateHeroStats, this);
         EventBus.on('wave-changed', this.updateWaveInfo, this);
         
-        // Eventos de Selección
         EventBus.on('tower-selected', this.updateTowerSelection, this);
         
-        // Eventos de Habilidad
+        // Evento de cooldown unificado. Espera datos como: { key: 'dash'|'q'|'e', current: 2000, total: 5000 }
+        // Si no trae 'key', asume que es la habilidad principal (Espacio) por compatibilidad
         EventBus.on('skill-cooldown', this.updateSkillCooldown, this);
         
-        // Eventos de Timer
         EventBus.on('wave-timer-tick', this.updateWaveTimer, this);
         EventBus.on('wave-timer-toggle', (visible) => this.waveTimerContainer.setVisible(visible), this);
 
-        // Limpieza al destruir
         this.scene.events.once('shutdown', () => {
             EventBus.off('gold-changed');
             EventBus.off('base-damaged');
@@ -60,18 +58,12 @@ export default class GameUI {
 
     createTopHUD() {
         const w = this.width;
-        const uiDepth = 1000;
-        const accent = 0xffffff;
-
-        // Fondo
         const bg = this.scene.add.rectangle(w/2, 60, w, 80, 0x111111);
-        const line = this.scene.add.rectangle(w/2, 100, w, 4, accent);
+        const line = this.scene.add.rectangle(w/2, 100, w, 4, 0xffffff);
         
-        // Textos
         this.livesText = this.scene.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' });
         this.castleText = this.scene.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' });
         
-        // XP Bar
         this.xpContainer = this.scene.add.container(0, 0);
         const xpLabel = this.scene.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' });
         this.xpBarBg = this.scene.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5);
@@ -79,7 +71,6 @@ export default class GameUI {
         this.lvlText = this.scene.add.text(540, 35, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' });
         this.xpContainer.add([xpLabel, this.xpBarBg, this.xpBarFill, this.lvlText]);
 
-        // Oleada
         this.waveInfoText = this.scene.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5);
 
         this.container.add([bg, line, this.livesText, this.castleText, this.xpContainer, this.waveInfoText]);
@@ -88,21 +79,16 @@ export default class GameUI {
     createTowerSelector() {
         const w = this.width;
         const h = this.height;
-        
         this.towerSelectorContainer = this.scene.add.container(w/2, h - 70);
-        
         const selectorBg = this.scene.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
         this.towerSelectorContainer.add(selectorBg);
 
-        // Dinero
         const economyBg = this.scene.add.rectangle(0, -80, 320, 30, 0x000000, 0.85).setStrokeStyle(1, 0xffd700);
         this.economyText = this.scene.add.text(0, -80, 'MONEDAS ACTUALES: 0', { fontFamily: 'Roboto', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         this.towerSelectorContainer.add([economyBg, this.economyText]);
 
-        // Cartas
         const towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
         const displayNames = { 'archer': 'ARQUERO', 'cannon': 'CAÑON', 'mage': 'MAGO', 'tesla': 'TESLA', 'poison': 'VENENO', 'quake': 'TERREMOTO' };
-        
         const cardWidth = 100;
         const cardHeight = 120;
         const gap = 110;
@@ -120,37 +106,66 @@ export default class GameUI {
             const costText = this.scene.add.text(0, 25, `$${cost}`, { fontSize:'16px', color:'#ffd700', fontStyle:'bold' }).setOrigin(0.5);
             const key = this.scene.add.text(0, 45, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
 
-            // Interacción: Emite evento hacia la escena
             cardBg.on('pointerdown', () => EventBus.emit('ui-select-tower', i));
-
             card.add([cardBg, icon, name, costText, key]);
             this.towerSelectorContainer.add(card);
-            
             this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
         });
-
         this.container.add(this.towerSelectorContainer);
     }
 
-    createSkillButton() {
+    // --- NUEVO MÉTODO PARA CREAR EL GRUPO DE BOTONES DE HABILIDAD ---
+    createSkillButtonsGroup() {
         const w = this.width;
         const h = this.height;
         const skillY = h - 140;
-
-        this.skillBtnContainer = this.scene.add.container(w - 90, skillY);
-        this.skillBg = this.scene.add.circle(0, 0, 50, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true });
         
-        const skillIcon = this.scene.add.text(0, -10, "⚡", { fontSize: '40px' }).setOrigin(0.5);
-        const skillLabel = this.scene.add.text(0, 25, "Habilidad\n(Espacio)", { fontFamily: 'Roboto', fontSize: '12px', align: 'center', color: '#ffffff' }).setOrigin(0.5);
+        // Contenedor general para las skills
+        this.skillsContainer = this.scene.add.container(w - 120, skillY);
         
-        this.skillOverlay = this.scene.add.circle(0, 0, 50, 0x000000, 0.7).setVisible(false);
-        this.skillTimerText = this.scene.add.text(0, -10, "", { fontSize:'20px', fontStyle:'bold' }).setOrigin(0.5);
+        // Definición de las 3 habilidades
+        const skills = [
+            { key: 'q', label: 'Q', icon: '🌪️', color: 0x00ffff, offsetX: -60 },
+            { key: 'main', label: 'SPACE', icon: '⚡', color: 0xffff00, offsetX: 0, scale: 1.2 }, // Botón principal más grande
+            { key: 'e', label: 'E', icon: '⚔️', color: 0xff00ff, offsetX: 60 }
+        ];
 
-        this.skillBtnContainer.add([this.skillBg, skillIcon, skillLabel, this.skillOverlay, this.skillTimerText]);
-        this.container.add(this.skillBtnContainer);
+        skills.forEach(skill => {
+            const btnContainer = this.scene.add.container(skill.offsetX, 0);
+            
+            // Círculo de fondo
+            const radius = 35 * (skill.scale || 1);
+            const bg = this.scene.add.circle(0, 0, radius, 0x222222)
+                .setStrokeStyle(2, skill.color)
+                .setInteractive({ useHandCursor: true });
 
-        // Interacción
-        this.skillBg.on('pointerdown', () => EventBus.emit('ui-trigger-skill'));
+            // Icono y Etiqueta
+            const icon = this.scene.add.text(0, -5, skill.icon, { fontSize: `${20 * (skill.scale||1)}px` }).setOrigin(0.5);
+            const label = this.scene.add.text(0, radius + 15, skill.label, { fontFamily: 'Roboto', fontSize: '12px', color: '#fff', fontStyle:'bold' }).setOrigin(0.5);
+
+            // Overlay de Cooldown (Círculo semitransparente)
+            const overlay = this.scene.add.circle(0, 0, radius, 0x000000, 0.7).setVisible(false);
+            const timerText = this.scene.add.text(0, 0, "", { fontSize: '18px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5);
+
+            // Interacción (Clic en UI dispara habilidad)
+            bg.on('pointerdown', () => {
+                if (skill.key === 'main') EventBus.emit('ui-trigger-skill', 'space'); // Asumiendo 'space' es el trigger default
+                else EventBus.emit('ui-trigger-skill', skill.key);
+            });
+
+            btnContainer.add([bg, icon, overlay, timerText, label]);
+            this.skillsContainer.add(btnContainer);
+
+            // Guardar referencia para actualizar cooldown
+            this.skillButtons[skill.key] = {
+                bg: bg,
+                overlay: overlay,
+                timerText: timerText,
+                baseColor: skill.color
+            };
+        });
+
+        this.container.add(this.skillsContainer);
     }
 
     createWaveTimer() {
@@ -164,14 +179,10 @@ export default class GameUI {
         
         this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]);
         this.container.add(this.waveTimerContainer);
-
         this.waveTimerContainer.on('pointerdown', () => EventBus.emit('ui-start-wave'));
     }
 
-    // --- ACTUALIZACIONES VISUALES ---
-
     updateStats() {
-        // Método helper para forzar refresco
         this.updateGold(gameState.gold || 0);
         this.updateBaseHealth(gameState.baseHp || 0);
         this.updateHeroStats();
@@ -179,8 +190,6 @@ export default class GameUI {
 
     updateGold(amount) {
         if(this.economyText) this.economyText.setText(`MONEDAS ACTUALES: ${amount}`);
-        
-        // Actualizar colores de cartas según dinero
         if (this.towerCards) {
             this.towerCards.forEach(card => {
                 const canAfford = amount >= card.cost;
@@ -197,9 +206,7 @@ export default class GameUI {
     updateHeroStats() {
         const pStats = gameState.playerStats;
         const hero = getCurrentHero();
-        
         if(this.livesText) this.livesText.setText(`❤️ HÉROE: ${Math.max(0, Math.floor(pStats.hp))}/${pStats.maxHp}`);
-        
         if (hero && this.xpBarFill && this.lvlText) { 
             const xpPercent = Math.min(1, hero.xp / hero.maxXp); 
             this.xpBarFill.width = 200 * xpPercent; 
@@ -208,7 +215,6 @@ export default class GameUI {
     }
 
     updateWaveInfo(info) {
-        // info puede ser { current: 1, total: 10, isBoss: false }
         if(this.waveInfoText && info) {
             this.waveInfoText.setText(info.isBoss ? "¡JEFE FINAL!" : `OLEADA: ${info.current}/${info.total}`);
             this.waveInfoText.setColor(info.isBoss ? '#ff0000' : '#ffffff');
@@ -226,17 +232,26 @@ export default class GameUI {
         }
     }
 
+    // --- ACTUALIZACIÓN DE COOLDOWNS MÚLTIPLES ---
     updateSkillCooldown(data) {
-        // data: { current: 0, total: 1000 }
+        // data puede ser:
+        // A) { current: 500 } -> Legacy (asume habilidad principal 'main')
+        // B) { key: 'q', current: 2000 } -> Nueva estructura
+        
+        let key = data.key || 'main'; 
         const cd = data.current;
+
+        const btn = this.skillButtons[key];
+        if (!btn) return;
+
         if (cd > 0) { 
-            this.skillOverlay.setVisible(true);
-            this.skillTimerText.setText(Math.ceil(cd / 1000));
-            this.skillBg.setStrokeStyle(3, 0x555555); 
+            btn.overlay.setVisible(true);
+            btn.timerText.setText(Math.ceil(cd / 1000));
+            btn.bg.setStrokeStyle(2, 0x555555); // Color apagado
         } else { 
-            this.skillOverlay.setVisible(false);
-            this.skillTimerText.setText("");
-            this.skillBg.setStrokeStyle(3, 0x00ffff); 
+            btn.overlay.setVisible(false);
+            btn.timerText.setText("");
+            btn.bg.setStrokeStyle(2, btn.baseColor); // Color original brillante
         } 
     }
 
@@ -248,36 +263,22 @@ export default class GameUI {
 
     pulseGoldIcon() {
         if (!this.economyText) return;
-        
-        // Efecto de "latido" en el texto
         this.scene.tweens.add({
             targets: this.economyText,
             scale: 1.2,
             duration: 100,
             yoyo: true,
-            color: '#ffff00', // Brillo amarillo intenso momentáneo
+            color: '#ffff00',
             onComplete: () => {
-                this.economyText.setColor('#ffd700'); // Volver a dorado normal
+                this.economyText.setColor('#ffd700');
             }
         });
     }
 
-    // Helper para obtener la posición mundial del texto de oro (para que la moneda sepa a dónde volar)
     getGoldIconPosition() {
-        // Asumiendo que economyText está dentro de un container, sumamos posiciones
-        const x = this.container.x + this.towerSelectorContainer.x + this.economyText.x; 
-        // Nota: Ajusta esto según donde esté exactamente tu texto de oro en pantalla
-        // Si economyText está en topHUD:
-        // const x = this.container.x + this.economyText.x;
-        // const y = this.container.y + this.economyText.y;
-        
-        // Como tu UI es compleja, devolvemos una posición fija aproximada de la UI superior derecha o donde esté tu contador
-        // Según tu código anterior, economyText está en towerSelectorContainer abajo.
-        // Si prefieres que vuele abajo:
         return { 
-            x: this.scene.scale.width / 2, // Ajusta a la X de tu contador
+            x: this.scene.scale.width / 2, 
             y: this.scene.scale.height - 80 
         };
     }
-
 }

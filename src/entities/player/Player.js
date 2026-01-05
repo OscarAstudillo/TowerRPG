@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { gameState, getCurrentHero } from '../../config/GameState.js';
 import { TALENTS } from '../../config/Talents.js';
-import { PLAYER_SKILLS } from '../../config/GameConstants.js'; // Importar constantes de habilidades
-import SoundManager from '../../systems/SoundManager.js'; 
+import { PLAYER_SKILLS } from '../../config/GameConstants.js'; 
+import SoundManager from '../../systems/SoundManager.js';
+import { EventBus } from '../../utils/EventBus.js'; // <--- IMPORTANTE
 
 export default class Player extends Phaser.GameObjects.Container {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
@@ -34,11 +35,11 @@ export default class Player extends Phaser.GameObjects.Container {
         this.skillCooldown = 0;
         this.skillMaxCooldown = 5000; 
 
-        // --- NUEVAS VARIABLES DE ESTADO PARA SKILLS ---
+        // --- VARIABLES DE ESTADO PARA SKILLS ---
         this.isDashing = false;
         this.dashTimer = 0;
         this.cooldowns = { dash: 0, q: 0, e: 0 };
-        this.lastDirection = { x: 1, y: 0 }; // Recordar última dirección para el dash
+        this.lastDirection = { x: 1, y: 0 };
 
         this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -25, 38, 4, 0x00ff00);
@@ -48,11 +49,18 @@ export default class Player extends Phaser.GameObjects.Container {
         this.respawnTimer = 0;
         this.originalStats = {}; 
         
-        // Input Keys adicionales
         this.skillKeys = scene.input.keyboard.addKeys({
             dash: Phaser.Input.Keyboard.KeyCodes.SHIFT,
             skillQ: Phaser.Input.Keyboard.KeyCodes.Q,
             skillE: Phaser.Input.Keyboard.KeyCodes.E
+        });
+
+        // Escuchar triggers desde UI (clic en botones)
+        EventBus.on('ui-trigger-skill', (key) => {
+            if (this.isDead) return;
+            if (key === 'q') this.performSkillQ();
+            if (key === 'e') this.performSkillE();
+            if (key === 'space' || key === 'main') this.castSkill();
         });
 
         this.loadPassives();
@@ -69,19 +77,37 @@ export default class Player extends Phaser.GameObjects.Container {
 
         const stats = gameState.playerStats;
 
-        // Actualizar cooldowns de habilidades
+        // --- ACTUALIZAR COOLDOWNS Y NOTIFICAR A UI ---
         if (this.cooldowns.dash > 0) this.cooldowns.dash -= delta;
-        if (this.cooldowns.q > 0) this.cooldowns.q -= delta;
-        if (this.cooldowns.e > 0) this.cooldowns.e -= delta;
+        
+        if (this.cooldowns.q > 0) {
+            this.cooldowns.q -= delta;
+            // Emitir evento solo cada ciertos frames para no saturar, o al llegar a 0
+            if (this.cooldowns.q <= 0) EventBus.emit('skill-cooldown', { key: 'q', current: 0 });
+            else if (time % 10 < delta) EventBus.emit('skill-cooldown', { key: 'q', current: this.cooldowns.q });
+        }
+        
+        if (this.cooldowns.e > 0) {
+            this.cooldowns.e -= delta;
+            if (this.cooldowns.e <= 0) EventBus.emit('skill-cooldown', { key: 'e', current: 0 });
+            else if (time % 10 < delta) EventBus.emit('skill-cooldown', { key: 'e', current: this.cooldowns.e });
+        }
 
-        // --- LÓGICA DE DASH (Si está activo, bloquea movimiento normal) ---
+        if (this.skillCooldown > 0) {
+            this.skillCooldown -= delta;
+            if (this.skillCooldown <= 0) EventBus.emit('skill-cooldown', { key: 'main', current: 0 });
+            else if (time % 10 < delta) EventBus.emit('skill-cooldown', { key: 'main', current: this.skillCooldown });
+        }
+        // ---------------------------------------------
+
+        // --- LÓGICA DE DASH ---
         if (this.isDashing) {
             this.dashTimer -= delta;
             if (this.dashTimer <= 0) {
                 this.isDashing = false;
-                if (this.bodySprite) this.bodySprite.setAlpha(1); // Restaurar opacidad
+                if (this.bodySprite) this.bodySprite.setAlpha(1);
             }
-            return; // Salir para mantener la velocidad del dash
+            return; 
         }
 
         const cursors = this.scene.input.keyboard.createCursorKeys();
@@ -101,20 +127,19 @@ export default class Player extends Phaser.GameObjects.Container {
         if (cursors.up.isDown || wasd.W.isDown) velocityY = -1;
         else if (cursors.down.isDown || wasd.S.isDown) velocityY = 1;
 
-        // Guardar dirección si nos movemos
         if (velocityX !== 0 || velocityY !== 0) {
             this.lastDirection = { x: velocityX, y: velocityY };
         }
 
-        // --- ACTIVACIÓN DE SKILLS ---
+        // --- ACTIVACIÓN DE SKILLS (TECLADO) ---
         if (this.skillKeys.dash.isDown && this.cooldowns.dash <= 0 && (velocityX !== 0 || velocityY !== 0)) {
             this.performDash(velocityX, velocityY);
-            return; // Iniciar dash inmediatamente
+            return; 
         }
-        if (Phaser.Input.Keyboard.JustDown(this.skillKeys.skillQ) && this.cooldowns.q <= 0) {
+        if (Phaser.Input.Keyboard.JustDown(this.skillKeys.skillQ)) {
             this.performSkillQ();
         }
-        if (Phaser.Input.Keyboard.JustDown(this.skillKeys.skillE) && this.cooldowns.e <= 0) {
+        if (Phaser.Input.Keyboard.JustDown(this.skillKeys.skillE)) {
             this.performSkillE();
         }
 
@@ -134,8 +159,6 @@ export default class Player extends Phaser.GameObjects.Container {
             stats.hp = Math.min(stats.maxHp, stats.hp + (stats.regenHp * delta / 1000));
         }
 
-        if (this.skillCooldown > 0) this.skillCooldown -= delta;
-
         this.attackTimer += delta;
         if (this.attackTimer >= stats.attackSpeed) {
             this.attackTimer = 0;
@@ -151,41 +174,39 @@ export default class Player extends Phaser.GameObjects.Container {
         }
     }
 
-    // --- NUEVOS MÉTODOS DE HABILIDADES ---
     performDash(dirX, dirY) {
-        if (!PLAYER_SKILLS) return;
+        if (!PLAYER_SKILLS || this.cooldowns.dash > 0) return;
+        
         this.isDashing = true;
         this.dashTimer = PLAYER_SKILLS.DASH.DURATION;
         this.cooldowns.dash = PLAYER_SKILLS.DASH.COOLDOWN;
         
         const speed = (gameState.playerStats.moveSpeed || 160) * PLAYER_SKILLS.DASH.SPEED_MULT;
-        
-        // Normalizar vector
         const vec = new Phaser.Math.Vector2(dirX, dirY).normalize().scale(speed);
         this.body.setVelocity(vec.x, vec.y);
         
-        // Efecto visual
         if (this.bodySprite) this.bodySprite.setAlpha(0.6);
+        if (SoundManager) SoundManager.playSound('dash'); // Sonido opcional
     }
 
     performSkillQ() {
-        if (!PLAYER_SKILLS) return;
+        if (!PLAYER_SKILLS || this.cooldowns.q > 0) return;
+        
         this.cooldowns.q = PLAYER_SKILLS.SKILL_Q.COOLDOWN;
+        EventBus.emit('skill-cooldown', { key: 'q', current: this.cooldowns.q }); // Notificar inicio CD
+
         const damage = gameState.playerStats.damage * PLAYER_SKILLS.SKILL_Q.DAMAGE_MULT;
         const range = PLAYER_SKILLS.SKILL_Q.RANGE;
 
-        // Efecto Visual (Círculo expansivo)
         const circle = this.scene.add.circle(this.x, this.y, 10, PLAYER_SKILLS.SKILL_Q.COLOR, 0.5);
         this.scene.tweens.add({
             targets: circle, scale: range / 10, alpha: 0, duration: 300, onComplete: () => circle.destroy()
         });
 
-        // Daño en área
         if (this.enemies) {
             this.enemies.children.iterate(enemy => {
                 if (enemy && enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= range) {
                     enemy.takeDamage(damage);
-                    // Knockback simple
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, enemy.x, enemy.y);
                     if(enemy.body) enemy.body.setVelocity(Math.cos(angle) * 200, Math.sin(angle) * 200);
                 }
@@ -194,16 +215,17 @@ export default class Player extends Phaser.GameObjects.Container {
     }
 
     performSkillE() {
-        if (!PLAYER_SKILLS) return;
+        if (!PLAYER_SKILLS || this.cooldowns.e > 0) return;
+
         this.cooldowns.e = PLAYER_SKILLS.SKILL_E.COOLDOWN;
+        EventBus.emit('skill-cooldown', { key: 'e', current: this.cooldowns.e }); // Notificar inicio CD
+
         const damage = gameState.playerStats.damage * PLAYER_SKILLS.SKILL_E.DAMAGE_MULT;
         const range = PLAYER_SKILLS.SKILL_E.RANGE;
         
-        // Dirección hacia el mouse
         const pointer = this.scene.input.activePointer;
         const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
         
-        // Efecto Visual
         const line = this.scene.add.rectangle(this.x, this.y, range, PLAYER_SKILLS.SKILL_E.WIDTH, PLAYER_SKILLS.SKILL_E.COLOR, 0.7);
         line.setOrigin(0, 0.5);
         line.rotation = angle;
@@ -211,7 +233,6 @@ export default class Player extends Phaser.GameObjects.Container {
             targets: line, alpha: 0, scaleY: 0, duration: 200, onComplete: () => line.destroy()
         });
 
-        // Daño Cónico/Lineal simplificado
         if (this.enemies) {
             this.enemies.children.iterate(enemy => {
                 if (enemy && enemy.active) {
@@ -226,7 +247,61 @@ export default class Player extends Phaser.GameObjects.Container {
             });
         }
     }
-    // -------------------------------------
+
+    // --- CAST SKILL (HABILIDAD PRINCIPAL / ESPACIO) ---
+    castSkill() {
+        if (this.skillCooldown > 0) return { success: false };
+        const hero = getCurrentHero();
+        if (!hero) return { success: false };
+
+        this.skillCooldown = this.skillMaxCooldown;
+        EventBus.emit('skill-cooldown', { key: 'main', current: this.skillMaxCooldown }); // Notificar UI
+
+        const stats = gameState.playerStats;
+
+        if (this.charClass === 'guerrero') {
+            const healAmount = stats.maxHp * 0.3;
+            stats.hp = Math.min(stats.maxHp, stats.hp + healAmount);
+            this.scene.showFloatingText(this.x, this.y, "¡FURIA!", "heal"); 
+            this.scene.showFloatingText(this.x, this.y - 20, `+${Math.floor(healAmount)} HP`, "heal");
+            if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0xff0000);
+
+        } else if (this.charClass === 'mago') {
+            this.scene.showFloatingText(this.x, this.y, "¡NOVA!", "#00ffff");
+            if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
+            const range = 150;
+            this.enemies.children.iterate((e) => {
+                if(e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < range) {
+                    const dmg = stats.damage * 2;
+                    e.takeDamage(dmg);
+                    if(this.scene.showDamage) this.scene.showDamage(e.x, e.y, Math.floor(dmg), true);
+                }
+            });
+
+        } else if (this.charClass === 'arquero') {
+            this.scene.showFloatingText(this.x, this.y, "¡RÁPIDO!", "#00ff00");
+            if (!this.originalStats.attackSpeed) this.originalStats.attackSpeed = stats.attackSpeed;
+            stats.attackSpeed = Math.max(100, stats.attackSpeed * 0.4); 
+            this.scene.time.delayedCall(5000, () => {
+                if (this.originalStats.attackSpeed) {
+                    stats.attackSpeed = this.originalStats.attackSpeed;
+                    this.originalStats.attackSpeed = null;
+                }
+            });
+
+        } else if (this.charClass === 'asesino') {
+            this.scene.showFloatingText(this.x, this.y, "¡INSTINTO!", "#800080");
+            if (!this.originalStats.critChance) this.originalStats.critChance = stats.critChance;
+            stats.critChance = 100; 
+            this.scene.time.delayedCall(4000, () => {
+                if (this.originalStats.critChance) {
+                    stats.critChance = this.originalStats.critChance;
+                    this.originalStats.critChance = null;
+                }
+            });
+        }
+        return { success: true };
+    }
 
     loadPassives() {
         this.passives = { blockChance: 0, doubleStrike: 0, pierce: 0, frostHit: 0 };
@@ -274,78 +349,24 @@ export default class Player extends Phaser.GameObjects.Container {
         
         if (projectile) {
             let finalDamage = stats.damage;
-            // --- CÁLCULO DE CRÍTICO ---
             const isCrit = Math.random() * 100 < stats.critChance;
             if (isCrit) {
                 finalDamage *= (stats.critDamage / 100);
             }
-            // ---------------------------
 
             if (SoundManager && SoundManager.playSound) SoundManager.playSound('shoot_arrow');
 
             projectile.fire(target, {
                 damage: finalDamage,
-                isCrit: isCrit, // PASAMOS EL FLAG
+                isCrit: isCrit,
                 type: 'arrow',
                 effect: null
             });
         }
     }
 
-    castSkill() {
-        if (this.skillCooldown > 0) return { success: false };
-        const hero = getCurrentHero();
-        if (!hero) return { success: false };
-
-        this.skillCooldown = this.skillMaxCooldown;
-        const stats = gameState.playerStats;
-
-        if (this.charClass === 'guerrero') {
-            const healAmount = stats.maxHp * 0.3;
-            stats.hp = Math.min(stats.maxHp, stats.hp + healAmount);
-            this.scene.showFloatingText(this.x, this.y, "¡FURIA!", "heal"); // Usamos tipo 'heal'
-            this.scene.showFloatingText(this.x, this.y - 20, `+${Math.floor(healAmount)} HP`, "heal");
-            if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0xff0000);
-
-        } else if (this.charClass === 'mago') {
-            this.scene.showFloatingText(this.x, this.y, "¡NOVA!", "#00ffff");
-            if(this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
-            const range = 150;
-            this.enemies.children.iterate((e) => {
-                if(e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < range) {
-                    const dmg = stats.damage * 2;
-                    e.takeDamage(dmg);
-                    if(this.scene.showDamage) this.scene.showDamage(e.x, e.y, Math.floor(dmg), true); // Crit visual
-                }
-            });
-
-        } else if (this.charClass === 'arquero') {
-            this.scene.showFloatingText(this.x, this.y, "¡RÁPIDO!", "#00ff00");
-            if (!this.originalStats.attackSpeed) this.originalStats.attackSpeed = stats.attackSpeed;
-            stats.attackSpeed = Math.max(100, stats.attackSpeed * 0.4); 
-            this.scene.time.delayedCall(5000, () => {
-                if (this.originalStats.attackSpeed) {
-                    stats.attackSpeed = this.originalStats.attackSpeed;
-                    this.originalStats.attackSpeed = null;
-                }
-            });
-
-        } else if (this.charClass === 'asesino') {
-            this.scene.showFloatingText(this.x, this.y, "¡INSTINTO!", "#800080");
-            if (!this.originalStats.critChance) this.originalStats.critChance = stats.critChance;
-            stats.critChance = 100; 
-            this.scene.time.delayedCall(4000, () => {
-                if (this.originalStats.critChance) {
-                    stats.critChance = this.originalStats.critChance;
-                    this.originalStats.critChance = null;
-                }
-            });
-        }
-        return { success: true };
-    }
-
     takeDamage(amount) {
-        if (this.isDashing) return; // Invulnerable durante dash
+        if (this.isDashing) return;
 
         const stats = gameState.playerStats;
         if (Math.random() * 100 < stats.blockChance) {
