@@ -9,7 +9,7 @@ import ForgePanel from './ForgePanel.js';
 import RefiningPanel from './RefiningPanel.js';
 import QuestBoard from './QuestBoard.js';
 import TowersPanel from './TowersPanel.js';
-import ProfessionsPanel from './ProfessionsPanel.js'; // <--- IMPORT NUEVO
+import ProfessionsPanel from './ProfessionsPanel.js'; // <--- IMPORTANTE
 
 export default class GameUI {
     constructor(scene) {
@@ -17,31 +17,25 @@ export default class GameUI {
         this.width = scene.scale.width;
         this.height = scene.scale.height;
         
-        // Contenedores principales
         this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
         this.towerCards = [];
         
-        // Estilos
         this.theme = { accent: 0xffffff };
         
-        this.createPanels(); // Crear paneles primero
+        this.createPanels(); 
         this.createTopHUD();
         this.createTowerSelector();
         this.createSkillButton();
         this.createWaveTimer();
-        this.createBottomMenu(); // Menú abajo
+        this.createBottomMenu(); 
         
-        // --- ESCUCHA DE EVENTOS ---
         this.setupListeners();
-        
-        // Actualización inicial
         this.updateStats();
     }
 
     createPanels() {
         const w = this.width;
         const h = this.height;
-        // Instancia de paneles
         this.heroPanel = new HeroPanel(this.scene, w/2, h/2, w, h);
         this.inventoryPanel = new InventoryPanel(this.scene, w/2, h/2, w, h);
         this.talentsPanel = new TalentTree(this.scene, w/2, h/2, w, h);
@@ -71,19 +65,18 @@ export default class GameUI {
             { label: "PROFESIONES", icon: "🔨", panel: this.professionsPanel } // <--- NUEVO
         ];
 
-        const btnWidth = 100;
-        const startX = this.width / 2 - ((buttons.length * (btnWidth + 10)) / 2) + (btnWidth/2);
+        const btnWidth = 90; // Reducido un poco para que quepan todos
+        const startX = this.width / 2 - ((buttons.length * (btnWidth + 5)) / 2) + (btnWidth/2);
         
         buttons.forEach((btn, i) => {
-            const x = startX + (i * (btnWidth + 10));
+            const x = startX + (i * (btnWidth + 5));
             
             const btnBg = this.scene.add.rectangle(x, menuY, btnWidth, 60, 0x222222).setStrokeStyle(2, 0x555555).setInteractive({useHandCursor:true}).setDepth(91);
             const icon = this.scene.add.text(x, menuY - 15, btn.icon, { fontSize: '24px' }).setOrigin(0.5).setDepth(92);
-            const label = this.scene.add.text(x, menuY + 15, btn.label, { fontFamily: 'Roboto', fontSize: '10px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(92);
+            const label = this.scene.add.text(x, menuY + 15, btn.label, { fontFamily: 'Roboto', fontSize: '9px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(92);
 
             btnBg.on('pointerdown', () => {
                 this.togglePanel(btn.panel);
-                // SoundManager.playSound('ui_click'); // Opcional
             });
             
             btnBg.on('pointerover', () => btnBg.setFillStyle(0x444444));
@@ -93,10 +86,7 @@ export default class GameUI {
 
     togglePanel(targetPanel) {
         const isVisible = targetPanel.container.visible;
-        // Cerrar todos
         this.allPanels.forEach(p => p.hide());
-        
-        // Si no estaba visible, abrirlo
         if (!isVisible) {
             targetPanel.show();
         }

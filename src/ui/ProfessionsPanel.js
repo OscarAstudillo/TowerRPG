@@ -45,10 +45,12 @@ export default class ProfessionsPanel {
         this.listContainer.removeAll(true);
         
         // Datos de las profesiones a mostrar
+        // Asegúrate de que las keys coincidan con las de RPGSystem/GameState
         const profDefs = [
             { key: 'weaponsmith', name: 'FORJA DE ARMAS', icon: '⚔️', desc: 'Probabilidad de forjar armas con encantamiento (+1 a +6).' },
             { key: 'armorsmith', name: 'FORJA DE ARMADURAS', icon: '🛡️', desc: 'Probabilidad de forjar armaduras con encantamiento (+1 a +6).' },
             { key: 'jewelry', name: 'JOYERÍA', icon: '💍', desc: 'Probabilidad de crear joyas con encantamiento (+1 a +6).' },
+            { key: 'engineering', name: 'INGENIERÍA', icon: '⚙️', desc: 'Probabilidad de crear partes de torre mejoradas.' },
             { key: 'refining', name: 'REFINAMIENTO', icon: '⚗️', desc: 'Probabilidad de obtener el doble de materiales al refinar.' }
         ];
 
@@ -57,10 +59,14 @@ export default class ProfessionsPanel {
 
         profDefs.forEach(def => {
             // Obtener datos del estado (si no existe, lvl 1)
-            const profData = gameState.professions[def.key] || { level: 1, xp: 0, maxXp: 100 };
+            // Se usa key 'alchemy' o 'refining' según tu config, aquí asumo lo que usa tu RPGSystem actual
+            let pKey = def.key;
+            if(def.key === 'refining' && !gameState.professions.refining && gameState.professions.alchemy) pKey = 'alchemy';
+
+            const profData = gameState.professions[pKey] || { level: 1, xp: 0, maxXp: 100 };
             
             // Calcular bonificación actual
-            const chance = RPGSystem.getProfessionChance(def.key);
+            const chance = RPGSystem.getProfessionChance(pKey);
             const chancePct = (chance * 100).toFixed(1);
 
             // Contenedor de la fila
@@ -83,7 +89,7 @@ export default class ProfessionsPanel {
             const barFill = this.scene.add.rectangle(startX + 50, 15, barW * progress, 10, 0x00aaff).setOrigin(0, 0.5);
             
             // Texto XP
-            const xpText = this.scene.add.text(startX + 50 + barW + 10, 15, `${profData.xp} / ${profData.maxXp} XP`, { 
+            const xpText = this.scene.add.text(startX + 50 + barW + 10, 15, `${Math.floor(profData.xp)} / ${profData.maxXp} XP`, { 
                 fontSize: '12px', color: '#aaaaaa' 
             }).setOrigin(0, 0.5);
 
