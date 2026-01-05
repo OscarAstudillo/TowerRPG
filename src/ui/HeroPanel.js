@@ -14,7 +14,7 @@ export default class HeroPanel {
         // ============================================================
         const panelWidth = 750; 
         const panelHeight = 600; 
-        const panelX = width * 0.30; // Movido a la izquierda
+        const panelX = width * 0.30; 
         const panelY = height / 2 + 50;
 
          this.title = scene.add.text(width/2, height * 0.17, "PANEL DE HÉROE", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
@@ -24,18 +24,18 @@ export default class HeroPanel {
         const statsBg = scene.add.rectangle(panelX, panelY, panelWidth, panelHeight, 0x000000, 0.9).setStrokeStyle(3, 0xffd700); 
         this.container.add(statsBg); 
         
-        // Título Nivel (Arriba del panel principal)
+        // Título Nivel
         this.heroLevelText = scene.add.text(panelX, panelY - panelHeight/2 + 40, '', { fontFamily: 'Cinzel', fontSize: '28px', color: '#00ffff', fontStyle:'bold', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
         this.container.add(this.heroLevelText);
 
-        // --- COLUMNA 1: ATRIBUTOS (Dentro del panel, lado izquierdo) ---
+        // --- COLUMNA 1: ATRIBUTOS ---
         const col1X = panelX - 180;
         const startY = panelY - 200;
 
         this.heroStatsText = scene.add.text(col1X - 160, startY, '', { fontFamily: 'Roboto', fontSize: '20px', lineHeight: 24, color: '#fff' }); 
         this.container.add(this.heroStatsText); 
 
-        // --- COLUMNA 2: EQUIPAMIENTO (Dentro del panel, lado derecho) ---
+        // --- COLUMNA 2: EQUIPAMIENTO ---
         const col2X = panelX + 180;
         
         const equipTitle = scene.add.text(col2X, startY, "-- EQUIPAMIENTO --", { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
@@ -54,20 +54,18 @@ export default class HeroPanel {
         const upgradeX = width - 220; 
         const upgradeY = height * 0.35; 
 
-        // Fondo para la zona de mejoras (Ancho: 400, Alto: 560)
+        // Fondo para la zona de mejoras
         const upgradeBg = scene.add.rectangle(upgradeX, upgradeY + 200, 400, 560, 0x000000, 0.8).setStrokeStyle(2, 0x00ff00);
         this.container.add(upgradeBg);
 
-        // TEXTO PUNTOS DE HABILIDAD (Corregido)
+        // TEXTO PUNTOS DE HABILIDAD
         this.pointsText = scene.add.text(upgradeX, upgradeY + 30, "PUNTOS DE HABILIDAD: 0", { fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5); 
         this.container.add(this.pointsText); 
 
-        // --- ENCABEZADOS DE COLUMNAS (NUEVO) ---
-        // Texto sobre columna verde (x1)
+        // --- ENCABEZADOS DE COLUMNAS ---
         const labelCol1 = scene.add.text(upgradeX - 50, upgradeY + 80, "Gastar 1\nPunto Habilidad", { fontFamily: 'Roboto', fontSize: '15px', color: '#00ff00', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
         this.container.add(labelCol1);
 
-        // Texto sobre columna roja (x10)
         const labelCol2 = scene.add.text(upgradeX + 90, upgradeY + 80, "Gastar 10\nPuntos Habilidad", { fontFamily: 'Roboto', fontSize: '15px', color: '#ff5555', align: 'center', fontStyle: 'bold' }).setOrigin(0.5);
         this.container.add(labelCol2);
 
@@ -81,17 +79,16 @@ export default class HeroPanel {
             { label: "Defensa (+1)", key: 'defense' } 
         ]; 
         
-        // Ajustamos la posición inicial Y de los botones para dar espacio a los nuevos textos
         let btnY = upgradeY + 140; 
 
         statsToUpgrade.forEach((s) => { 
             this.createUpgradeRow(upgradeX, btnY, s.label, s.key); 
-            btnY += 60; // Espaciado vertical
+            btnY += 60; 
         });
     }
 
     createUpgradeRow(x, y, label, statKey) {
-        // Botón x1 (Izquierda)
+        // Botón x1
         const btn1 = this.scene.add.rectangle(x - 50, y, 160, 45, 0x006400).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0x00ff00);
         const txt1 = this.scene.add.text(x - 50, y, label, { fontFamily: 'Roboto', fontSize: '15px', fontStyle: 'bold' }).setOrigin(0.5);
         
@@ -102,7 +99,7 @@ export default class HeroPanel {
             } 
         });
 
-        // Botón x10 (Derecha, pequeño)
+        // Botón x10
         const btn10 = this.scene.add.rectangle(x + 90, y, 60, 45, 0x8b0000).setInteractive({ useHandCursor: true }).setStrokeStyle(2, 0xff5555);
         const txt10 = this.scene.add.text(x + 90, y, "+10", { fontFamily: 'Roboto', fontSize: '14px', fontStyle: 'bold' }).setOrigin(0.5);
 
@@ -211,18 +208,23 @@ export default class HeroPanel {
 
         this.heroLevelText.setText(`NIVEL ${hero.level} (XP: ${hero.xp}/${hero.maxXp})`); 
         
-        // AQUÍ ESTABA EL ERROR: Antes sobrescribía con "PUNTOS: X". Ahora lo corregimos:
         this.pointsText.setText(`PUNTOS DE HABILIDAD: ${hero.statPoints}`); 
     }
 
+    // --- CORRECCIÓN CLAVE AQUÍ: Usar equipmentInventory ---
     safeAddItemToInventory(item) { 
         if (!item) return; 
-        const exists = gameState.inventory.some(i => i.id === item.id); 
-        if (!exists) gameState.inventory.push(item); 
-        else { 
-            item.id = RPGSystem.getUniqueId(); 
-            gameState.inventory.push(item); 
-        } 
+        
+        // Inicializar si no existe
+        if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
+        
+        // Asegurarnos que tenga ID único
+        if (!item.id || item.id.startsWith("ITEM_")) {
+             item.id = RPGSystem.getUniqueId();
+        }
+        
+        // Empujar al array correcto
+        gameState.equipmentInventory.push(item); 
     }
 
     showUnequipModal(item, slotKey) { 
