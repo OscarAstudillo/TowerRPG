@@ -9,7 +9,7 @@ import ForgePanel from './ForgePanel.js';
 import RefiningPanel from './RefiningPanel.js';
 import QuestBoard from './QuestBoard.js';
 import TowersPanel from './TowersPanel.js';
-import ProfessionsPanel from './ProfessionsPanel.js'; // <--- ESTA IMPORTACIÓN ES CRÍTICA
+import ProfessionsPanel from './ProfessionsPanel.js';
 
 export default class GameUI {
     constructor(scene) {
@@ -17,31 +17,26 @@ export default class GameUI {
         this.width = scene.scale.width;
         this.height = scene.scale.height;
         
-        // Contenedores principales
+        // Contenedor principal (Capa UI alta)
         this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(1000);
         this.towerCards = [];
         
-        // Estilos
         this.theme = { accent: 0xffffff };
         
         this.createPanels(); 
         this.createTopHUD();
-        this.createTowerSelector();
+        this.createTowerSelector(); // Abajo del todo
+        this.createBottomMenu();    // Justo encima del selector
         this.createSkillButton();
         this.createWaveTimer();
-        this.createBottomMenu(); 
         
-        // --- ESCUCHA DE EVENTOS ---
         this.setupListeners();
-        
-        // Actualización inicial
         this.updateStats();
     }
 
     createPanels() {
         const w = this.width;
         const h = this.height;
-        // Instancia de todos los paneles
         this.heroPanel = new HeroPanel(this.scene, w/2, h/2, w, h);
         this.inventoryPanel = new InventoryPanel(this.scene, w/2, h/2, w, h);
         this.talentsPanel = new TalentTree(this.scene, w/2, h/2, w, h);
@@ -49,7 +44,7 @@ export default class GameUI {
         this.refiningPanel = new RefiningPanel(this.scene, w/2, h/2, w, h);
         this.questBoard = new QuestBoard(this.scene, w/2, h/2, w, h);
         this.towersPanel = new TowersPanel(this.scene, w/2, h/2, w, h);
-        this.professionsPanel = new ProfessionsPanel(this.scene, w/2, h/2, w, h); // Instancia del nuevo panel
+        this.professionsPanel = new ProfessionsPanel(this.scene, w/2, h/2, w, h);
 
         this.allPanels = [
             this.heroPanel, this.inventoryPanel, this.talentsPanel, 
@@ -59,9 +54,11 @@ export default class GameUI {
     }
 
     createBottomMenu() {
-        const menuY = this.height - 40;
+        // CORRECCIÓN: Subimos el menú para que no lo tape la barra de torres
+        // La barra de torres mide ~130px de alto y está pegada al fondo.
+        // Pondremos el menú en Y = height - 155 (encima de la barra)
+        const menuY = this.height - 155;
         
-        // Definición de los 7 botones
         const buttons = [
             { label: "HÉROE", icon: "👤", panel: this.heroPanel },
             { label: "MOCHILA", icon: "🎒", panel: this.inventoryPanel },
@@ -69,29 +66,34 @@ export default class GameUI {
             { label: "FORJA", icon: "⚒️", panel: this.forgePanel },
             { label: "REFINAR", icon: "⚗️", panel: this.refiningPanel },
             { label: "MISIONES", icon: "📜", panel: this.questBoard },
-            { label: "PROFS", icon: "🔨", panel: this.professionsPanel } // Etiqueta corta para que quepa mejor
+            { label: "PROFS", icon: "🔨", panel: this.professionsPanel }
         ];
 
-        // Ajuste de ancho para que quepan 7 botones
-        const btnWidth = 85; 
+        const btnWidth = 80; 
         const gap = 5;
-        // Centrar dinámicamente según la cantidad de botones
+        // Centramos los botones horizontalmente
         const totalWidth = buttons.length * (btnWidth + gap);
         const startX = (this.width - totalWidth) / 2 + (btnWidth / 2);
         
-        // Fondo del menú (opcional, visual)
-        const bg = this.scene.add.rectangle(this.width/2, menuY, totalWidth + 20, 70, 0x000000, 0.8).setDepth(90);
+        // Fondo semitransparente para el menú
+        const menuBg = this.scene.add.rectangle(this.width/2, menuY, totalWidth + 20, 50, 0x000000, 0.6);
+        this.container.add(menuBg);
 
         buttons.forEach((btn, i) => {
             const x = startX + (i * (btnWidth + gap));
             
-            const btnBg = this.scene.add.rectangle(x, menuY, btnWidth, 60, 0x222222)
-                .setStrokeStyle(2, 0x555555)
-                .setInteractive({useHandCursor:true})
-                .setDepth(91);
+            // Botón Fondo
+            const btnBg = this.scene.add.rectangle(0, 0, btnWidth, 40, 0x222222)
+                .setStrokeStyle(1, 0x555555)
+                .setInteractive({useHandCursor:true});
 
-            const icon = this.scene.add.text(x, menuY - 15, btn.icon, { fontSize: '24px' }).setOrigin(0.5).setDepth(92);
-            const label = this.scene.add.text(x, menuY + 15, btn.label, { fontFamily: 'Roboto', fontSize: '10px', fontStyle: 'bold' }).setOrigin(0.5).setDepth(92);
+            // Icono y Texto
+            const label = this.scene.add.text(0, 0, `${btn.icon} ${btn.label}`, { 
+                fontFamily: 'Roboto', fontSize: '10px', fontStyle: 'bold' 
+            }).setOrigin(0.5);
+
+            // Grupo del botón
+            const btnContainer = this.scene.add.container(x, menuY, [btnBg, label]);
 
             btnBg.on('pointerdown', () => {
                 this.togglePanel(btn.panel);
@@ -99,18 +101,64 @@ export default class GameUI {
             
             btnBg.on('pointerover', () => btnBg.setFillStyle(0x444444));
             btnBg.on('pointerout', () => btnBg.setFillStyle(0x222222));
+            
+            // IMPORTANTE: Añadir al container principal para que se vea
+            this.container.add(btnContainer);
         });
     }
 
+    createTowerSelector() {
+        const w = this.width;
+        const h = this.height;
+        
+        // Posición: Fondo de la pantalla
+        this.towerSelectorContainer = this.scene.add.container(w/2, h - 65);
+        
+        const selectorBg = this.scene.add.rectangle(0, 0, 700, 130, 0x000000, 0.8).setStrokeStyle(2, 0x444444);
+        this.towerSelectorContainer.add(selectorBg);
+
+        // Texto de Dinero (Integrado en la barra)
+        const economyBg = this.scene.add.rectangle(0, -80, 200, 25, 0x000000, 0.9).setStrokeStyle(1, 0xffd700);
+        this.economyText = this.scene.add.text(0, -80, 'ORO: 0', { fontFamily: 'Roboto', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        this.towerSelectorContainer.add([economyBg, this.economyText]);
+
+        const towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
+        const displayNames = { 'archer': 'ARQUERO', 'cannon': 'CAÑON', 'mage': 'MAGO', 'tesla': 'TESLA', 'poison': 'VENENO', 'quake': 'TERREMOTO' };
+        
+        const cardWidth = 90;
+        const cardHeight = 100;
+        const gap = 100;
+        const startX = -((gap * 5) / 2);
+
+        towerOrder.forEach((type, i) => {
+            const card = this.scene.add.container(startX + (i * gap), 10);
+            const cardBg = this.scene.add.rectangle(0, 0, cardWidth, cardHeight, 0x222222).setInteractive({useHandCursor:true});
+            cardBg.setStrokeStyle(1, 0xaaaaaa);
+            
+            const stats = TOWER_TYPES[type];
+            const icon = this.scene.add.rectangle(0, -15, 40, 40, stats.color || 0x888888);
+            const name = this.scene.add.text(0, -40, displayNames[type], { fontSize:'9px', fontStyle:'bold' }).setOrigin(0.5);
+            const cost = TOWER_COSTS[type];
+            const costText = this.scene.add.text(0, 20, `$${cost}`, { fontSize:'14px', color:'#ffd700', fontStyle:'bold' }).setOrigin(0.5);
+            const key = this.scene.add.text(0, 40, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
+
+            cardBg.on('pointerdown', () => EventBus.emit('ui-select-tower', i));
+
+            card.add([cardBg, icon, name, costText, key]);
+            this.towerSelectorContainer.add(card);
+            
+            this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
+        });
+
+        this.container.add(this.towerSelectorContainer);
+    }
+
+    // ... (El resto de métodos: togglePanel, updateStats, createTopHUD, etc. se mantienen IGUAL que antes) ...
+
     togglePanel(targetPanel) {
         const isVisible = targetPanel.container.visible;
-        // Cerrar todos
         this.allPanels.forEach(p => p.hide());
-        
-        // Si no estaba visible, abrirlo
-        if (!isVisible) {
-            targetPanel.show();
-        }
+        if (!isVisible) targetPanel.show();
     }
 
     setupListeners() {
@@ -122,11 +170,10 @@ export default class GameUI {
         EventBus.on('skill-cooldown', this.updateSkillCooldown, this);
         EventBus.on('wave-timer-tick', this.updateWaveTimer, this);
         EventBus.on('wave-timer-toggle', (visible) => this.waveTimerContainer.setVisible(visible), this);
-        
         EventBus.on('profession-levelup', (data) => {
             if(this.showCentralAlert) this.showCentralAlert(`¡NIVEL UP: ${data.key.toUpperCase()}!`, '#00ff00');
         });
-
+        
         this.scene.events.once('shutdown', () => {
             EventBus.off('gold-changed');
             EventBus.off('base-damaged');
@@ -142,83 +189,39 @@ export default class GameUI {
 
     createTopHUD() {
         const w = this.width;
-        const bg = this.scene.add.rectangle(w/2, 60, w, 80, 0x111111);
-        const line = this.scene.add.rectangle(w/2, 100, w, 4, 0xffffff);
+        const bg = this.scene.add.rectangle(w/2, 40, w, 60, 0x111111); // HUD más compacto arriba
+        const line = this.scene.add.rectangle(w/2, 70, w, 2, 0xffffff);
         
-        this.livesText = this.scene.add.text(30, 30, '', { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color: '#ffffff' });
-        this.castleText = this.scene.add.text(30, 65, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffaaaa' });
+        this.livesText = this.scene.add.text(30, 20, '', { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', color: '#ffffff' });
+        this.castleText = this.scene.add.text(30, 45, '', { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', color: '#ffaaaa' });
         
-        this.xpContainer = this.scene.add.container(0, 0);
+        this.xpContainer = this.scene.add.container(0, -10); // Ajuste posición
         const xpLabel = this.scene.add.text(300, 35, 'XP:', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' });
         this.xpBarBg = this.scene.add.rectangle(330, 42, 200, 10, 0x333333).setOrigin(0, 0.5);
         this.xpBarFill = this.scene.add.rectangle(330, 42, 0, 10, 0x00ffff).setOrigin(0, 0.5);
         this.lvlText = this.scene.add.text(540, 35, 'Lvl 1', { fontFamily: 'Roboto', fontSize: '14px', color: '#00ffff' });
         this.xpContainer.add([xpLabel, this.xpBarBg, this.xpBarFill, this.lvlText]);
 
-        this.waveInfoText = this.scene.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '28px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5);
+        this.waveInfoText = this.scene.add.text(w - 30, 30, 'OLEADA: 1', { fontFamily: 'Cinzel', fontSize: '24px', fontStyle: 'bold', color: '#ffffff' }).setOrigin(1, 0.5);
 
         this.container.add([bg, line, this.livesText, this.castleText, this.xpContainer, this.waveInfoText]);
-    }
-
-    createTowerSelector() {
-        const w = this.width;
-        const h = this.height;
-        
-        this.towerSelectorContainer = this.scene.add.container(w/2, h - 70);
-        
-        const selectorBg = this.scene.add.rectangle(0, 0, 680, 130, 0x000000, 0.5).setStrokeStyle(2, 0x444444);
-        this.towerSelectorContainer.add(selectorBg);
-
-        const economyBg = this.scene.add.rectangle(0, -80, 320, 30, 0x000000, 0.85).setStrokeStyle(1, 0xffd700);
-        this.economyText = this.scene.add.text(0, -80, 'MONEDAS ACTUALES: 0', { fontFamily: 'Roboto', fontSize: '16px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
-        this.towerSelectorContainer.add([economyBg, this.economyText]);
-
-        const towerOrder = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
-        const displayNames = { 'archer': 'ARQUERO', 'cannon': 'CAÑON', 'mage': 'MAGO', 'tesla': 'TESLA', 'poison': 'VENENO', 'quake': 'TERREMOTO' };
-        
-        const cardWidth = 100;
-        const cardHeight = 120;
-        const gap = 110;
-        const startX = -((gap * 5) / 2);
-
-        towerOrder.forEach((type, i) => {
-            const card = this.scene.add.container(startX + (i * gap), 0);
-            const cardBg = this.scene.add.rectangle(0, 0, cardWidth, cardHeight, 0x222222).setInteractive({useHandCursor:true});
-            cardBg.setStrokeStyle(1, 0xaaaaaa);
-            
-            const stats = TOWER_TYPES[type];
-            const icon = this.scene.add.rectangle(0, -20, 50, 50, stats.color || 0x888888);
-            const name = this.scene.add.text(0, -50, displayNames[type], { fontSize:'10px', fontStyle:'bold' }).setOrigin(0.5);
-            const cost = TOWER_COSTS[type];
-            const costText = this.scene.add.text(0, 25, `$${cost}`, { fontSize:'16px', color:'#ffd700', fontStyle:'bold' }).setOrigin(0.5);
-            const key = this.scene.add.text(0, 45, `[${i+1}]`, { fontSize:'10px', color:'#888' }).setOrigin(0.5);
-
-            cardBg.on('pointerdown', () => EventBus.emit('ui-select-tower', i));
-
-            card.add([cardBg, icon, name, costText, key]);
-            this.towerSelectorContainer.add(card);
-            
-            this.towerCards.push({ container: card, bg: cardBg, costText: costText, cost: cost });
-        });
-
-        this.container.add(this.towerSelectorContainer);
     }
 
     createSkillButton() {
         const w = this.width;
         const h = this.height;
-        const skillY = h - 140;
+        // Mover botón de skill arriba a la derecha o a un lado para no estorbar
+        const skillY = h - 220; 
 
-        this.skillBtnContainer = this.scene.add.container(w - 90, skillY);
-        this.skillBg = this.scene.add.circle(0, 0, 50, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true });
+        this.skillBtnContainer = this.scene.add.container(w - 60, skillY);
+        this.skillBg = this.scene.add.circle(0, 0, 40, 0x222222).setStrokeStyle(3, 0x00ffff).setInteractive({ useHandCursor: true });
         
-        const skillIcon = this.scene.add.text(0, -10, "⚡", { fontSize: '40px' }).setOrigin(0.5);
-        const skillLabel = this.scene.add.text(0, 25, "Habilidad\n(Espacio)", { fontFamily: 'Roboto', fontSize: '12px', align: 'center', color: '#ffffff' }).setOrigin(0.5);
+        const skillIcon = this.scene.add.text(0, -5, "⚡", { fontSize: '30px' }).setOrigin(0.5);
         
-        this.skillOverlay = this.scene.add.circle(0, 0, 50, 0x000000, 0.7).setVisible(false);
-        this.skillTimerText = this.scene.add.text(0, -10, "", { fontSize:'20px', fontStyle:'bold' }).setOrigin(0.5);
+        this.skillOverlay = this.scene.add.circle(0, 0, 40, 0x000000, 0.7).setVisible(false);
+        this.skillTimerText = this.scene.add.text(0, -5, "", { fontSize:'18px', fontStyle:'bold' }).setOrigin(0.5);
 
-        this.skillBtnContainer.add([this.skillBg, skillIcon, skillLabel, this.skillOverlay, this.skillTimerText]);
+        this.skillBtnContainer.add([this.skillBg, skillIcon, this.skillOverlay, this.skillTimerText]);
         this.container.add(this.skillBtnContainer);
 
         this.skillBg.on('pointerdown', () => EventBus.emit('ui-trigger-skill'));
@@ -226,12 +229,12 @@ export default class GameUI {
 
     createWaveTimer() {
         const w = this.width;
-        this.waveTimerContainer = this.scene.add.container(w/2, 60).setVisible(false);
-        this.waveTimerContainer.setSize(320, 60);
+        this.waveTimerContainer = this.scene.add.container(w/2, 100).setVisible(false);
+        this.waveTimerContainer.setSize(200, 40);
         this.waveTimerContainer.setInteractive({ useHandCursor: true });
         
-        const timerBg = this.scene.add.rectangle(0, 0, 320, 60, 0x006400).setStrokeStyle(2, 0xffffff);
-        this.waveTimerBtnText = this.scene.add.text(0, 0, "INICIAR", { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', align: 'center', color: '#ffffff' }).setOrigin(0.5);
+        const timerBg = this.scene.add.rectangle(0, 0, 200, 40, 0x006400).setStrokeStyle(2, 0xffffff);
+        this.waveTimerBtnText = this.scene.add.text(0, 0, "INICIAR", { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold', align: 'center', color: '#ffffff' }).setOrigin(0.5);
         
         this.waveTimerContainer.add([timerBg, this.waveTimerBtnText]);
         this.container.add(this.waveTimerContainer);
@@ -246,7 +249,7 @@ export default class GameUI {
     }
 
     updateGold(amount) {
-        if(this.economyText) this.economyText.setText(`MONEDAS ACTUALES: ${amount}`);
+        if(this.economyText) this.economyText.setText(`ORO: ${amount}`);
         if (this.towerCards) {
             this.towerCards.forEach(card => {
                 const canAfford = amount >= card.cost;
@@ -304,7 +307,7 @@ export default class GameUI {
 
     updateWaveTimer(seconds) {
         if(this.waveTimerBtnText) {
-            this.waveTimerBtnText.setText(`SIGUIENTE OLEADA: ${seconds}s\n(Clic para iniciar)`);
+            this.waveTimerBtnText.setText(`SIGUIENTE: ${seconds}s`);
         }
     }
 
@@ -326,14 +329,6 @@ export default class GameUI {
         const txt = this.scene.add.text(this.width/2, this.height/2 - 100, msg, {
             fontFamily: 'Cinzel', fontSize: '30px', fontStyle:'bold', color: color, stroke: '#000', strokeThickness: 5
         }).setOrigin(0.5).setDepth(3000);
-        
-        this.scene.tweens.add({
-            targets: txt,
-            scale: 1.5,
-            alpha: 0,
-            duration: 1500,
-            ease: 'Power2',
-            onComplete: () => txt.destroy()
-        });
+        this.scene.tweens.add({ targets: txt, scale: 1.5, alpha: 0, duration: 1500, ease: 'Power2', onComplete: () => txt.destroy() });
     }
 }
