@@ -13,15 +13,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.path = path;
         this.follower = { t: 0, vec: new Phaser.Math.Vector2() };
         this.typeKey = typeKey;
-        this.levelDifficulty = levelDifficulty || 1; // Nivel del mapa (1-10)
+        this.levelDifficulty = levelDifficulty || 1; 
 
-        // Cargar datos base del enemigo
+        // Cargar datos base
         const data = ENEMY_DB[typeKey] || ENEMY_DB['slime'];
-        
         this.name = data.name;
 
-        // --- LÓGICA DE ESCALADO DE STATS ---
-        // Factor de dificultad: 1.15 ^ (Nivel - 1)
+        // --- ESCALADO DE STATS ---
         const scaleFactor = Math.pow(GAME_CONSTANTS.DIFFICULTY.LEVEL_SCALING_FACTOR || 1.15, this.levelDifficulty - 1);
 
         this.maxHp = Math.floor(data.hp * scaleFactor);
@@ -42,12 +40,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.drops = data.drops || [];
         this.leakDamage = (this.maxHp > 2000) ? 5 : 1; 
         
-        // --- IDENTIFICAR SI ES BOSS ---
+        // --- IDENTIFICAR BOSS ---
         this.isBoss = (typeKey.includes('boss') || typeKey.includes('mini'));
         this.skillTimer = 0;
-        this.isCasting = false; // Estado para detener movimiento mientras castea
+        this.isCasting = false; 
 
-        // Visual Colors
+        // Colores
         let color = 0xff0000;
         if (scene.biome === 'forest') color = 0x008000;   
         if (scene.biome === 'mountain') color = 0x8b4513; 
@@ -55,10 +53,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         if (this.isFlying) color = 0x00ffff; 
         if (this.isHealer) color = 0xff69b4; 
-        if (this.isBoss) color = 0x4b0082; // Bosses morados
+        if (this.isBoss) color = 0x4b0082; 
 
         this.originalColor = color; 
-        const size = (this.maxHp > 2000 || this.isBoss) ? 40 : 20; // Bosses más grandes
+        const size = (this.maxHp > 2000 || this.isBoss) ? 45 : 20; 
 
         const textureKey = `enemy_${typeKey}`;
         if (scene.textures.exists(textureKey)) {
@@ -94,18 +92,21 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.updateDebuffs(delta);
         if (!this.active) return;
 
-        // --- LÓGICA DE BOSS ---
+        // --- IA DE BOSS: EJECUCIÓN DE HABILIDADES ---
         if (this.isBoss) {
-            if (this.isCasting) return; // Si está casteando, no se mueve
-
-            this.skillTimer += delta;
-            // Usar cooldown definido en constantes o default 6000ms
-            const cd = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.COOLDOWN : 6000;
+            // Obtener configuración de habilidad según el tipo de boss
+            const skillConfig = BOSS_SKILLS[this.typeKey] || BOSS_SKILLS['AOE_SMASH'];
             
-            if (this.skillTimer > cd) {
-                this.startBossSkill();
-                this.skillTimer = 0;
-                return; // Importante: salir para no mover en este frame
+            // Si NO está casteando, actualizamos el timer
+            if (!this.isCasting) {
+                this.skillTimer += delta;
+                if (this.skillTimer > skillConfig.COOLDOWN) {
+                    this.useBossSkill(skillConfig);
+                    this.skillTimer = 0;
+                }
+            } else {
+                // Si está casteando, normalmente no se mueve (excepto skill projectile_barrage)
+                if (skillConfig.TYPE !== 'projectile_barrage') return; 
             }
         }
 
@@ -141,81 +142,122 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.hpBar.width = (this.width + 8) * hpPct; 
         this.hpBar.setFillStyle(hpPct < 0.3 ? 0xff0000 : 0x00ff00);
 
-        if (this.isHealer) {
-            // Reutilizamos skillTimer para healers si no es boss, o creamos uno nuevo
-            if (!this.isBoss) {
-                 this.skillTimer += delta;
-                 if (this.skillTimer > 3000) { this.performHeal(); this.skillTimer = 0; }
-            }
+        // Healer support
+        if (this.isHealer && !this.isBoss) {
+             this.skillTimer += delta;
+             if (this.skillTimer > 3000) { this.performHeal(); this.skillTimer = 0; }
         }
         
         this.checkAttackPlayer(time);
     }
 
-    // --- NUEVA LÓGICA DE SKILL DE BOSS ---
-    startBossSkill() {
-        if (!this.active || !this.scene) return;
-        this.isCasting = true;
-        
-        // Configuración del skill
-        const radius = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.RADIUS : 150;
-        const warnTime = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.WARN_TIME : 1500;
-
-        // 1. Indicador Visual (Círculo rojo en el suelo)
-        const warningCircle = this.scene.add.circle(this.x, this.y, 10, 0xff0000, 0.3);
-        
-        // Animación de advertencia
-        this.scene.tweens.add({
-            targets: warningCircle,
-            scale: radius / 10, // Crecer hasta el radio real
-            alpha: 0.6,
-            duration: warnTime,
-            onComplete: () => {
-                this.executeBossSkill(warningCircle, radius);
-            }
-        });
+    // --- SISTEMA DE HABILIDADES DE BOSS ---
+    useBossSkill(config) {
+        if (!this.scene || !this.scene.player) return;
+        const player = this.scene.player;
         
         if (this.scene.showFloatingText) {
-            this.scene.showFloatingText(this.x, this.y - 50, "¡CUIDADO!", "#ff0000");
+            this.scene.showFloatingText(this.x, this.y - 60, config.NAME || "¡ATAQUE!", "#ff0000");
+        }
+
+        // Tipo 1: Escudo + Explosión (Boss Montaña)
+        if (config.TYPE === 'shield_explode') {
+            this.isCasting = true;
+            this.isShielded = true; // Invulnerable
+            this.sprite.setTint(0x888888); // Gris piedra
+            
+            // Cargar y explotar
+            this.scene.time.delayedCall(config.WARN_TIME, () => {
+                this.isShielded = false;
+                this.clearTint();
+                this.createExplosion(this.x, this.y, config.RADIUS, config.DAMAGE, config.COLOR);
+                this.isCasting = false;
+            });
+        }
+        
+        // Tipo 2: Ataque en área sobre el jugador (Boss Bosque / Void)
+        else if (config.TYPE === 'aoe_target' || config.TYPE === 'singularity') {
+            this.isCasting = true;
+            const targetX = player.x;
+            const targetY = player.y;
+            
+            // Indicador visual
+            const indicator = this.scene.add.circle(targetX, targetY, 10, config.COLOR || 0xff0000, 0.4);
+            
+            // Si es singularidad, atrae al jugador
+            if (config.TYPE === 'singularity') {
+                this.scene.tweens.add({
+                    targets: player,
+                    x: targetX, y: targetY,
+                    duration: config.WARN_TIME,
+                    ease: 'Quad.easeIn'
+                });
+            }
+
+            this.scene.tweens.add({
+                targets: indicator,
+                scale: config.RADIUS / 10,
+                alpha: 0.8,
+                duration: config.WARN_TIME,
+                onComplete: () => {
+                    indicator.destroy();
+                    this.createExplosion(targetX, targetY, config.RADIUS, config.DAMAGE, config.COLOR);
+                    this.isCasting = false;
+                }
+            });
+        }
+
+        // Tipo 3: Lluvia de proyectiles (Boss Volcán) - No detiene movimiento
+        else if (config.TYPE === 'projectile_barrage') {
+            const shots = config.COUNT || 3;
+            let shotCount = 0;
+            
+            const shootEvent = this.scene.time.addEvent({
+                delay: 300,
+                repeat: shots - 1,
+                callback: () => {
+                    if (!this.active) return;
+                    const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
+                    
+                    // Crear proyectil enemigo simple
+                    const proj = this.scene.add.circle(this.x, this.y, 8, config.COLOR, 1);
+                    this.scene.physics.add.existing(proj);
+                    proj.body.setVelocity(Math.cos(angle)*300, Math.sin(angle)*300);
+                    
+                    // Destruir tras tiempo
+                    this.scene.time.delayedCall(2000, () => proj.destroy());
+                    
+                    // Colisión con jugador (Lógica manual rápida)
+                    this.scene.physics.add.overlap(proj, player, () => {
+                        player.takeDamage(config.DAMAGE);
+                        proj.destroy();
+                    });
+                }
+            });
         }
     }
 
-    executeBossSkill(indicator, radius) {
-        if (!this.active) { 
-            if(indicator) indicator.destroy(); 
-            return; 
-        }
-
-        // Efecto Explosión
-        const explosion = this.scene.add.circle(this.x, this.y, radius, 0xffaa00, 0.8);
+    createExplosion(x, y, radius, damage, color) {
+        if (!this.scene) return;
+        
+        // Visual
+        const boom = this.scene.add.circle(x, y, radius, color || 0xff0000, 0.7);
         this.scene.tweens.add({
-            targets: explosion,
-            alpha: 0,
-            scale: 1.2,
-            duration: 300,
-            onComplete: () => explosion.destroy()
+            targets: boom, alpha: 0, scale: 1.1, duration: 200,
+            onComplete: () => boom.destroy()
         });
-
-        // Daño al jugador
-        const player = this.scene.player; // Acceso directo al jugador en la escena
-        if (player && player.active && !player.isDead) {
-            const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+        
+        // Daño
+        const player = this.scene.player;
+        if (player && !player.isDead) {
+            const dist = Phaser.Math.Distance.Between(x, y, player.x, player.y);
             if (dist <= radius) {
-                const dmg = (BOSS_SKILLS && BOSS_SKILLS.AOE_SMASH) ? BOSS_SKILLS.AOE_SMASH.DAMAGE : 30;
-                
-                // Si el jugador tiene método takeDamage, úsalo
-                if (player.takeDamage) player.takeDamage(dmg);
-                
-                // Knockback al jugador
-                const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
-                if(player.body) player.body.setVelocity(Math.cos(angle) * 400, Math.sin(angle) * 400);
+                player.takeDamage(damage);
+                this.scene.cameras.main.shake(200, 0.01);
             }
         }
-
-        if(indicator) indicator.destroy();
-        this.isCasting = false; // Boss vuelve a moverse
     }
-    // -------------------------------------
+    // ------------------------------------------
 
     applyStatus(effect) {
         if (!effect || !this.active || this.isShielded) return;

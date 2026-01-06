@@ -1,3 +1,5 @@
+// src/config/GameConstants.js
+
 export const GAME_CONSTANTS = {
     // --- JUGADOR Y PROGRESIÓN ---
     PLAYER: {
@@ -97,12 +99,9 @@ export const GAME_CONSTANTS = {
     }
 };
 
-// --- HABILIDADES POR CLASE (NUEVO) ---
+// --- HABILIDADES DEL JUGADOR ---
 export const PLAYER_SKILLS = {
-    // Configuración Global
     DASH: { DURATION: 200, SPEED_MULT: 3.0, COOLDOWN: 2000 },
-
-    // Habilidades Específicas
     guerrero: {
         Q: { NAME: 'Torbellino', TYPE: 'area_self', DAMAGE_MULT: 1.2, RANGE: 120, COOLDOWN: 4000, COLOR: 0xff0000 },
         E: { NAME: 'Golpe Sísmico', TYPE: 'cone', DAMAGE_MULT: 2.0, RANGE: 200, WIDTH: 80, COOLDOWN: 8000, COLOR: 0x8b0000, EFFECT: 'stun' }
@@ -121,12 +120,53 @@ export const PLAYER_SKILLS = {
     }
 };
 
-// --- HABILIDADES DE JEFES ---
+// --- HABILIDADES DE JEFES (ACTUALIZADO) ---
 export const BOSS_SKILLS = {
+    // Habilidad Genérica (Fallback)
     AOE_SMASH: {
+        TYPE: 'aoe_target',
         WARN_TIME: 1500,
-        RADIUS: 200,    
+        RADIUS: 150,    
         DAMAGE: 30,     
         COOLDOWN: 6000  
+    },
+    // Boss Bosque (Raíces)
+    boss_forest: {
+        TYPE: 'aoe_target', // Ataca donde está el jugador
+        NAME: "Raíces",
+        WARN_TIME: 1200,
+        RADIUS: 100,
+        DAMAGE: 25,
+        COOLDOWN: 5000,
+        COLOR: 0x00ff00
+    },
+    // Boss Montaña (Escudo + Terremoto)
+    boss_mountain: {
+        TYPE: 'shield_explode', // Se escuda y luego explota
+        NAME: "Avalancha",
+        WARN_TIME: 2000,
+        RADIUS: 250,
+        DAMAGE: 50,
+        COOLDOWN: 8000,
+        COLOR: 0x8b4513
+    },
+    // Boss Volcán (Lluvia de Fuego)
+    boss_volcano: {
+        TYPE: 'projectile_barrage', // Dispara mientras camina
+        NAME: "Lluvia Magma",
+        COUNT: 5,
+        DAMAGE: 20,
+        COOLDOWN: 4000,
+        COLOR: 0xff4500
+    },
+    // Boss Void (Final)
+    boss_void: {
+        TYPE: 'singularity', // Atrae y explota
+        NAME: "Singularidad",
+        WARN_TIME: 2500,
+        RADIUS: 300,
+        DAMAGE: 100, // Insta-kill o casi
+        COOLDOWN: 12000,
+        COLOR: 0x800080
     }
 };
