@@ -1,9 +1,9 @@
 import { gameState, RARITY } from '../config/GameState.js';
 import { REFINING_RECIPES } from '../config/RefiningRecipes.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
-import RPGSystem from '../systems/RPGSystem.js'; // Importamos el sistema mejorado
+import RPGSystem from '../systems/RPGSystem.js'; 
 import SaveSystem from '../systems/SaveSystem.js';
-import SoundManager from '../systems/SoundManager.js'; // Importante para feedback
+import SoundManager from '../systems/SoundManager.js'; 
 
 export default class RefiningPanel {
     constructor(scene, x, y, width, height) {
@@ -12,14 +12,13 @@ export default class RefiningPanel {
         this.height = height;
         
         // Crear Contenedor Principal
-        this.container = scene.add.container(0, 0).setVisible(false).setDepth(100); // Elevamos depth para que esté sobre el juego
+        this.container = scene.add.container(0, 0).setVisible(false).setDepth(100); 
         this.filter = 'wood';
         
-        // --- FONDO INTERACTIVO (Evita clics traseros) ---
-        // Usamos las coordenadas relativas al contenedor
+        // --- FONDO INTERACTIVO ---
         const bg = scene.add.rectangle(width/2, height/2, width * 0.9, height * 0.9, 0x000000, 0.95)
             .setStrokeStyle(4, 0xffd700)
-            .setInteractive(); // Bloquea clicks
+            .setInteractive(); 
         this.container.add(bg);
 
         // Título
@@ -41,7 +40,7 @@ export default class RefiningPanel {
         closeBtn.on('pointerdown', () => this.hide());
         this.container.add(closeBtn);
 
-        // Contenedor de lista (scrolleable idealmente, pero simplificado aquí)
+        // Contenedor de lista
         this.recipeList = scene.add.container(0, 0);
         this.container.add(this.recipeList);
         
@@ -98,10 +97,8 @@ export default class RefiningPanel {
     }
 
     refresh() {
-        // Actualizar Info Profesión
-        // Usamos 'alchemy' o 'refining' consistentemente. RPGSystem usa 'alchemy' en el ejemplo anterior, 
-        // pero tu código usa 'refining'. Ajustemos para leer lo que haya.
-        const pKey = gameState.professions.refining ? 'refining' : 'alchemy';
+        // --- CORRECCIÓN AQUÍ: Leer siempre 'refining' ---
+        const pKey = 'refining';
         const p = gameState.professions[pKey] || { level: 1, xp: 0, maxXp: 100 };
         
         // Calcular chance visualmente
@@ -156,7 +153,7 @@ export default class RefiningPanel {
         // Fondo del Modal
         const bg = this.scene.add.rectangle(0, 0, 400, 450, 0x111111, 1)
             .setStrokeStyle(3, 0xffffff)
-            .setInteractive(); // Bloquea clicks
+            .setInteractive(); 
         
         const title = this.scene.add.text(0, -180, recipe.name.toUpperCase(), { 
             fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold' 
@@ -174,7 +171,6 @@ export default class RefiningPanel {
                 .setInteractive({useHandCursor:true})
                 .setStrokeStyle(2, 0x000000);
             
-            // Indicador de selección
             const ind = this.scene.add.rectangle(btnX, 0, 48, 48, 0xffffff, 0)
                 .setStrokeStyle(3, 0xffffff)
                 .setVisible(rKey === 'common');
@@ -220,20 +216,16 @@ export default class RefiningPanel {
         let hasMats = true;
         let reqText = `Calidad Seleccionada: ${rarity.name.toUpperCase()}\n\n`;
         
-        // Calcular Requisitos
         for(let mat in recipe.input) {
             const rawDef = RAW_MATERIALS[mat] || REFINED_MATERIALS[mat] || {name: mat};
             const qtyReq = recipe.input[mat];
             
-            // Si es carbón, siempre usa 'common'
             const isCoal = (mat === 'coal');
             const checkRarity = isCoal ? 'common' : rKey;
             const rarityLabel = isCoal ? '(Cualquiera)' : `(${rarity.name})`;
 
             const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
             
-            const color = (qtyOwned >= qtyReq) ? '#00ff00' : '#ff0000';
-            // Phaser no soporta multiples colores en un solo text object fácilmente, así que usamos el color global del texto si falla algo
             if (qtyOwned < qtyReq) hasMats = false;
 
             reqText += `${rawDef.name} ${rarityLabel}: ${qtyOwned} / ${qtyReq}\n`;
@@ -247,7 +239,6 @@ export default class RefiningPanel {
         
         this.actionBtn.setFillStyle(hasMats ? 0x00aa00 : 0x333333);
         
-        // Habilitar/Deshabilitar botón
         if(hasMats) {
             this.actionBtn.setInteractive();
             this.actionBtn.setAlpha(1);
@@ -263,26 +254,23 @@ export default class RefiningPanel {
 
         if (result.success) {
             SoundManager.playSound('build');
-            SaveSystem.save();
             
-            this.updateDetailView(); // Actualizar cantidades
-            this.refresh(); // Actualizar panel principal
+            // --- ACTUALIZAR UI ---
+            this.updateDetailView(); 
+            this.refresh(); 
             
-            // Feedback Visual en pantalla
             const colorHex = '#' + RARITY[result.rarity].color.toString(16).padStart(6, '0');
             let msg = `¡Refinado Exitoso!\n+1 ${this.selectedRecipe.output}`;
             
             if (result.isDouble) {
                 msg = `¡DOBLE PRODUCCIÓN!\n+2 ${this.selectedRecipe.output}`;
-                // Feedback Extra
                 this.showFloatingText("x2", 0xffff00, -50); 
             }
             
             this.showFloatingText(msg, 0xffffff);
             
         } else {
-            // Error (no debería pasar si el botón estaba activo, pero por seguridad)
-            SoundManager.playSound('ui_click'); // Sonido error opcional
+            SoundManager.playSound('ui_click'); 
         }
     }
 

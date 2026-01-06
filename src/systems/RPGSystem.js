@@ -98,8 +98,12 @@ class RPGSystem {
             gameState.materials[matKey][consumeRarity] -= reqQty;
         }
 
+        // --- ASIGNACIÓN DE PROFESIÓN POR TIPO ---
         let profKey = recipe.prof || 'smithing'; 
-        if (!recipe.prof && recipe.type === 'tower_part') profKey = 'engineering';
+        if (recipe.type === 'weapon') profKey = 'weaponsmith';
+        else if (recipe.type === 'armor' || recipe.type === 'offhand') profKey = 'armorsmith';
+        else if (recipe.type === 'accessory') profKey = 'jewelry';
+        else if (recipe.type === 'tower_part') profKey = 'engineering';
 
         // --- LÓGICA DE ENCANTAMIENTO (+0 a +6) ---
         let bonusEnchant = 0;
@@ -266,7 +270,8 @@ class RPGSystem {
         }
 
         let outputRarity = rarityKey;
-        const profKey = 'alchemy'; 
+        // --- CORRECCIÓN CLAVE: Usar 'refining' en lugar de 'alchemy' ---
+        const profKey = 'refining'; 
         
         let amount = 1;
         let isDouble = false;
@@ -315,7 +320,7 @@ class RPGSystem {
                 if(prof.level > 100) prof.level = 100;
                 
                 EventBus.emit('profession-levelup', { key: profKey, level: prof.level });
-                SaveSystem.save(); // <--- GUARDADO AUTOMÁTICO AL SUBIR NIVEL
+                SaveSystem.save(); // Guardar progreso al subir nivel
             }
         }
     }
