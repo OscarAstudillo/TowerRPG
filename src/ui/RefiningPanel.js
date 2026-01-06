@@ -100,7 +100,6 @@ export default class RefiningPanel {
         const pKey = 'refining';
         const p = gameState.professions[pKey] || { level: 1, xp: 0, maxXp: 100 };
         
-        // Calcular chance visualmente
         const chance = RPGSystem.getProfessionChance(pKey);
         const chancePct = (chance * 100).toFixed(1);
         
@@ -149,7 +148,6 @@ export default class RefiningPanel {
         this.selectedRecipe = recipe;
         this.selectedRarity = 'common'; 
 
-        // Fondo del Modal (Más alto para acomodar botones)
         const bg = this.scene.add.rectangle(0, 0, 400, 500, 0x111111, 1)
             .setStrokeStyle(3, 0xffffff)
             .setInteractive(); 
@@ -158,7 +156,6 @@ export default class RefiningPanel {
             fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold' 
         }).setOrigin(0.5);
 
-        // Selector de Rareza
         this.rarityContainer = this.scene.add.container(0, -140);
         const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
         let btnX = -120;
@@ -188,24 +185,18 @@ export default class RefiningPanel {
             btnX += 60;
         });
 
-        // Información de Requisitos
         this.infoText = this.scene.add.text(0, 0, "", { 
             fontFamily: 'Roboto', fontSize: '16px', align: 'center', lineSpacing: 10 
         }).setOrigin(0.5);
 
-        // --- BOTONES DE ACCIÓN MÚLTIPLE (NUEVO) ---
         this.btnsContainer = this.scene.add.container(0, 150);
         
-        // Botón x1
         this.btnX1 = this.createActionButton(-100, 0, "Refinar x1", 0x006400, () => this.executeRefine(1));
-        // Botón x10
         this.btnX10 = this.createActionButton(0, 0, "x10", 0x00008b, () => this.executeRefine(10), 80);
-        // Botón x100
         this.btnX100 = this.createActionButton(100, 0, "x100", 0x8b0000, () => this.executeRefine(100), 80);
 
         this.btnsContainer.add([this.btnX1.container, this.btnX10.container, this.btnX100.container]);
 
-        // Botón Cerrar Modal
         const close = this.scene.add.text(170, -220, "X", { fontSize:'24px', color:'#ff5555', fontStyle:'bold'}).setInteractive({useHandCursor:true}).setOrigin(0.5);
         close.on('pointerdown', () => this.detailContainer.setVisible(false));
 
@@ -230,7 +221,7 @@ export default class RefiningPanel {
         const rKey = this.selectedRarity;
         const rarity = RARITY[rKey];
         
-        let maxCraftable = 999999; // Límite inicial alto
+        let maxCraftable = 999999; 
         let reqText = `Calidad Seleccionada: ${rarity.name.toUpperCase()}\n\n`;
         
         for(let mat in recipe.input) {
@@ -243,7 +234,6 @@ export default class RefiningPanel {
 
             const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
             
-            // Calcular cuántos podemos hacer máximo con este material
             const possible = Math.floor(qtyOwned / qtyReq);
             if (possible < maxCraftable) maxCraftable = possible;
 
@@ -256,7 +246,6 @@ export default class RefiningPanel {
         this.infoText.setText(reqText);
         this.infoText.setColor(maxCraftable > 0 ? '#ffffff' : '#ffaaaa');
         
-        // --- HABILITAR/DESHABILITAR BOTONES SEGÚN CANTIDAD ---
         this.updateButtonState(this.btnX1, maxCraftable >= 1);
         this.updateButtonState(this.btnX10, maxCraftable >= 10);
         this.updateButtonState(this.btnX100, maxCraftable >= 100);
@@ -279,13 +268,17 @@ export default class RefiningPanel {
 
         if (result.success) {
             SoundManager.playSound('build');
-            SaveSystem.save(); // RPGSystem ya guarda, pero doble check no daña
+            SaveSystem.save(); 
             
-            // --- ACTUALIZAR UI ---
             this.updateDetailView(); 
             this.refresh(); 
             
-            let msg = `¡Refinado Exitoso!\n+${result.totalProduced} ${this.selectedRecipe.output}`;
+            // --- CORRECCIÓN AQUÍ: Usar nombre legible ---
+            // Buscamos la definición del material refinado para obtener su nombre real
+            const refinedDef = REFINED_MATERIALS[this.selectedRecipe.output] || { name: this.selectedRecipe.output };
+            const materialName = refinedDef.name;
+
+            let msg = `¡Refinado Exitoso!\n+${result.totalProduced} ${materialName}`;
             
             if (result.doubleDrops > 0) {
                 this.showFloatingText(`¡${result.doubleDrops} DOBLES!`, 0xffff00, -50); 
