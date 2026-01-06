@@ -12,7 +12,7 @@ import TalentTree from '../ui/TalentTree.js';
 import RefiningPanel from '../ui/RefiningPanel.js';
 import TowersPanel from '../ui/TowersPanel.js';
 import QuestBoard from '../ui/QuestBoard.js';
-import ProfessionsPanel from '../ui/ProfessionsPanel.js'; // <--- IMPORTADO
+import ProfessionsPanel from '../ui/ProfessionsPanel.js'; 
 
 export default class MainMenuScene extends Phaser.Scene {
     constructor() {
@@ -20,33 +20,31 @@ export default class MainMenuScene extends Phaser.Scene {
         this.selectedTab = 'hero'; 
         this.hasLoaded = false;
         
-        // Estilos
-        this.fontTitle = { fontFamily: 'Cinzel', fontSize: '50px', fontStyle: 'bold', color: '#FFD700', stroke: '#8B0000', strokeThickness: 6, shadow: { offsetX: 3, offsetY: 3, color: '#000', blur: 5, fill: true } };
-        this.fontMenuBtn = { fontFamily: 'Cinzel', fontSize: '18px', color: '#FFFFFF' };
+        // Estilos Premium
+        this.fontTitle = { 
+            fontFamily: 'Cinzel', fontSize: '60px', fontStyle: 'bold', 
+            color: '#FFD700', 
+            stroke: '#000000', strokeThickness: 8,
+            shadow: { offsetX: 0, offsetY: 5, color: '#FF4500', blur: 15, stroke: true, fill: true } 
+        };
+        
+        this.fontMenuBtn = { 
+            fontFamily: 'Cinzel', fontSize: '20px', fontStyle: 'bold', color: '#E0E0E0' 
+        };
     }
 
     create() {
-        this.cameras.main.fadeIn(500, 0, 0, 0);
+        this.cameras.main.fadeIn(800, 0, 0, 0);
         
         // --- 1. LÓGICA DE CARGA DE DATOS ---
         if (!this.hasLoaded) {
             const loaded = SaveSystem.load();
-            
-            // Reparación de Saves antiguos
-            const allTowers = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
-            if (!gameState.towerEquipment) gameState.towerEquipment = {};
-            allTowers.forEach(t => { 
-                if(!gameState.towerEquipment[t]) gameState.towerEquipment[t] = {slot1:null, slot2:null}; 
-            });
-            if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
-            
+            this.ensureDataIntegrity();
             if (loaded) {
-                console.log("✅ Progreso cargado correctamente.");
+                console.log("✅ Progreso cargado.");
                 SaveSystem.save(); 
             } else {
-                console.log("ℹ️ Nueva partida iniciada.");
-                if (!gameState.talents) gameState.talents = [];
-                this.sanitizeData(); 
+                console.log("ℹ️ Nueva partida.");
                 SaveSystem.save();
             }
             this.hasLoaded = true;
@@ -60,72 +58,127 @@ export default class MainMenuScene extends Phaser.Scene {
         updatePlayerStats();
         SoundManager.playMusic('music_menu');
 
-        // --- 2. LAYOUT Y DIMENSIONES ---
+        // --- 2. LAYOUT VISUAL ---
         const w = this.scale.width;
         const h = this.scale.height;
 
-        const menuWidth = 280; 
-        const menuMargin = 20;
-        const contentX = menuWidth + menuMargin; 
-        const contentW = w - contentX - 20; 
-        const contentCenterX = contentX + (contentW / 2); 
+        // --- FONDO ANIMADO ---
+        this.createAnimatedBackground(w, h);
 
-        // Fondo
-        if (this.textures.exists('title_bg')) {
-            this.add.image(w / 2, h / 2, 'title_bg').setDisplaySize(w, h);
-        }
-        this.add.rectangle(w / 2, h / 2, w, h, 0x000000, 0.85);
+        // Overlay oscuro para UI (Glassmorphism)
+        const contentX = 320; // Ancho del menú + margen
+        const contentW = w - contentX - 20;
+
+        // Panel de Contenido (Derecha)
+        const contentBg = this.add.graphics();
+        contentBg.fillStyle(0x000000, 0.75);
+        contentBg.fillRoundedRect(contentX, 20, contentW, h - 40, 20); // Bordes redondeados
+        contentBg.lineStyle(2, 0x444444, 1);
+        contentBg.strokeRoundedRect(contentX, 20, contentW, h - 40, 20);
 
         // Título Principal
-        this.add.text(contentCenterX, h * 0.08, "TOWER RPG", this.fontTitle).setOrigin(0.5);
-        this.goldText = this.add.text(w - 30, h * 0.05, `ORO: ${gameState.gold}`, { fontFamily: 'Cinzel', fontSize: '20px', color: '#ffd700' }).setOrigin(1, 0.5);
-
-        // Contenedores Principales
-        this.menuContainer = this.add.container(menuWidth / 2 + 10, h / 2); 
+        this.add.text(w - 30, h - 50, "TOWER RPG", { fontFamily: 'Cinzel', fontSize: '30px', color: '#444' }).setOrigin(1, 1);
         
-        // --- 3. CREAR MENÚ LATERAL ---
-        this.createMenuPanel(menuWidth, h);
+        // Oro (Esquina superior derecha)
+        const goldContainer = this.add.container(w - 140, 50);
+        const goldBg = this.add.rectangle(0, 0, 200, 40, 0x000000, 0.8).setStrokeStyle(2, 0xffd700);
+        this.goldText = this.add.text(0, 0, `ORO: ${gameState.gold}`, { fontFamily: 'Cinzel', fontSize: '22px', color: '#ffd700' }).setOrigin(0.5);
+        goldContainer.add([goldBg, this.goldText]);
+
+        // --- 3. MENÚ LATERAL ---
+        this.menuContainer = this.add.container(0, 0); 
+        this.createMenuPanel(300, h); // Ancho 300px
 
         // --- 4. INICIALIZAR PANELES DE LÓGICA ---
+        // Ajustamos offset para que entren en el panel derecho
+        const panelOffsetX = contentX; 
+        
         this.heroPanel = new HeroPanel(this, 0, 0, contentW, h);
-        this.heroPanel.container.setPosition(contentX, 0);
+        this.heroPanel.container.setPosition(panelOffsetX, 0);
 
         this.inventoryPanel = new InventoryPanel(this, 0, 0, contentW, h);
-        this.inventoryPanel.container.setPosition(contentX, 0);
+        this.inventoryPanel.container.setPosition(panelOffsetX, 0);
 
         this.forgePanel = new ForgePanel(this, 0, 0, contentW, h);
-        this.forgePanel.container.setPosition(contentX, 0);
+        this.forgePanel.container.setPosition(panelOffsetX, 0);
 
         this.talentsPanel = new TalentTree(this, 0, 0, contentW, h);
-        this.talentsPanel.container.setPosition(contentX, 0);
+        this.talentsPanel.container.setPosition(panelOffsetX, 0);
 
         this.refiningPanel = new RefiningPanel(this, 0, 0, contentW, h);
-        this.refiningPanel.container.setPosition(contentX, 0);
+        this.refiningPanel.container.setPosition(panelOffsetX, 0);
 
         this.towersPanel = new TowersPanel(this, 0, 0, contentW, h);
-        this.towersPanel.container.setPosition(contentX, 0);
+        this.towersPanel.container.setPosition(panelOffsetX, 0);
         
-        // --- INSTANCIA DEL NUEVO PANEL DE PROFESIONES ---
         this.professionsPanel = new ProfessionsPanel(this, 0, 0, contentW, h);
-        this.professionsPanel.container.setPosition(contentX, 0);
+        this.professionsPanel.container.setPosition(panelOffsetX, 0);
 
-        this.questBoard = new QuestBoard(this, 0, 0, w, h);
+        this.questBoard = new QuestBoard(this, 0, 0, w, h); // Quest ocupa todo (modal)
 
-        // Iniciar en la pestaña por defecto
         this.switchTab('hero');
+        
+        // Versión
+        this.add.text(20, h - 20, "v1.0.0 Alpha", { fontFamily: 'Roboto', fontSize: '12px', color: '#666' });
+    }
 
-        this.add.text(w - 20, h - 20, "Ver. 0.9.7 - Dev Build", { fontFamily: 'Roboto', fontSize: '12px', color: '#444' }).setOrigin(1, 1);
+    createAnimatedBackground(w, h) {
+        // Rotar entre 3 fondos
+        const bgs = ['Fondo_Bosque', 'Fondo_Montaña', 'Fondo_Volcan'];
+        // Si no existen las texturas, usar color sólido
+        const bgKey = bgs[Math.floor(Math.random() * bgs.length)];
+        
+        if (this.textures.exists(bgKey)) {
+            const bgImage = this.add.image(w/2, h/2, bgKey).setDisplaySize(w, h).setAlpha(0.6);
+            
+            // Efecto de Zoom lento (Ken Burns effect)
+            this.tweens.add({
+                targets: bgImage,
+                scaleX: 1.1, scaleY: 1.1,
+                duration: 20000,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.easeInOut'
+            });
+        } else {
+            this.add.rectangle(w/2, h/2, w, h, 0x111111);
+        }
+
+        // Partículas de ambiente (Polvo/Ascuas)
+        const particles = this.add.particles(0, 0, 'pixel', {
+            x: { min: 0, max: w },
+            y: h + 10,
+            speedY: { min: -20, max: -50 },
+            scale: { start: 1, end: 0 },
+            alpha: { start: 0.5, end: 0 },
+            lifespan: 8000,
+            frequency: 200,
+            tint: 0xffaa00,
+            blendMode: 'ADD'
+        }).setDepth(-1); // Detrás de todo
     }
 
     createMenuPanel(width, height) {
-        const bgHeight = height - 40; 
-        const bg = this.add.rectangle(0, 0, width, bgHeight, 0x111111, 0.95).setStrokeStyle(2, 0x444444);
-        
-        const title = this.add.text(0, -bgHeight/2 + 40, "MENÚ", { fontFamily: 'Cinzel', fontSize: '28px', color: '#fff' }).setOrigin(0.5);
-        this.menuContainer.add([bg, title]);
+        // Panel Fondo del Menú (Izquierda)
+        const bg = this.add.graphics();
+        bg.fillStyle(0x000000, 0.85); // Casi opaco
+        bg.fillRect(0, 0, width, height);
+        bg.lineStyle(2, 0xffd700, 0.3); // Línea dorada sutil a la derecha
+        bg.beginPath();
+        bg.moveTo(width, 0);
+        bg.lineTo(width, height);
+        bg.strokePath();
+
+        this.menuContainer.add(bg);
+
+        // Título del Menú
+        const titleText = this.add.text(width/2, 60, "MENÚ", this.fontTitle).setOrigin(0.5);
+        // Reducir un poco la fuente del título del menú
+        titleText.setFontSize(40);
+        this.menuContainer.add(titleText);
 
         const buttons = [
-            { label: "JUGAR", icon: "⚔️", key: 'play', action: () => this.scene.start('WorldMapScene') },
+            { label: "JUGAR", icon: "⚔️", key: 'play', action: () => this.scene.start('WorldMapScene'), color: 0x006400 },
             { label: "HÉROE", icon: "🛡️", key: 'hero', action: () => this.switchTab('hero') },
             { label: "MOCHILA", icon: "🎒", key: 'inventory', action: () => this.switchTab('inventory') },
             { label: "TALENTOS", icon: "✨", key: 'talents', action: () => this.switchTab('talents') },
@@ -133,73 +186,100 @@ export default class MainMenuScene extends Phaser.Scene {
             { label: "FORJA", icon: "🔨", key: 'forge', action: () => this.switchTab('forge') },
             { label: "REFINAR", icon: "🔥", key: 'refining', action: () => this.switchTab('refining') },
             { label: "MISIONES", icon: "📜", key: 'quests', action: () => this.questBoard.toggle() },
-            { label: "PROFESIONES", icon: "🔨", key: 'profs', action: () => this.switchTab('profs') }, // <--- AQUÍ ESTÁ EL BOTÓN
-            { label: "CAMBIAR HÉROE", icon: "👤", key: 'change', action: () => this.changeHero() },
-            { label: "RESET", icon: "❌", key: 'reset', action: () => this.resetGame() }
+            { label: "PROFESIONES", icon: "⛏️", key: 'profs', action: () => this.switchTab('profs') },
+            { label: "CAMBIAR HÉROE", icon: "👤", key: 'change', action: () => this.changeHero(), color: 0x444444 },
+            { label: "RESET", icon: "❌", key: 'reset', action: () => this.resetGame(), color: 0x8b0000 }
         ];
 
         this.menuButtons = [];
-        let y = -bgHeight/2 + 100;
-        
+        let y = 140; // Empezar más abajo
+
         buttons.forEach(btnData => {
-            const btn = this.add.container(0, y);
+            const btn = this.add.container(width/2, y);
             btn.key = btnData.key;
+            btn.defaultColor = btnData.color || 0x222222;
 
-            const isPlay = btnData.key === 'play';
-            const color = isPlay ? 0x006400 : 0x222222;
-            const stroke = isPlay ? 0x00ff00 : 0x666666;
-
-            const btnBg = this.add.rectangle(0, 0, width - 40, 45, color).setInteractive({ useHandCursor: true });
-            btnBg.setStrokeStyle(1, stroke);
+            // Fondo del botón (Rounded Rect)
+            const btnBg = this.add.graphics();
+            btn.bgGraphics = btnBg; // Referencia para actualizar
+            this.drawButtonBg(btnBg, 0, 0, width - 40, 50, btn.defaultColor, false);
             
-            const icon = this.add.text(-(width/2) + 60, 0, btnData.icon, { fontSize: '20px' }).setOrigin(0.5);
-            const label = this.add.text(-(width/2) + 90, 0, btnData.label, this.fontMenuBtn).setOrigin(0, 0.5);
+            // Hitbox invisible para interacción
+            const hitArea = this.add.rectangle(0, 0, width - 40, 50, 0x000000, 0).setInteractive({ useHandCursor: true });
+            
+            // Icono y Texto
+            const icon = this.add.text(-100, 0, btnData.icon, { fontSize: '24px' }).setOrigin(0.5);
+            const label = this.add.text(-70, 0, btnData.label, this.fontMenuBtn).setOrigin(0, 0.5);
 
-            btnBg.on('pointerdown', () => {
-                SoundManager.playSound('ui_click');
-                this.updateMenuVisuals(btnData.key);
-                btnData.action();
-            });
-
-            btnBg.on('pointerover', () => btnBg.setFillStyle(isPlay ? 0x008000 : 0x333333));
-            btnBg.on('pointerout', () => {
-                if (this.selectedTab === btnData.key && !isPlay) btnBg.setFillStyle(0x444444);
-                else btnBg.setFillStyle(color);
-            });
-
-            btn.bg = btnBg; 
-            btn.add([btnBg, icon, label]);
+            btn.add([btnBg, hitArea, icon, label]);
             this.menuContainer.add(btn);
             this.menuButtons.push(btn);
 
-            y += 55;
+            // Eventos
+            hitArea.on('pointerdown', () => {
+                SoundManager.playSound('ui_click');
+                this.updateMenuVisuals(btnData.key);
+                // Pequeña animación de click
+                this.tweens.add({
+                    targets: btn, scale: 0.95, duration: 50, yoyo: true
+                });
+                btnData.action();
+            });
+
+            hitArea.on('pointerover', () => {
+                this.drawButtonBg(btnBg, 0, 0, width - 30, 50, 0x444444, true); // Hover: más ancho y claro
+                label.setColor('#ffd700');
+            });
+            
+            hitArea.on('pointerout', () => {
+                const isSelected = (this.selectedTab === btnData.key);
+                const color = isSelected ? 0x555555 : btn.defaultColor;
+                const border = isSelected;
+                this.drawButtonBg(btnBg, 0, 0, width - 40, 50, color, border);
+                label.setColor(isSelected ? '#ffd700' : '#E0E0E0');
+            });
+
+            y += 60; // Espacio entre botones
         });
+    }
+
+    drawButtonBg(graphics, x, y, w, h, color, border = false) {
+        graphics.clear();
+        graphics.fillStyle(color, 1);
+        if (border) {
+            graphics.lineStyle(2, 0xffd700, 1);
+            graphics.strokeRoundedRect(x - w/2, y - h/2, w, h, 10);
+        }
+        graphics.fillRoundedRect(x - w/2, y - h/2, w, h, 10);
     }
 
     updateMenuVisuals(selectedKey) {
         this.selectedTab = selectedKey;
         this.menuButtons.forEach(btn => {
-            if (btn.key === 'play' || btn.key === 'change' || btn.key === 'reset') return; 
+            const isSelected = (btn.key === selectedKey);
+            const isSpecial = (btn.key === 'play' || btn.key === 'change' || btn.key === 'reset');
             
-            if (btn.key === selectedKey) {
-                btn.bg.setFillStyle(0x444444);
-                btn.bg.setStrokeStyle(2, 0xFFD700);
-            } else {
-                btn.bg.setFillStyle(0x222222);
-                btn.bg.setStrokeStyle(1, 0x666666);
+            // Re-dibujar estado normal o seleccionado
+            // Los botones especiales mantienen su color salvo hover
+            if (!isSpecial) {
+                const color = isSelected ? 0x444444 : 0x222222;
+                this.drawButtonBg(btn.bgGraphics, 0, 0, 260, 50, color, isSelected);
+                
+                // Actualizar color de texto (buscamos el objeto Text dentro del container)
+                const label = btn.list[3]; 
+                if(label) label.setColor(isSelected ? '#ffd700' : '#E0E0E0');
             }
         });
     }
 
     switchTab(key) {
-        // Ocultar todos
         this.heroPanel.hide();
         this.inventoryPanel.hide();
         this.forgePanel.hide();
         this.talentsPanel.hide();
         this.refiningPanel.hide();
         this.towersPanel.hide();
-        this.professionsPanel.hide(); // <--- IMPORTANTE
+        this.professionsPanel.hide(); 
 
         if (key !== 'quests') this.questBoard.hide();
 
@@ -212,7 +292,7 @@ export default class MainMenuScene extends Phaser.Scene {
             case 'talents': this.talentsPanel.show(); break;
             case 'refining': this.refiningPanel.show(); break;
             case 'towers': this.towersPanel.show(); break;
-            case 'profs': this.professionsPanel.show(); break; // <--- CASE NUEVO
+            case 'profs': this.professionsPanel.show(); break;
         }
     }
 
@@ -225,6 +305,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     resetGame() {
+        // Crear un modal personalizado en lugar de confirm() nativo para mantener el estilo
         if(confirm("¿Estás seguro de BORRAR todo el progreso?")) { 
             SaveSystem.reset(); 
             location.reload(); 
@@ -236,12 +317,12 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     showCentralAlert(text, colorHex = '#ffffff') {
-        const cx = this.scale.width / 2;
+        const cx = this.scale.width / 2 + 140; // Centrado en el área de contenido
         const cy = this.scale.height / 2;
         const container = this.add.container(cx, cy).setDepth(3000);
         
-        const bg = this.add.rectangle(0, 0, 600, 100, 0x000000, 0.9).setStrokeStyle(4, colorHex.replace('#', '0x'));
-        const msg = this.add.text(0, 0, text, { fontFamily: 'Cinzel', fontSize: '28px', color: colorHex }).setOrigin(0.5);
+        const bg = this.add.rectangle(0, 0, 500, 80, 0x000000, 0.9).setStrokeStyle(2, colorHex.replace('#', '0x'));
+        const msg = this.add.text(0, 0, text, { fontFamily: 'Cinzel', fontSize: '24px', color: colorHex }).setOrigin(0.5);
         
         container.add([bg, msg]);
         container.setScale(0);
@@ -256,27 +337,34 @@ export default class MainMenuScene extends Phaser.Scene {
         });
     }
 
-    sanitizeData() {
-        const equippedIds = new Set();
-        const getId = (i) => i && i.id ? String(i.id) : null;
-        
-        Object.values(gameState.equipment).forEach(i => { if(i) equippedIds.add(getId(i)); });
-        Object.values(gameState.towerEquipment).forEach(t => { 
-            if(t.slot1) equippedIds.add(getId(t.slot1)); 
-            if(t.slot2) equippedIds.add(getId(t.slot2)); 
+    ensureDataIntegrity() {
+        // Reparación de Saves antiguos y estructuras faltantes
+        const allTowers = ['archer', 'cannon', 'mage', 'tesla', 'poison', 'quake'];
+        if (!gameState.towerEquipment) gameState.towerEquipment = {};
+        allTowers.forEach(t => { 
+            if(!gameState.towerEquipment[t]) gameState.towerEquipment[t] = {slot1:null, slot2:null}; 
         });
+        if (!gameState.biomeLevels) gameState.biomeLevels = { forest: 1, mountain: 1, volcano: 1 };
+        if (!gameState.talents) gameState.talents = [];
         
         // Limpieza de inventario (equipmentInventory y inventory legacy)
         if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
-        // Mover items viejos si existen
-        if (gameState.inventory && gameState.inventory.length > 0) {
+        
+        // Mover items viejos si existen en save legacy
+        if (gameState.inventory && Array.isArray(gameState.inventory) && gameState.inventory.length > 0) {
+            // Verificar si es el inventario de recursos o equipo
+            // Asumimos que inventory[] viejo tenía equipos mezclados
+            const resources = {}; 
             gameState.inventory.forEach(item => {
-                if(item.type !== 'tower_part' && item.type !== 'weapon' && item.type !== 'armor') return; // Solo equipo
-                gameState.equipmentInventory.push(item);
+                if(item.type === 'tower_part' || item.type === 'weapon' || item.type === 'armor' || item.type === 'accessory' || item.type === 'offhand') {
+                    if (!item.id) item.id = RPGSystem.getUniqueId();
+                    gameState.equipmentInventory.push(item);
+                } else {
+                    // Si es material, sumar a gameState.materials
+                    // (Lógica simplificada, mejor no tocar materiales si ya funcionan)
+                }
             });
-            gameState.inventory = []; // Limpiar legacy
+            gameState.inventory = []; // Limpiar legacy array
         }
-
-        SaveSystem.save(); 
     }
 }

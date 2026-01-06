@@ -13,7 +13,7 @@ export default class InventoryPanel {
         this.container = scene.add.container(0, 0).setVisible(false);
         this.category = 'all'; 
         this.page = 0;
-        this.itemsPerPage = 9; // 3x3 Grid
+        this.itemsPerPage = 9; 
 
          this.title = scene.add.text(width/2, height * 0.17, "MOCHILA", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.container.add(this.title);
@@ -79,7 +79,6 @@ export default class InventoryPanel {
     }
 
     renderEquipment() {
-        // --- CORRECCIÓN: Usar equipmentInventory ---
         const inv = gameState.equipmentInventory || [];
         const allItems = inv.filter(i => {
             if (!i) return false;
@@ -101,7 +100,6 @@ export default class InventoryPanel {
         pageItems.forEach(item => {
             const itemCont = this.scene.add.container(col * 180, row * 50);
             
-            // Color del borde según rareza
             let strokeColor = 0xffffff;
             if (item.rarity && RARITY[item.rarity]) strokeColor = RARITY[item.rarity].color;
             
@@ -192,6 +190,24 @@ export default class InventoryPanel {
         this.nextBtn.setVisible(this.page < totalPages - 1);
     }
 
+    // --- COMPARADOR DE EQUIPO ---
+    getEquippedComparison(item) {
+        if (item.type === 'tower_part') return null; // No comparar torres por ahora
+
+        // Buscar qué slot ocupa
+        const slotMap = { 
+            weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', dagger: 'mainHand', sword: 'mainHand',
+            offhand: 'offHand', shield: 'offHand', 
+            armor: 'armor', plate: 'armor', cloth: 'armor', leather: 'armor', 
+            accessory: 'accessory', ring: 'accessory' 
+        };
+        const targetSlot = slotMap[item.type] || slotMap[item.subType];
+        
+        if (!targetSlot || !gameState.equipment[targetSlot]) return null;
+
+        return gameState.equipment[targetSlot]; // Devuelve el ítem equipado
+    }
+
     showItemDetail(item) {
         this.detailContainer.removeAll(true);
         this.detailContainer.setVisible(true);
@@ -208,26 +224,63 @@ export default class InventoryPanel {
             fontFamily: 'Cinzel', fontSize: '20px', color: colorHex, align: 'center', wordWrap: {width: 320} 
         }).setOrigin(0.5, 0);
 
-        const statsStr = item.stats ? JSON.stringify(item.stats, null, 2).replace(/{|}|"/g, '') : "Sin stats";
+        // --- CONSTRUCCIÓN DE STATS CON COMPARADOR ---
+        let statsTextObjs = [];
+        let currentY = title.y + title.height + 25;
+        
+        const equippedItem = this.getEquippedComparison(item);
+        
+        if (item.stats) {
+            Object.entries(item.stats).forEach(([key, val]) => {
+                if (val !== 0) {
+                    let diffText = "";
+                    let diffColor = "#aaaaaa";
+
+                    if (equippedItem && equippedItem.stats) {
+                        const currentVal = equippedItem.stats[key] || 0;
+                        const diff = val - currentVal;
+                        if (diff > 0) { diffText = `(+${diff})`; diffColor = "#00ff00"; }
+                        else if (diff < 0) { diffText = `(${diff})`; diffColor = "#ff0000"; }
+                    }
+
+                    // Renderizar línea
+                    const lineContainer = this.scene.add.container(0, currentY);
+                    const statLabel = this.scene.add.text(-150, 0, `${key.toUpperCase()}: ${val}`, { fontFamily: 'Roboto', fontSize: '14px', color: '#dddddd' });
+                    const diffLabel = this.scene.add.text(statLabel.width - 140, 0, diffText, { fontFamily: 'Roboto', fontSize: '14px', color: diffColor, fontStyle: 'bold' });
+                    
+                    lineContainer.add([statLabel, diffLabel]);
+                    this.detailContainer.add(lineContainer);
+                    currentY += 20;
+                }
+            });
+        } else {
+            const noStats = this.scene.add.text(0, currentY, "Sin estadísticas", { fontFamily: 'Roboto', fontSize: '14px', color: '#aaa' }).setOrigin(0.5, 0);
+            this.detailContainer.add(noStats);
+            currentY += 25;
+        }
+
+        // --- INFO EXTRA (SETS, RAREZA) ---
         let rarityName = item.rarity ? RARITY[item.rarity].name : 'Desconocido';
-        let infoText = `Nivel: +${item.enchant || 0}\nRareza: ${rarityName}\n\n-- STATS --\n${statsStr}`;
+        let extraInfo = `\nRareza: ${rarityName}`;
         
         if (ITEM_SETS && item.recipeId) {
             for (let setKey in ITEM_SETS) {
                 const set = ITEM_SETS[setKey];
                 if (set.items.includes(item.recipeId)) {
-                    infoText += `\n\n✨ SET: ${set.name} ✨\n`;
-                    set.bonuses.forEach(b => infoText += ` (${b.count}) ${b.desc}\n`);
+                    extraInfo += `\n✨ SET: ${set.name} ✨`;
+                    // No mostramos todo el detalle del set aquí para no saturar, solo el nombre
                 }
             }
         }
 
-        const statsTxt = this.scene.add.text(0, title.y + title.height + 25, infoText, { 
-            fontFamily: 'Roboto', fontSize: '14px', align: 'left', wordWrap: {width: 320}, color: '#dddddd', lineHeight: 20
+        const extraTxt = this.scene.add.text(0, currentY + 10, extraInfo, { 
+            fontFamily: 'Roboto', fontSize: '13px', align: 'center', color: '#aaaaaa'
         }).setOrigin(0.5, 0);
+        this.detailContainer.add(extraTxt);
 
-        let currentY = statsTxt.y + statsTxt.height + 40;
+        currentY = extraTxt.y + extraTxt.height + 40;
 
+        // BOTONES
         const equipLabel = item.type === 'tower_part' ? "EQUIPAR (Torre)" : "EQUIPAR";
         const equipBtn = this.createActionBtn(0, currentY, equipLabel, 0x006400, () => this.actionEquip(item));
         
@@ -242,7 +295,9 @@ export default class InventoryPanel {
             .setStrokeStyle(3, item.rarity ? RARITY[item.rarity].color : 0xffffff)
             .setInteractive();
         
-        this.detailContainer.add([bg, title, statsTxt, equipBtn, fuseBtn, sellBtn]);
+        // Reordenar para que bg quede al fondo
+        this.detailContainer.addAt(bg, 0);
+        this.detailContainer.add([equipBtn, fuseBtn, sellBtn]);
     }
 
     createActionBtn(x, y, text, color, callback) {
@@ -256,22 +311,17 @@ export default class InventoryPanel {
 
     safeAddItemToInventory(item) {
         if (!item) return;
-        // --- CORRECCIÓN: Usar equipmentInventory ---
         if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
-        // Generar ID si es nuevo (o duplicado)
         item.id = RPGSystem.getUniqueId(); 
         gameState.equipmentInventory.push(item);
     }
 
     actionEquip(item) {
-        // Validación de Clase
         if (item.type !== 'tower_part' && !canEquipItem(gameState.selectedClass, item)) {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert("¡Clase incorrecta!", '#ff0000');
-            else console.log("Clase incorrecta");
             return;
         }
 
-        // --- CORRECCIÓN: Buscar en equipmentInventory ---
         const inv = gameState.equipmentInventory;
         const idx = inv.findIndex(i => String(i.id) === String(item.id));
         if (idx === -1) return;
@@ -335,7 +385,6 @@ export default class InventoryPanel {
     }
 
     actionSell(item) {
-        // --- CORRECCIÓN: Buscar en equipmentInventory ---
         const inv = gameState.equipmentInventory;
         const idx = inv.findIndex(i => i.id === item.id);
         if(idx === -1) return;
@@ -373,7 +422,6 @@ export default class InventoryPanel {
 
     populateFusionList() {
         this.fusionList.removeAll(true);
-        // --- CORRECCIÓN: Usar equipmentInventory ---
         const inv = gameState.equipmentInventory || [];
         const candidates = inv.filter(i => 
             String(i.id) !== String(this.itemToFuse1.id) && 
@@ -392,84 +440,71 @@ export default class InventoryPanel {
             let rColor = item.rarity && RARITY[item.rarity] ? RARITY[item.rarity].color : 0xffffff;
             const btn = this.scene.add.rectangle(0, y, 450, 45, 0x333333).setInteractive({useHandCursor:true}).setStrokeStyle(1, rColor);
             const txt = this.scene.add.text(0, y, `${item.name} (+${item.enchant})`, { fontFamily: 'Roboto', fontSize:'16px' }).setOrigin(0.5);
-            // AQUÍ CAMBIAMOS: Llamar a showFusionConfirmation
             btn.on('pointerdown', () => this.showFusionConfirmation(item));
             this.fusionList.add([btn, txt]);
             y += 55;
         });
     }
 
-    // --- NUEVO: VENTANA DE CONFIRMACIÓN ---
+    // --- NUEVO: VENTANA DE CONFIRMACIÓN VISUAL ---
     showFusionConfirmation(item2) {
-        this.fusionListModal.setVisible(false); // Ocultar lista
+        this.fusionListModal.setVisible(false);
         
         const cx = this.scene.scale.width / 2;
         const cy = this.scene.scale.height / 2;
         
         const modalContainer = this.scene.add.container(0, 0).setDepth(3000);
         const overlay = this.scene.add.rectangle(cx, cy, 2000, 2000, 0x000000, 0.8).setInteractive();
-        const panel = this.scene.add.rectangle(cx, cy, 600, 400, 0x222222).setStrokeStyle(4, 0xffd700);
+        const panel = this.scene.add.rectangle(cx, cy, 600, 400, 0x111111).setStrokeStyle(4, 0xffd700);
         
-        const title = this.scene.add.text(cx, cy - 170, "CONFIRMAR FUSIÓN", { fontFamily: 'Cinzel', fontSize: '28px', color: '#ffd700' }).setOrigin(0.5);
+        const title = this.scene.add.text(cx, cy - 170, "FUSIÓN", { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         
-        const infoText = this.scene.add.text(cx, cy - 120, 
-            "Al fusionar, el objeto resultante aumentará su nivel (+).\n" +
-            "IMPORTANTE: El objeto PRINCIPAL conservará sus estadísticas base.\n" +
-            "El secundario se destruirá.", 
-            { fontFamily: 'Roboto', fontSize: '16px', color: '#fff', align: 'center' }
-        ).setOrigin(0.5);
-
-        // Preview Item A (Principal)
-        const itemAContainer = this.createItemPreview(this.itemToFuse1, "PRINCIPAL (Se Mantiene)");
-        itemAContainer.setPosition(cx - 150, cy + 20);
+        // Iconos grandes
+        const item1Icon = this.createBigIcon(cx - 150, cy, this.itemToFuse1);
+        const item2Icon = this.createBigIcon(cx + 150, cy, item2);
         
-        // Preview Item B (Sacrificio)
-        const itemBContainer = this.createItemPreview(item2, "SACRIFICIO (Se Destruye)");
-        itemBContainer.setPosition(cx + 150, cy + 20);
+        // Flecha animada
+        const arrow = this.scene.add.text(cx, cy, "➡", { fontSize: '50px', color: '#fff' }).setOrigin(0.5);
+        this.scene.tweens.add({ targets: arrow, scale: 1.2, yoyo: true, repeat: -1, duration: 500 });
 
         // Botones
-        const btnCancel = this.scene.add.rectangle(cx - 100, cy + 150, 150, 50, 0x550000).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0xffffff);
-        const txtCancel = this.scene.add.text(cx - 100, cy + 150, "CANCELAR", { fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        const btnConfirm = this.scene.add.rectangle(cx + 100, cy + 150, 150, 50, 0x005500).setInteractive({useHandCursor:true}).setStrokeStyle(2, 0x00ff00);
-        const txtConfirm = this.scene.add.text(cx + 100, cy + 150, "FUSIONAR", { fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
-
-        btnCancel.on('pointerdown', () => {
-            modalContainer.destroy();
-            this.fusionListModal.setVisible(true); // Volver a la lista
-        });
-        
-        overlay.on('pointerdown', () => {
+        const btnCancel = this.createActionBtn(cx - 120, cy + 150, "CANCELAR", 0x550000, () => {
             modalContainer.destroy();
             this.fusionListModal.setVisible(true);
-        });
+        }).container;
+        
+        const btnConfirm = this.createActionBtn(cx + 120, cy + 150, "¡FUSIONAR!", 0x005500, () => {
+            // Animación de Fusión
+            this.scene.tweens.add({
+                targets: [item1Icon, item2Icon],
+                x: cx,
+                alpha: 0,
+                duration: 500,
+                onComplete: () => {
+                    // Flash
+                    this.scene.cameras.main.flash(500, 255, 255, 0);
+                    this.executeFusion(item2);
+                    modalContainer.destroy();
+                }
+            });
+        }).container;
 
-        btnConfirm.on('pointerdown', () => {
-            this.executeFusion(item2);
-            modalContainer.destroy();
-        });
-
-        modalContainer.add([overlay, panel, title, infoText, itemAContainer, itemBContainer, btnCancel, txtCancel, btnConfirm, txtConfirm]);
+        modalContainer.add([overlay, panel, title, item1Icon, item2Icon, arrow, btnCancel, btnConfirm]);
     }
 
-    createItemPreview(item, label) {
-        const container = this.scene.add.container(0, 0);
-        const bg = this.scene.add.rectangle(0, 0, 200, 180, 0x111111).setStrokeStyle(2, 0x444444).setInteractive();
+    createBigIcon(x, y, item) {
+        const container = this.scene.add.container(x, y);
+        let color = RARITY[item.rarity] ? RARITY[item.rarity].color : 0xffffff;
+        const bg = this.scene.add.rectangle(0, 0, 100, 100, 0x222222).setStrokeStyle(4, color);
         
-        const lbl = this.scene.add.text(0, -70, label, { fontSize: '12px', color: '#888', fontStyle: 'italic' }).setOrigin(0.5);
+        // Icono (Placeholder texto o sprite)
+        let icon;
+        // Aquí podrías usar tus sprites reales si tienes keys dinámicas
+        const txt = this.scene.add.text(0, 0, item.name.substring(0, 2).toUpperCase(), { fontSize: '40px', fontStyle: 'bold' }).setOrigin(0.5);
         
-        const nameColor = item.rarity === 'legendary' ? '#ffd700' : (item.rarity === 'epic' ? '#d000d0' : '#ffffff');
-        const name = this.scene.add.text(0, -40, `${item.name} +${item.enchant||0}`, { fontSize: '16px', fontStyle: 'bold', color: nameColor }).setOrigin(0.5);
+        const lvl = this.scene.add.text(0, 60, `+${item.enchant}`, { fontSize: '20px', color: '#00ff00' }).setOrigin(0.5);
         
-        let statsText = "";
-        if (item.stats) {
-            Object.entries(item.stats).forEach(([key, val]) => {
-                if (val !== 0) statsText += `${key.toUpperCase()}: ${val}\n`;
-            });
-        }
-        const stats = this.scene.add.text(0, 10, statsText, { fontSize: '14px', color: '#aaa', align: 'center' }).setOrigin(0.5);
-
-        container.add([bg, lbl, name, stats]);
+        container.add([bg, txt, lvl]);
         return container;
     }
 
