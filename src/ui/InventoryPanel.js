@@ -13,7 +13,7 @@ export default class InventoryPanel {
         this.container = scene.add.container(0, 0).setVisible(false);
         this.category = 'all'; 
         this.page = 0;
-        this.itemsPerPage = 9; 
+        this.itemsPerPage = 9; // 3x3 Grid
 
          this.title = scene.add.text(width/2, height * 0.17, "MOCHILA", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.container.add(this.title);
@@ -192,7 +192,7 @@ export default class InventoryPanel {
 
     // --- COMPARADOR DE EQUIPO ---
     getEquippedComparison(item) {
-        if (item.type === 'tower_part') return null; // No comparar torres por ahora
+        if (item.type === 'tower_part') return null; 
 
         // Buscar qué slot ocupa
         const slotMap = { 
@@ -206,6 +206,11 @@ export default class InventoryPanel {
         if (!targetSlot || !gameState.equipment[targetSlot]) return null;
 
         return gameState.equipment[targetSlot]; // Devuelve el ítem equipado
+    }
+
+    // Función auxiliar para redondear a 1 decimal
+    formatStat(val) {
+        return Math.round(val * 10) / 10;
     }
 
     showItemDetail(item) {
@@ -225,7 +230,6 @@ export default class InventoryPanel {
         }).setOrigin(0.5, 0);
 
         // --- CONSTRUCCIÓN DE STATS CON COMPARADOR ---
-        let statsTextObjs = [];
         let currentY = title.y + title.height + 25;
         
         const equippedItem = this.getEquippedComparison(item);
@@ -233,19 +237,27 @@ export default class InventoryPanel {
         if (item.stats) {
             Object.entries(item.stats).forEach(([key, val]) => {
                 if (val !== 0) {
+                    const formattedVal = this.formatStat(val);
                     let diffText = "";
                     let diffColor = "#aaaaaa";
 
                     if (equippedItem && equippedItem.stats) {
                         const currentVal = equippedItem.stats[key] || 0;
                         const diff = val - currentVal;
-                        if (diff > 0) { diffText = `(+${diff})`; diffColor = "#00ff00"; }
-                        else if (diff < 0) { diffText = `(${diff})`; diffColor = "#ff0000"; }
+                        const formattedDiff = this.formatStat(Math.abs(diff));
+                        
+                        if (diff > 0.09) { 
+                            diffText = `(+${formattedDiff})`; 
+                            diffColor = "#00ff00"; 
+                        } else if (diff < -0.09) { 
+                            diffText = `(-${formattedDiff})`; 
+                            diffColor = "#ff0000"; 
+                        }
                     }
 
                     // Renderizar línea
                     const lineContainer = this.scene.add.container(0, currentY);
-                    const statLabel = this.scene.add.text(-150, 0, `${key.toUpperCase()}: ${val}`, { fontFamily: 'Roboto', fontSize: '14px', color: '#dddddd' });
+                    const statLabel = this.scene.add.text(-150, 0, `${key.toUpperCase()}: ${formattedVal}`, { fontFamily: 'Roboto', fontSize: '14px', color: '#dddddd' });
                     const diffLabel = this.scene.add.text(statLabel.width - 140, 0, diffText, { fontFamily: 'Roboto', fontSize: '14px', color: diffColor, fontStyle: 'bold' });
                     
                     lineContainer.add([statLabel, diffLabel]);
@@ -268,7 +280,6 @@ export default class InventoryPanel {
                 const set = ITEM_SETS[setKey];
                 if (set.items.includes(item.recipeId)) {
                     extraInfo += `\n✨ SET: ${set.name} ✨`;
-                    // No mostramos todo el detalle del set aquí para no saturar, solo el nombre
                 }
             }
         }
@@ -295,8 +306,8 @@ export default class InventoryPanel {
             .setStrokeStyle(3, item.rarity ? RARITY[item.rarity].color : 0xffffff)
             .setInteractive();
         
-        // Reordenar para que bg quede al fondo
         this.detailContainer.addAt(bg, 0);
+        this.detailContainer.add([title]); // ¡TITULO AGREGADO AQUÍ!
         this.detailContainer.add([equipBtn, fuseBtn, sellBtn]);
     }
 
@@ -499,7 +510,6 @@ export default class InventoryPanel {
         
         // Icono (Placeholder texto o sprite)
         let icon;
-        // Aquí podrías usar tus sprites reales si tienes keys dinámicas
         const txt = this.scene.add.text(0, 0, item.name.substring(0, 2).toUpperCase(), { fontSize: '40px', fontStyle: 'bold' }).setOrigin(0.5);
         
         const lvl = this.scene.add.text(0, 60, `+${item.enchant}`, { fontSize: '20px', color: '#00ff00' }).setOrigin(0.5);
