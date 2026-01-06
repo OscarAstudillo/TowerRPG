@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { ENEMY_DB } from '../../config/Enemies.js';
 import { GAME_CONSTANTS, BOSS_SKILLS } from '../../config/GameConstants.js'; 
+import { ENEMY_SKILLS } from '../../config/EnemySkills.js'; // Importar nuevas skills
 
 export default class Enemy extends Phaser.GameObjects.Container {
     constructor(scene, path, levelDifficulty, typeKey = 'slime') {
@@ -30,6 +31,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.armor = this.baseArmor;
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
+        // ... (Resto de propiedades igual: coinReward, xpReward, isFlying...)
         const baseCoin = GAME_CONSTANTS.REWARDS ? GAME_CONSTANTS.REWARDS.COIN_BASE : 15;
         const baseXP = GAME_CONSTANTS.REWARDS ? GAME_CONSTANTS.REWARDS.XP_BASE : 10;
         this.coinReward = Math.floor(baseCoin * scaleFactor);
@@ -44,6 +46,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.isBoss = (typeKey.includes('boss') || typeKey.includes('mini'));
         this.skillTimer = 0;
         this.isCasting = false; 
+
+        // --- NUEVO: CARGAR SKILLS DE ENEMIGO COMÚN ---
+        this.skills = data.skills || []; // Array de strings ['SHOOT_ARROW', etc]
+        this.skillCooldowns = {}; // Control individual de CD
 
         // Colores
         let color = 0xff0000;
@@ -92,8 +98,9 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.updateDebuffs(delta);
         if (!this.active) return;
 
-        // --- IA DE BOSS ---
+        // --- IA DE BOSS (Existente) ---
         if (this.isBoss) {
+            // ... (Lógica Boss existente) ...
             const skillConfig = BOSS_SKILLS[this.typeKey] || BOSS_SKILLS['AOE_SMASH'];
             if (!this.isCasting) {
                 this.skillTimer += delta;
@@ -104,10 +111,15 @@ export default class Enemy extends Phaser.GameObjects.Container {
             } else {
                 if (skillConfig.TYPE !== 'projectile_barrage') return; 
             }
+        } 
+        // --- IA DE ENEMIGO COMÚN (NUEVO) ---
+        else if (this.skills.length > 0 && !this.isCasting && !this.statusEffects.stun.active) {
+            this.updateCommonSkills(delta);
         }
 
         // --- MOVIMIENTO ---
-        if (!this.isShielded && !this.statusEffects.stun.active) {
+        // Si está casteando, normalmente se detiene (depende de la skill)
+        if (!this.isCasting && !this.isShielded && !this.statusEffects.stun.active) {
             let speedMod = 1.0;
             if (this.statusEffects.slow.active) speedMod *= (1 - this.statusEffects.slow.factor);
             if (this.statusEffects.freeze.active) speedMod *= (1 - this.statusEffects.freeze.factor);
@@ -146,7 +158,86 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.checkAttackPlayer(time);
     }
 
+    // --- LÓGICA DE SKILLS ENEMIGAS COMUNES ---
+    updateCommonSkills(delta) {
+        if (!this.scene.player || this.scene.player.isDead) return;
+        const player = this.scene.player;
+        const distToPlayer = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
+
+        for (let skillKey of this.skills) {
+            const skillDef = ENEMY_SKILLS[skillKey];
+            if (!skillDef) continue;
+
+            if (!this.skillCooldowns[skillKey]) this.skillCooldowns[skillKey] = 0;
+            this.skillCooldowns[skillKey] -= delta;
+
+            if (this.skillCooldowns[skillKey] <= 0) {
+                // Verificar Rango
+                if (distToPlayer <= skillDef.range) {
+                    this.executeCommonSkill(skillKey, skillDef);
+                    this.skillCooldowns[skillKey] = skillDef.cooldown;
+                    return; // Ejecutar solo una skill por frame
+                }
+            }
+        }
+    }
+
+    executeCommonSkill(key, def) {
+        if (def.type === 'projectile') {
+            // Disparar
+            this.isCasting = true; // Detener movimiento brevemente
+            this.scene.tweens.add({
+                targets: this, scale: 1.2, duration: 200, yoyo: true,
+                onComplete: () => {
+                    this.isCasting = false;
+                    const proj = this.scene.projectiles.get(this.x, this.y);
+                    if (proj) {
+                        const dmg = Math.floor(this.damage * (def.damageMult || 1));
+                        proj.fire(this.scene.player, {
+                            damage: dmg,
+                            speed: def.speed,
+                            color: def.color,
+                            type: 'enemy_arrow', // Tipo visual
+                            effect: def.effect
+                        }, true); // TRUE = Es Hostil
+                        if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡DISPARO!", "#aaaaaa");
+                    }
+                }
+            });
+        } else if (def.type === 'dash') {
+            this.isCasting = true;
+            this.scene.showFloatingText(this.x, this.y - 40, "¡CARGA!", "#ff0000");
+            const angle = Phaser.Math.Angle.Between(this.x, this.y, this.scene.player.x, this.scene.player.y);
+            const speed = def.speed || 400;
+            
+            this.scene.tweens.add({
+                targets: this,
+                x: this.x + Math.cos(angle) * 150,
+                y: this.y + Math.sin(angle) * 150,
+                duration: 400,
+                ease: 'Cubic.out',
+                onComplete: () => {
+                    this.isCasting = false;
+                    // Chequear colisión al final del dash
+                    if (Phaser.Math.Distance.Between(this.x, this.y, this.scene.player.x, this.scene.player.y) < 50) {
+                        const dmg = Math.floor(this.damage * (def.damageMult || 1.2));
+                        this.scene.player.takeDamage(dmg);
+                    }
+                }
+            });
+        } else if (def.type === 'melee_buff') {
+            // Golpe fuerte (ya se maneja en checkAttackPlayer, pero podríamos potenciarlo)
+            this.scene.showFloatingText(this.x, this.y - 40, "¡GOLPE!", "#ff0000");
+            // Aumentar daño temporalmente
+            const originalDmg = this.damage;
+            this.damage = Math.floor(this.damage * def.damageMult);
+            this.scene.time.delayedCall(2000, () => { this.damage = originalDmg; });
+        }
+    }
+
+    // ... (El resto de métodos useBossSkill, etc. se mantienen igual)
     useBossSkill(config) {
+        // ... (Código Boss igual que antes) ...
         if (!this.scene || !this.scene.player) return;
         const player = this.scene.player;
         
@@ -321,6 +412,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
     reachBase() { if (this.isDead) return; const damageToBase = Math.max(1, Math.floor(this.damage * 0.5)); if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(damageToBase); this.die(false); }
 
     die(killedByPlayer) {
+        // ... (Mantener lógica de drops que arreglamos antes) ...
         if (!this.scene) return;
         const scene = this.scene;
         
@@ -333,24 +425,21 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.drops.forEach(dropDef => {
                     let [matKey, chance, min, max] = dropDef;
                     
-                    // --- TRANSFORMACIÓN DE TIER SEGÚN DIFICULTAD ---
-                    // Ahora aplica a TODOS, incluidos Bosses, para respetar el Tier del mapa
                     if (difficulty === 2) { 
                         if (matKey === 'copper') matKey = 'iron';
                         if (matKey === 'wood') matKey = 'cedar';
-                        if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_rigid';
+                        if (matKey === 'hide') matKey = 'leather_rigid';
                         if (matKey === 'cloth_simple') matKey = 'cloth_fine';
                     } 
                     else if (difficulty === 3) { 
                         if (matKey === 'copper') matKey = 'ingot_steel'; 
                         if (matKey === 'wood') matKey = 'plank_ebony';
-                        if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_dragon';
+                        if (matKey === 'hide') matKey = 'leather_dragon';
                         if (matKey === 'cloth_simple') matKey = 'cloth_royal';
                     }
 
                     if (Math.random() < chance) {
                         const qty = Phaser.Math.Between(min, max);
-                        // GameScene se encargará de calcular la rareza basada en el nivel
                         scene.generateLoot(this.x, this.y, matKey, qty);
                     }
                 });

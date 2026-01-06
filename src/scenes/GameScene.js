@@ -130,12 +130,20 @@ export default class GameScene extends Phaser.Scene {
         this.setupInputs();
 
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
-            if(e.active && p.active) { 
+            if(e.active && p.active && !p.isHostile) { // Ignorar si es hostil
                 if(p.hit) p.hit(e); 
                 else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); }
             } 
         });
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
+
+        // NUEVO: Proyectiles hostiles vs Jugador
+        this.physics.add.overlap(this.player, this.projectiles, (player, proj) => {
+            if (proj.active && proj.isHostile) {
+                proj.hit(player);
+            }
+        });
+
 
         this.startWaveTimer(20); 
         this.isSceneReady = true;

@@ -7,27 +7,30 @@ export const ENEMY_DB = {
     // MOBS NORMALES (Base Tier 1 - El código los escala automáticamente)
     // ============================================================
     // BOSQUE
+// BOSQUE
     slime: { name: "Slime", hp: 60, damage: 5, speed: 0.8, armor: 0, drops: [['scraps', 0.2, 1, 2]] },
-    goblin: { name: "Goblin", hp: 80, damage: 8, speed: 1.0, armor: 2, drops: [['scraps', 0.2, 1, 2], ['copper', 0.05, 1, 1]] },
-    wolf: { name: "Lobo", hp: 100, damage: 12, speed: 1.4, armor: 5, drops: [['hide', 0.2, 1, 2]] },
+    // Goblin ahora dispara flechas
+    goblin: { name: "Goblin", hp: 80, damage: 8, speed: 1.0, armor: 2, skills: ['SHOOT_ARROW'], drops: [['scraps', 0.2, 1, 2], ['copper', 0.05, 1, 1]] },
+    // Lobo ahora carga
+    wolf: { name: "Lobo", hp: 100, damage: 12, speed: 1.4, armor: 5, skills: ['DASH_ATTACK'], drops: [['hide', 0.2, 1, 2]] },
     boar: { name: "Jabalí", hp: 150, damage: 10, speed: 0.7, armor: 10, drops: [['hide', 0.15, 1, 2], ['scraps', 0.05, 1, 1]] },
     eagle: { name: "Águila", hp: 70, damage: 8, speed: 1.3, armor: 0, flying: true, drops: [['hide', 0.2, 1, 2]] }, 
-    ent: { name: "Ent Joven", hp: 300, damage: 15, speed: 0.5, armor: 20, drops: [['wood', 0.3, 1, 3], ['copper', 0.1, 1, 2]] },
-    shaman: { name: "Chamán", hp: 120, damage: 15, speed: 0.8, armor: 2, healer: true, drops: [['cloth_simple', 0.2, 1, 1], ['scraps', 0.1, 1, 3]] },
+    ent: { name: "Ent Joven", hp: 300, damage: 15, speed: 0.5, armor: 20, skills: ['HEAVY_STRIKE'], drops: [['wood', 0.3, 1, 3], ['copper', 0.1, 1, 2]] },
+    // Chamán cura
+    shaman: { name: "Chamán", hp: 120, damage: 15, speed: 0.8, armor: 2, healer: true, skills: ['HEAL_ALLY'], drops: [['cloth_simple', 0.2, 1, 1], ['scraps', 0.1, 1, 3]] },
 
     // MONTAÑA
-    bandit: { name: "Bandido", hp: 70, damage: 7, speed: 1.0, armor: 3, drops: [['scraps', 0.2, 1, 3], ['copper', 0.1, 1, 2]] },
-    rock_elemental: { name: "Elem. Roca", hp: 180, damage: 12, speed: 0.5, armor: 15, drops: [['copper', 0.2, 1, 3], ['coal', 0.2, 2, 4]] },
+    bandit: { name: "Bandido", hp: 70, damage: 7, speed: 1.0, armor: 3, skills: ['SHOOT_ARROW'], drops: [['scraps', 0.2, 1, 3], ['copper', 0.1, 1, 2]] },
+    rock_elemental: { name: "Elem. Roca", hp: 180, damage: 12, speed: 0.5, armor: 15, skills: ['THROW_ROCK'], drops: [['copper', 0.2, 1, 3], ['coal', 0.2, 2, 4]] },
     harpy: { name: "Arpía", hp: 80, damage: 10, speed: 1.4, armor: 2, flying: true, drops: [['scraps', 0.2, 1, 2], ['silver', 0.1, 1, 1]] },
     miner_dwarf: { name: "Minero", hp: 100, damage: 10, speed: 0.8, armor: 8, drops: [['copper', 0.2, 2, 4], ['gold_ore', 0.05, 1, 1]] },
-    golem_copper: { name: "Golem Cobre", hp: 350, damage: 18, speed: 0.4, armor: 25, drops: [['copper', 0.3, 3, 6]] },
+    golem_copper: { name: "Golem Cobre", hp: 350, damage: 18, speed: 0.4, armor: 25, skills: ['HEAVY_STRIKE'], drops: [['copper', 0.3, 3, 6]] },
 
     // VOLCÁN
-    fire_imp: { name: "Diablillo", hp: 60, damage: 8, speed: 1.5, armor: 0, drops: [['coal', 0.2, 1, 3]] },
+    fire_imp: { name: "Diablillo", hp: 60, damage: 8, speed: 1.5, armor: 0, skills: ['FIREBALL'], drops: [['coal', 0.2, 1, 3]] },
     magma_cube: { name: "Cubo Magma", hp: 120, damage: 10, speed: 0.6, armor: 10, drops: [['copper', 0.2, 1, 3], ['coal', 0.2, 2, 5]] },
     succubus: { name: "Súcubo", hp: 90, damage: 12, speed: 1.2, armor: 5, flying: true, drops: [['scraps', 0.2, 1, 2], ['ruby_uncut', 0.05, 1, 1]] },
-    fire_elemental: { name: "Elem. Fuego", hp: 200, damage: 15, speed: 0.8, armor: 15, drops: [['coal', 0.3, 3, 6], ['gold_ore', 0.1, 1, 2]] },
-
+    fire_elemental: { name: "Elem. Fuego", hp: 200, damage: 15, speed: 0.8, armor: 15, skills: ['FIREBALL', 'HEAVY_STRIKE'], drops: [['coal', 0.3, 3, 6], ['gold_ore', 0.1, 1, 2]] },
 
     // ============================================================
     // DIFICULTAD: FÁCIL (TIER 1 DROPS)
