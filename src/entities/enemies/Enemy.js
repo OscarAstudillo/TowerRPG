@@ -92,12 +92,9 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.updateDebuffs(delta);
         if (!this.active) return;
 
-        // --- IA DE BOSS: EJECUCIÓN DE HABILIDADES ---
+        // --- IA DE BOSS ---
         if (this.isBoss) {
-            // Obtener configuración de habilidad según el tipo de boss
             const skillConfig = BOSS_SKILLS[this.typeKey] || BOSS_SKILLS['AOE_SMASH'];
-            
-            // Si NO está casteando, actualizamos el timer
             if (!this.isCasting) {
                 this.skillTimer += delta;
                 if (this.skillTimer > skillConfig.COOLDOWN) {
@@ -105,7 +102,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                     this.skillTimer = 0;
                 }
             } else {
-                // Si está casteando, normalmente no se mueve (excepto skill projectile_barrage)
                 if (skillConfig.TYPE !== 'projectile_barrage') return; 
             }
         }
@@ -142,7 +138,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.hpBar.width = (this.width + 8) * hpPct; 
         this.hpBar.setFillStyle(hpPct < 0.3 ? 0xff0000 : 0x00ff00);
 
-        // Healer support
         if (this.isHealer && !this.isBoss) {
              this.skillTimer += delta;
              if (this.skillTimer > 3000) { this.performHeal(); this.skillTimer = 0; }
@@ -151,7 +146,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.checkAttackPlayer(time);
     }
 
-    // --- SISTEMA DE HABILIDADES DE BOSS ---
     useBossSkill(config) {
         if (!this.scene || !this.scene.player) return;
         const player = this.scene.player;
@@ -160,31 +154,24 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.scene.showFloatingText(this.x, this.y - 60, config.NAME || "¡ATAQUE!", "#ff0000");
         }
 
-        // Tipo 1: Escudo + Explosión (Boss Montaña)
         if (config.TYPE === 'shield_explode') {
             this.isCasting = true;
-            this.isShielded = true; // Invulnerable
-            this.sprite.setTint(0x888888); // Gris piedra
+            this.isShielded = true; 
+            this.sprite.setTint(0x888888); 
             
-            // Cargar y explotar
             this.scene.time.delayedCall(config.WARN_TIME, () => {
                 this.isShielded = false;
                 this.clearTint();
                 this.createExplosion(this.x, this.y, config.RADIUS, config.DAMAGE, config.COLOR);
                 this.isCasting = false;
             });
-        }
-        
-        // Tipo 2: Ataque en área sobre el jugador (Boss Bosque / Void)
-        else if (config.TYPE === 'aoe_target' || config.TYPE === 'singularity') {
+        } else if (config.TYPE === 'aoe_target' || config.TYPE === 'singularity') {
             this.isCasting = true;
             const targetX = player.x;
             const targetY = player.y;
             
-            // Indicador visual
             const indicator = this.scene.add.circle(targetX, targetY, 10, config.COLOR || 0xff0000, 0.4);
             
-            // Si es singularidad, atrae al jugador
             if (config.TYPE === 'singularity') {
                 this.scene.tweens.add({
                     targets: player,
@@ -205,29 +192,18 @@ export default class Enemy extends Phaser.GameObjects.Container {
                     this.isCasting = false;
                 }
             });
-        }
-
-        // Tipo 3: Lluvia de proyectiles (Boss Volcán) - No detiene movimiento
-        else if (config.TYPE === 'projectile_barrage') {
+        } else if (config.TYPE === 'projectile_barrage') {
             const shots = config.COUNT || 3;
-            let shotCount = 0;
-            
             const shootEvent = this.scene.time.addEvent({
                 delay: 300,
                 repeat: shots - 1,
                 callback: () => {
                     if (!this.active) return;
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
-                    
-                    // Crear proyectil enemigo simple
                     const proj = this.scene.add.circle(this.x, this.y, 8, config.COLOR, 1);
                     this.scene.physics.add.existing(proj);
                     proj.body.setVelocity(Math.cos(angle)*300, Math.sin(angle)*300);
-                    
-                    // Destruir tras tiempo
                     this.scene.time.delayedCall(2000, () => proj.destroy());
-                    
-                    // Colisión con jugador (Lógica manual rápida)
                     this.scene.physics.add.overlap(proj, player, () => {
                         player.takeDamage(config.DAMAGE);
                         proj.destroy();
@@ -239,15 +215,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     createExplosion(x, y, radius, damage, color) {
         if (!this.scene) return;
-        
-        // Visual
         const boom = this.scene.add.circle(x, y, radius, color || 0xff0000, 0.7);
         this.scene.tweens.add({
             targets: boom, alpha: 0, scale: 1.1, duration: 200,
             onComplete: () => boom.destroy()
         });
-        
-        // Daño
         const player = this.scene.player;
         if (player && !player.isDead) {
             const dist = Phaser.Math.Distance.Between(x, y, player.x, player.y);
@@ -257,7 +229,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
             }
         }
     }
-    // ------------------------------------------
 
     applyStatus(effect) {
         if (!effect || !this.active || this.isShielded) return;
@@ -266,27 +237,23 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.statusEffects.burn.damage = Math.max(this.statusEffects.burn.damage, effect.val);
             this.statusEffects.burn.timer = effect.duration;
             this.sprite.setTint(0xff4500); 
-        } 
-        else if (effect.type === 'poison') { 
+        } else if (effect.type === 'poison') { 
             this.statusEffects.poison.active = true;
             this.statusEffects.poison.damage = Math.max(this.statusEffects.poison.damage, effect.val);
             this.statusEffects.poison.timer = effect.duration;
             this.sprite.setTint(0x00ff00); 
-        }
-        else if (effect.type === 'armor_break') {
+        } else if (effect.type === 'armor_break') {
             this.statusEffects.armorBreak.active = true;
             this.statusEffects.armorBreak.val = effect.val;
             this.statusEffects.armorBreak.timer = effect.duration;
             this.armor = Math.max(0, this.baseArmor - effect.val);
             if(this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡ROTO!", "#aaaaaa");
-        }
-        else if (effect.type === 'freeze' || effect.type === 'slow') {
+        } else if (effect.type === 'freeze' || effect.type === 'slow') {
             this.statusEffects.freeze.active = true;
             this.statusEffects.freeze.factor = effect.val;
             this.statusEffects.freeze.timer = effect.duration;
             this.sprite.setTint(0x00ffff); 
-        } 
-        else if (effect.type === 'stun' && !this.typeKey.includes('boss')) {
+        } else if (effect.type === 'stun' && !this.typeKey.includes('boss')) {
             this.statusEffects.stun.active = true;
             this.statusEffects.stun.timer = effect.duration;
             this.sprite.setTint(0xffff00); 
@@ -366,23 +333,24 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 this.drops.forEach(dropDef => {
                     let [matKey, chance, min, max] = dropDef;
                     
-                    if (!this.typeKey.includes('boss') && !this.typeKey.includes('mini')) {
-                        if (difficulty === 2) { 
-                            if (matKey === 'copper') matKey = 'iron';
-                            if (matKey === 'wood') matKey = 'cedar';
-                            if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_rigid';
-                            if (matKey === 'cloth_simple') matKey = 'cloth_fine';
-                        } 
-                        else if (difficulty === 3) { 
-                            if (matKey === 'copper') matKey = 'ingot_steel'; 
-                            if (matKey === 'wood') matKey = 'plank_ebony';
-                            if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_dragon';
-                            if (matKey === 'cloth_simple') matKey = 'cloth_royal';
-                        }
+                    // --- TRANSFORMACIÓN DE TIER SEGÚN DIFICULTAD ---
+                    // Ahora aplica a TODOS, incluidos Bosses, para respetar el Tier del mapa
+                    if (difficulty === 2) { 
+                        if (matKey === 'copper') matKey = 'iron';
+                        if (matKey === 'wood') matKey = 'cedar';
+                        if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_rigid';
+                        if (matKey === 'cloth_simple') matKey = 'cloth_fine';
+                    } 
+                    else if (difficulty === 3) { 
+                        if (matKey === 'copper') matKey = 'ingot_steel'; 
+                        if (matKey === 'wood') matKey = 'plank_ebony';
+                        if (matKey === 'hide' || matKey === 'leather') matKey = 'leather_dragon';
+                        if (matKey === 'cloth_simple') matKey = 'cloth_royal';
                     }
 
                     if (Math.random() < chance) {
                         const qty = Phaser.Math.Between(min, max);
+                        // GameScene se encargará de calcular la rareza basada en el nivel
                         scene.generateLoot(this.x, this.y, matKey, qty);
                     }
                 });
