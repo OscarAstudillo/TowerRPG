@@ -5,7 +5,7 @@ import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { GAME_CONSTANTS } from '../config/GameConstants.js';
 import SaveSystem from './SaveSystem.js';
-import { EventBus } from '../utils/EventBus.js'; // Asegúrate de tener este import si usas EventBus
+import { EventBus } from '../utils/EventBus.js'; 
 
 class RPGSystem {
     
@@ -40,7 +40,7 @@ class RPGSystem {
         for (let i = 0; i < itemCount; i++) {
             const matKey = possibleMats[Math.floor(Math.random() * possibleMats.length)];
             let rarity = this.getDynamicRarity(levelId);
-            if (matKey === 'coal') rarity = 'common'; // Carbón siempre común
+            if (matKey === 'coal') rarity = 'common'; 
 
             const amount = Phaser.Math.Between(1, 3);
             if (!gameState.materials[matKey]) gameState.materials[matKey] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
@@ -60,7 +60,7 @@ class RPGSystem {
         return loot;
     }
 
-    // --- NUEVO MÉTODO: Probabilidad de Éxito de Profesión (0 a 0.5) ---
+    // --- Probabilidad de Éxito de Profesión (0 a 0.5) ---
     getProfessionChance(profKey) {
         if (!gameState.professions[profKey]) return 0;
         const level = gameState.professions[profKey].level || 1;
@@ -98,20 +98,14 @@ class RPGSystem {
             gameState.materials[matKey][consumeRarity] -= reqQty;
         }
 
-        let profKey = recipe.prof || 'smithing'; // Default a herrería si no tiene
+        let profKey = recipe.prof || 'smithing'; 
         if (!recipe.prof && recipe.type === 'tower_part') profKey = 'engineering';
 
-        // --- LÓGICA DE ENCANTAMIENTO AUTOMÁTICO (+0 a +6) ---
-        // Se aplica a Weaponsmith, Armorsmith y Jewelcrafting (o sus equivalentes)
+        // --- LÓGICA DE ENCANTAMIENTO (+0 a +6) ---
         let bonusEnchant = 0;
         const chance = this.getProfessionChance(profKey);
         
-        // Si tienes suerte (probabilidad basada en nivel), sale encantado
         if (Math.random() < chance) {
-            // El nivel de encantamiento es aleatorio entre 1 y 6
-            // Cuanto más alto el nivel de profesión, más probable es que sea alto
-            // Pero para simplificar y cumplir tu regla: "hasta un +6"
-            // Hacemos un roll ponderado simple:
             const enchantRoll = Math.random();
             if (enchantRoll > 0.95) bonusEnchant = 6;
             else if (enchantRoll > 0.85) bonusEnchant = 5;
@@ -129,18 +123,15 @@ class RPGSystem {
         return { success: true, item: item, enchantBonus: bonusEnchant };
     }
 
-    // --- GENERACIÓN DE ÍTEMS CON EL NUEVO SISTEMA DE STATS ---
     generateItem(recipe, rarityKey, initialEnchant = 0) {
         const rarity = RARITY[rarityKey];
         const tier = recipe.tier || 1;
         
-        // 1. Identificar Arquetipo para Stats Base
         const subType = recipe.subType || recipe.type;
         const archetype = GAME_CONSTANTS.BASE_STATS_RULES ? GAME_CONSTANTS.BASE_STATS_RULES[subType] : null; 
         
         let finalStats = {};
 
-        // 2. Calcular Multiplicadores Globales
         const tierMult = Math.pow(2, tier - 1);
         const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
         const rarityIndex = rarityOrder.indexOf(rarityKey);
@@ -149,7 +140,6 @@ class RPGSystem {
 
         const totalMult = tierMult * rarityMult * fusionMult;
 
-        // 3. Aplicar Stats Base Obligatorios
         if (archetype) {
             this.applyStat(finalStats, archetype.primary, recipe.baseStats[archetype.primary], totalMult);
             this.applyStat(finalStats, archetype.secondary, recipe.baseStats[archetype.secondary], totalMult);
@@ -159,7 +149,6 @@ class RPGSystem {
             }
         }
 
-        // 4. Generar Atributos Extra (Random)
         const extraCount = rarity.statCount || 0;
         const pool = this.getStatPool(recipe);
         
@@ -260,7 +249,6 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
-    // --- REFINAMIENTO CON DOBLE ITEM ESCALABLE ---
     refineMaterial(recipeId, rarityKey = 'common') {
         const recipe = REFINING_RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta inválida" };
@@ -278,15 +266,11 @@ class RPGSystem {
         }
 
         let outputRarity = rarityKey;
-        const profKey = 'alchemy'; // Asegúrate de usar esta key consistente
+        const profKey = 'alchemy'; 
         
-        // Probabilidad de mejora de rareza (si aplica)
-        // ... (Tu lógica de rareza existente) ...
-
-        // --- LÓGICA DE DOBLE ITEM ---
         let amount = 1;
         let isDouble = false;
-        const chance = this.getProfessionChance(profKey); // 0 a 0.5
+        const chance = this.getProfessionChance(profKey); 
         
         if (Math.random() < chance) {
             amount = 2;
@@ -298,7 +282,6 @@ class RPGSystem {
         }
         gameState.materials[recipe.output][outputRarity] += amount;
         
-        // XP de profesión
         this.gainProfessionXP(profKey, rarityKey);
 
         return { success: true, item: recipe.output, rarity: outputRarity, isDouble: isDouble };
@@ -310,12 +293,15 @@ class RPGSystem {
     }
 
     gainProfessionXP(profKey, rarityKey) {
-        // Puede recibir rarityKey (string) o amount (number)
         let xp = 10;
         if (typeof rarityKey === 'string' && RARITY[rarityKey]) {
             xp = 10 * RARITY[rarityKey].mult;
         } else if (typeof rarityKey === 'number') {
             xp = rarityKey;
+        }
+
+        if (!gameState.professions[profKey]) {
+            gameState.professions[profKey] = { level: 1, xp: 0, maxXp: 100 };
         }
 
         const prof = gameState.professions[profKey];
@@ -325,10 +311,11 @@ class RPGSystem {
                 prof.level++; 
                 prof.xp -= prof.maxXp; 
                 prof.maxXp = Math.floor(prof.maxXp * 1.5); 
-                // Cap nivel 100
+                
                 if(prof.level > 100) prof.level = 100;
                 
                 EventBus.emit('profession-levelup', { key: profKey, level: prof.level });
+                SaveSystem.save(); // <--- GUARDADO AUTOMÁTICO AL SUBIR NIVEL
             }
         }
     }
