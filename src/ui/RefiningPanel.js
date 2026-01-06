@@ -97,7 +97,6 @@ export default class RefiningPanel {
     }
 
     refresh() {
-        // --- CORRECCIÓN AQUÍ: Leer siempre 'refining' ---
         const pKey = 'refining';
         const p = gameState.professions[pKey] || { level: 1, xp: 0, maxXp: 100 };
         
@@ -150,17 +149,17 @@ export default class RefiningPanel {
         this.selectedRecipe = recipe;
         this.selectedRarity = 'common'; 
 
-        // Fondo del Modal
-        const bg = this.scene.add.rectangle(0, 0, 400, 450, 0x111111, 1)
+        // Fondo del Modal (Más alto para acomodar botones)
+        const bg = this.scene.add.rectangle(0, 0, 400, 500, 0x111111, 1)
             .setStrokeStyle(3, 0xffffff)
             .setInteractive(); 
         
-        const title = this.scene.add.text(0, -180, recipe.name.toUpperCase(), { 
+        const title = this.scene.add.text(0, -200, recipe.name.toUpperCase(), { 
             fontFamily: 'Cinzel', fontSize: '24px', color: '#ffd700', fontStyle:'bold' 
         }).setOrigin(0.5);
 
         // Selector de Rareza
-        this.rarityContainer = this.scene.add.container(0, -120);
+        this.rarityContainer = this.scene.add.container(0, -140);
         const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
         let btnX = -120;
         this.indicators = {};
@@ -190,22 +189,40 @@ export default class RefiningPanel {
         });
 
         // Información de Requisitos
-        this.infoText = this.scene.add.text(0, 20, "", { 
+        this.infoText = this.scene.add.text(0, 0, "", { 
             fontFamily: 'Roboto', fontSize: '16px', align: 'center', lineSpacing: 10 
         }).setOrigin(0.5);
 
-        // Botón Acción
-        this.actionBtn = this.scene.add.rectangle(0, 160, 200, 50, 0x006400).setInteractive({useHandCursor:true});
-        this.actionBtnText = this.scene.add.text(0, 160, "REFINAR", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold' }).setOrigin(0.5);
-        this.actionBtn.on('pointerdown', () => this.executeRefine());
+        // --- BOTONES DE ACCIÓN MÚLTIPLE (NUEVO) ---
+        this.btnsContainer = this.scene.add.container(0, 150);
+        
+        // Botón x1
+        this.btnX1 = this.createActionButton(-100, 0, "Refinar x1", 0x006400, () => this.executeRefine(1));
+        // Botón x10
+        this.btnX10 = this.createActionButton(0, 0, "x10", 0x00008b, () => this.executeRefine(10), 80);
+        // Botón x100
+        this.btnX100 = this.createActionButton(100, 0, "x100", 0x8b0000, () => this.executeRefine(100), 80);
+
+        this.btnsContainer.add([this.btnX1.container, this.btnX10.container, this.btnX100.container]);
 
         // Botón Cerrar Modal
-        const close = this.scene.add.text(170, -200, "X", { fontSize:'24px', color:'#ff5555', fontStyle:'bold'}).setInteractive({useHandCursor:true}).setOrigin(0.5);
+        const close = this.scene.add.text(170, -220, "X", { fontSize:'24px', color:'#ff5555', fontStyle:'bold'}).setInteractive({useHandCursor:true}).setOrigin(0.5);
         close.on('pointerdown', () => this.detailContainer.setVisible(false));
 
-        this.detailContainer.add([bg, title, this.rarityContainer, this.infoText, this.actionBtn, this.actionBtnText, close]);
+        this.detailContainer.add([bg, title, this.rarityContainer, this.infoText, this.btnsContainer, close]);
         
         this.updateDetailView();
+    }
+
+    createActionButton(x, y, label, color, callback, width=100) {
+        const container = this.scene.add.container(x, y);
+        const bg = this.scene.add.rectangle(0, 0, width, 40, color).setInteractive({useHandCursor:true});
+        const text = this.scene.add.text(0, 0, label, { fontFamily: 'Roboto', fontSize: '16px', fontStyle: 'bold' }).setOrigin(0.5);
+        
+        bg.on('pointerdown', callback);
+        
+        container.add([bg, text]);
+        return { container, bg, text };
     }
 
     updateDetailView() {
@@ -213,7 +230,7 @@ export default class RefiningPanel {
         const rKey = this.selectedRarity;
         const rarity = RARITY[rKey];
         
-        let hasMats = true;
+        let maxCraftable = 999999; // Límite inicial alto
         let reqText = `Calidad Seleccionada: ${rarity.name.toUpperCase()}\n\n`;
         
         for(let mat in recipe.input) {
@@ -226,7 +243,9 @@ export default class RefiningPanel {
 
             const qtyOwned = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
             
-            if (qtyOwned < qtyReq) hasMats = false;
+            // Calcular cuántos podemos hacer máximo con este material
+            const possible = Math.floor(qtyOwned / qtyReq);
+            if (possible < maxCraftable) maxCraftable = possible;
 
             reqText += `${rawDef.name} ${rarityLabel}: ${qtyOwned} / ${qtyReq}\n`;
         }
@@ -235,36 +254,41 @@ export default class RefiningPanel {
         reqText += `\nResultado: 1 ${outputDef.name}`;
 
         this.infoText.setText(reqText);
-        this.infoText.setColor(hasMats ? '#ffffff' : '#ffaaaa');
+        this.infoText.setColor(maxCraftable > 0 ? '#ffffff' : '#ffaaaa');
         
-        this.actionBtn.setFillStyle(hasMats ? 0x00aa00 : 0x333333);
-        
-        if(hasMats) {
-            this.actionBtn.setInteractive();
-            this.actionBtn.setAlpha(1);
+        // --- HABILITAR/DESHABILITAR BOTONES SEGÚN CANTIDAD ---
+        this.updateButtonState(this.btnX1, maxCraftable >= 1);
+        this.updateButtonState(this.btnX10, maxCraftable >= 10);
+        this.updateButtonState(this.btnX100, maxCraftable >= 100);
+    }
+
+    updateButtonState(btnObj, isEnabled) {
+        if (isEnabled) {
+            btnObj.bg.setInteractive();
+            btnObj.bg.setAlpha(1);
+            btnObj.container.setAlpha(1);
         } else {
-            this.actionBtn.disableInteractive();
-            this.actionBtn.setAlpha(0.5);
+            btnObj.bg.disableInteractive();
+            btnObj.bg.setAlpha(0.5);
+            btnObj.container.setAlpha(0.5);
         }
     }
 
-    executeRefine() {
-        // Usamos la nueva función del sistema RPG
-        const result = RPGSystem.refineMaterial(this.selectedRecipe.id, this.selectedRarity);
+    executeRefine(count) {
+        const result = RPGSystem.refineMaterial(this.selectedRecipe.id, this.selectedRarity, count);
 
         if (result.success) {
             SoundManager.playSound('build');
+            SaveSystem.save(); // RPGSystem ya guarda, pero doble check no daña
             
             // --- ACTUALIZAR UI ---
             this.updateDetailView(); 
             this.refresh(); 
             
-            const colorHex = '#' + RARITY[result.rarity].color.toString(16).padStart(6, '0');
-            let msg = `¡Refinado Exitoso!\n+1 ${this.selectedRecipe.output}`;
+            let msg = `¡Refinado Exitoso!\n+${result.totalProduced} ${this.selectedRecipe.output}`;
             
-            if (result.isDouble) {
-                msg = `¡DOBLE PRODUCCIÓN!\n+2 ${this.selectedRecipe.output}`;
-                this.showFloatingText("x2", 0xffff00, -50); 
+            if (result.doubleDrops > 0) {
+                this.showFloatingText(`¡${result.doubleDrops} DOBLES!`, 0xffff00, -50); 
             }
             
             this.showFloatingText(msg, 0xffffff);

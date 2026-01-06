@@ -253,43 +253,68 @@ class RPGSystem {
         return { success: true, item: newItem };
     }
 
-    refineMaterial(recipeId, rarityKey = 'common') {
+    // --- REFINAMIENTO EN LOTE (MODIFICADO) ---
+    refineMaterial(recipeId, rarityKey = 'common', count = 1) {
         const recipe = REFINING_RECIPES.find(r => r.id === recipeId);
         if (!recipe) return { success: false, error: "Receta inválida" };
 
+        // 1. Verificar si hay materiales para TODA la tanda
         for (let mat in recipe.input) {
-            const required = recipe.input[mat];
+            const requiredPerUnit = recipe.input[mat];
+            const totalRequired = requiredPerUnit * count;
+            
             const checkRarity = (mat === 'coal') ? 'common' : rarityKey;
             const available = gameState.materials[mat] ? (gameState.materials[mat][checkRarity] || 0) : 0;
-            if (available < required) return { success: false, error: `Falta material` };
+            
+            if (available < totalRequired) {
+                // Mensaje detallado
+                const matName = (RAW_MATERIALS[mat] || REFINED_MATERIALS[mat] || {name: mat}).name;
+                return { success: false, error: `Falta: ${matName} (${totalRequired - available})` };
+            }
         }
 
-        for (let mat in recipe.input) {
-            const consumeRarity = (mat === 'coal') ? 'common' : rarityKey;
-            gameState.materials[mat][consumeRarity] -= recipe.input[mat];
-        }
-
+        // 2. Procesar en bucle (para calcular chances de doble drop individualmente)
         let outputRarity = rarityKey;
-        // --- CORRECCIÓN CLAVE: Usar 'refining' en lugar de 'alchemy' ---
-        const profKey = 'refining'; 
+        const profKey = 'refining';
+        const chance = this.getProfessionChance(profKey);
         
-        let amount = 1;
-        let isDouble = false;
-        const chance = this.getProfessionChance(profKey); 
-        
-        if (Math.random() < chance) {
-            amount = 2;
-            isDouble = true;
+        let totalProduced = 0;
+        let doubleDrops = 0;
+
+        for (let i = 0; i < count; i++) {
+            // Consumir
+            for (let mat in recipe.input) {
+                const consumeRarity = (mat === 'coal') ? 'common' : rarityKey;
+                gameState.materials[mat][consumeRarity] -= recipe.input[mat];
+            }
+
+            // Producir
+            let amount = 1;
+            if (Math.random() < chance) {
+                amount = 2;
+                doubleDrops++;
+            }
+            totalProduced += amount;
+            
+            // Sumar XP (quizás quieras reducir XP si se hace en masa para evitar abuso, pero por ahora lineal)
+            this.gainProfessionXP(profKey, rarityKey);
         }
 
+        // 3. Guardar resultado
         if (!gameState.materials[recipe.output]) {
             gameState.materials[recipe.output] = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 };
         }
-        gameState.materials[recipe.output][outputRarity] += amount;
+        gameState.materials[recipe.output][outputRarity] += totalProduced;
         
-        this.gainProfessionXP(profKey, rarityKey);
+        SaveSystem.save();
 
-        return { success: true, item: recipe.output, rarity: outputRarity, isDouble: isDouble };
+        return { 
+            success: true, 
+            item: recipe.output, 
+            rarity: outputRarity, 
+            totalProduced: totalProduced,
+            doubleDrops: doubleDrops
+        };
     }
 
     getProfessionLevel(profKey) {
