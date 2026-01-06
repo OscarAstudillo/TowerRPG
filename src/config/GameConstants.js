@@ -128,7 +128,7 @@ export const BOSS_SKILLS = {
         WARN_TIME: 1500,
         RADIUS: 150,    
         DAMAGE: 30,     
-        COOLDOWN: 6000  
+        COOLDOWN: 2500  
     },
     // Boss Bosque (Raíces)
     boss_forest: {
@@ -137,7 +137,7 @@ export const BOSS_SKILLS = {
         WARN_TIME: 1200,
         RADIUS: 100,
         DAMAGE: 25,
-        COOLDOWN: 5000,
+        COOLDOWN: 1500,
         COLOR: 0x00ff00
     },
     // Boss Montaña (Escudo + Terremoto)
@@ -147,7 +147,7 @@ export const BOSS_SKILLS = {
         WARN_TIME: 2000,
         RADIUS: 250,
         DAMAGE: 50,
-        COOLDOWN: 8000,
+        COOLDOWN: 3000,
         COLOR: 0x8b4513
     },
     // Boss Volcán (Lluvia de Fuego)
@@ -156,7 +156,7 @@ export const BOSS_SKILLS = {
         NAME: "Lluvia Magma",
         COUNT: 5,
         DAMAGE: 20,
-        COOLDOWN: 4000,
+        COOLDOWN: 1500,
         COLOR: 0xff4500
     },
     // Boss Void (Final)
@@ -166,7 +166,7 @@ export const BOSS_SKILLS = {
         WARN_TIME: 2500,
         RADIUS: 300,
         DAMAGE: 100, // Insta-kill o casi
-        COOLDOWN: 12000,
+        COOLDOWN: 2000,
         COLOR: 0x800080
     }
 };
