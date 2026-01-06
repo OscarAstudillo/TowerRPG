@@ -298,13 +298,13 @@ export default class InventoryPanel {
 
         // BOTONES
         const equipLabel = item.type === 'tower_part' ? "EQUIPAR (Torre)" : "EQUIPAR";
-        const equipBtn = this.createActionBtn(0, currentY, equipLabel, 0x006400, () => this.actionEquip(item));
+        const equipBtnContainer = this.createActionBtn(0, currentY, equipLabel, 0x006400, () => this.actionEquip(item));
         
         currentY += 55;
-        const fuseBtn = this.createActionBtn(0, currentY, "FUSIONAR...", 0x00008b, () => this.initiateFusion(item));
+        const fuseBtnContainer = this.createActionBtn(0, currentY, "FUSIONAR...", 0x00008b, () => this.initiateFusion(item));
         
         currentY += 55;
-        const sellBtn = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
+        const sellBtnContainer = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
 
         const totalContentHeight = (currentY + 60) - (-250); 
         const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95)
@@ -312,8 +312,8 @@ export default class InventoryPanel {
             .setInteractive();
         
         this.detailContainer.addAt(bg, 0);
-        this.detailContainer.add(title);
-        this.detailContainer.add([equipBtn, fuseBtn, sellBtn]);
+        // !! IMPORTANTE: Agregar todos los elementos al contenedor
+        this.detailContainer.add([title, equipBtnContainer, fuseBtnContainer, sellBtnContainer]);
     }
 
     createActionBtn(x, y, text, color, callback) {
@@ -462,7 +462,7 @@ export default class InventoryPanel {
         });
     }
 
-    // --- NUEVO: VENTANA DE CONFIRMACIÓN VISUAL ---
+    // --- NUEVO: VENTANA DE CONFIRMACIÓN VISUAL MEJORADA ---
     showFusionConfirmation(item2) {
         this.fusionListModal.setVisible(false);
         
@@ -470,67 +470,59 @@ export default class InventoryPanel {
         const cy = this.scene.scale.height / 2;
         
         const modalContainer = this.scene.add.container(0, 0).setDepth(3000);
-        const overlay = this.scene.add.rectangle(cx, cy, 2000, 2000, 0x000000, 0.8).setInteractive();
-        const panel = this.scene.add.rectangle(cx, cy, 600, 400, 0x111111).setStrokeStyle(4, 0xffd700);
+        const overlay = this.scene.add.rectangle(cx, cy, 2000, 2000, 0x000000, 0.85).setInteractive();
+        const panel = this.scene.add.rectangle(cx, cy, 700, 500, 0x111111).setStrokeStyle(4, 0xffd700);
         
-        const title = this.scene.add.text(cx, cy - 170, "FUSIÓN", { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
+        const title = this.scene.add.text(cx, cy - 200, "CONFIRMAR FUSIÓN", { fontFamily: 'Cinzel', fontSize: '30px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         
-        // Iconos grandes CON INFO (Previsualización)
-        const item1Icon = this.createBigIcon(cx - 150, cy, this.itemToFuse1, "PRINCIPAL");
-        const item2Icon = this.createBigIcon(cx + 150, cy, item2, "SACRIFICIO");
+        // --- VISUALIZACIÓN DE FUSIÓN ---
+        const item1Card = this.createFusionCard(cx - 180, cy - 20, this.itemToFuse1, "BASE (Se mantiene)");
+        const item2Card = this.createFusionCard(cx + 180, cy - 20, item2, "SACRIFICIO (Se pierde)");
         
-        const arrow = this.scene.add.text(cx, cy, "➡", { fontSize: '50px', color: '#fff' }).setOrigin(0.5);
-        this.scene.tweens.add({ targets: arrow, scale: 1.2, yoyo: true, repeat: -1, duration: 500 });
+        const plusSign = this.scene.add.text(cx, cy - 20, "+", { fontSize: '60px', color: '#fff', fontStyle:'bold' }).setOrigin(0.5);
 
         // Botones
-        const btnCancel = this.createActionBtn(cx - 120, cy + 150, "CANCELAR", 0x550000, () => {
+        const btnCancelContainer = this.createActionBtn(cx - 150, cy + 180, "CANCELAR", 0x550000, () => {
             modalContainer.destroy();
             this.fusionListModal.setVisible(true);
-        }); // createActionBtn devuelve container, OK
+        });
         
-        const btnConfirm = this.createActionBtn(cx + 120, cy + 150, "¡FUSIONAR!", 0x005500, () => {
+        const btnConfirmContainer = this.createActionBtn(cx + 150, cy + 180, "¡FUSIONAR!", 0x006400, () => {
             this.scene.tweens.add({
-                targets: [item1Icon, item2Icon],
-                x: cx,
+                targets: [item1Card, item2Card, plusSign],
+                scale: 0,
                 alpha: 0,
-                duration: 500,
+                duration: 400,
                 onComplete: () => {
-                    this.scene.cameras.main.flash(500, 255, 255, 0);
+                    this.scene.cameras.main.flash(400, 255, 255, 255);
                     this.executeFusion(item2);
                     modalContainer.destroy();
                 }
             });
-        }); // createActionBtn devuelve container, OK
+        });
 
-        modalContainer.add([overlay, panel, title, item1Icon, item2Icon, arrow, btnCancel, btnConfirm]);
+        modalContainer.add([overlay, panel, title, item1Card, item2Card, plusSign, btnCancelContainer, btnConfirmContainer]);
     }
 
-    createBigIcon(x, y, item, label) {
+    createFusionCard(x, y, item, labelText) {
         const container = this.scene.add.container(x, y);
         let color = RARITY[item.rarity] ? RARITY[item.rarity].color : 0xffffff;
-        const bg = this.scene.add.rectangle(0, 0, 180, 220, 0x222222).setStrokeStyle(3, color);
         
-        const lbl = this.scene.add.text(0, -90, label, { fontSize: '14px', color: '#aaa', fontStyle: 'italic' }).setOrigin(0.5);
+        const bg = this.scene.add.rectangle(0, 0, 240, 300, 0x222222).setStrokeStyle(3, color);
+        const label = this.scene.add.text(0, -130, labelText, { fontSize: '14px', color: '#aaa', fontStyle:'italic' }).setOrigin(0.5);
         
-        const txt = this.scene.add.text(0, -40, item.name.substring(0, 2).toUpperCase(), { fontSize: '50px', fontStyle: 'bold' }).setOrigin(0.5);
-        const nameFull = this.scene.add.text(0, 10, item.name, { fontSize: '14px', color: '#fff', wordWrap: {width: 160}, align: 'center' }).setOrigin(0.5);
+        const name = this.scene.add.text(0, -90, item.name, { fontSize: '18px', color: '#fff', fontStyle: 'bold', wordWrap:{width:220}, align:'center' }).setOrigin(0.5);
+        const enchant = this.scene.add.text(0, -50, `Nivel: +${item.enchant}`, { fontSize: '20px', color: '#00ff00' }).setOrigin(0.5);
         
-        const lvl = this.scene.add.text(0, 50, `+${item.enchant}`, { fontSize: '24px', color: '#00ff00', fontStyle: 'bold' }).setOrigin(0.5);
-        
-        // Mostrar algunos stats clave
         let statsStr = "";
         if (item.stats) {
-            let count = 0;
-            for(let key in item.stats) {
-                if(count < 3 && item.stats[key] > 0) {
-                    statsStr += `${key.toUpperCase()}: ${this.formatStat(item.stats[key])}\n`;
-                    count++;
-                }
-            }
+            Object.entries(item.stats).forEach(([k, v]) => {
+                if (v > 0) statsStr += `${k.toUpperCase()}: ${this.formatStat(v)}\n`;
+            });
         }
-        const stats = this.scene.add.text(0, 80, statsStr, { fontSize: '12px', color: '#ccc', align: 'center' }).setOrigin(0.5, 0);
-        
-        container.add([bg, lbl, txt, nameFull, lvl, stats]);
+        const stats = this.scene.add.text(0, 20, statsStr, { fontSize: '14px', color: '#ddd', align: 'center' }).setOrigin(0.5);
+
+        container.add([bg, label, name, enchant, stats]);
         return container;
     }
 
