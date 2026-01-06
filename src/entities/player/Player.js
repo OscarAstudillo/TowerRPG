@@ -3,7 +3,7 @@ import { gameState, getCurrentHero } from '../../config/GameState.js';
 import { TALENTS } from '../../config/Talents.js';
 import { PLAYER_SKILLS } from '../../config/GameConstants.js'; 
 import SoundManager from '../../systems/SoundManager.js';
-import { EventBus } from '../../utils/EventBus.js'; // <--- IMPORTANTE
+import { EventBus } from '../../utils/EventBus.js';
 
 export default class Player extends Phaser.GameObjects.Container {
     constructor(scene, x, y, charClass, enemiesGroup, projectilesGroup) {
@@ -11,7 +11,7 @@ export default class Player extends Phaser.GameObjects.Container {
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
-        this.charClass = charClass;
+        this.charClass = charClass || 'guerrero'; // Default por si acaso
         this.enemies = enemiesGroup;
         this.projectiles = projectilesGroup;
         
@@ -55,7 +55,6 @@ export default class Player extends Phaser.GameObjects.Container {
             skillE: Phaser.Input.Keyboard.KeyCodes.E
         });
 
-        // Escuchar triggers desde UI (clic en botones)
         EventBus.on('ui-trigger-skill', (key) => {
             if (this.isDead) return;
             if (key === 'q') this.performSkillQ();
@@ -77,12 +76,11 @@ export default class Player extends Phaser.GameObjects.Container {
 
         const stats = gameState.playerStats;
 
-        // --- ACTUALIZAR COOLDOWNS Y NOTIFICAR A UI ---
+        // --- ACTUALIZAR COOLDOWNS ---
         if (this.cooldowns.dash > 0) this.cooldowns.dash -= delta;
         
         if (this.cooldowns.q > 0) {
             this.cooldowns.q -= delta;
-            // Emitir evento solo cada ciertos frames para no saturar, o al llegar a 0
             if (this.cooldowns.q <= 0) EventBus.emit('skill-cooldown', { key: 'q', current: 0 });
             else if (time % 10 < delta) EventBus.emit('skill-cooldown', { key: 'q', current: this.cooldowns.q });
         }
@@ -98,7 +96,6 @@ export default class Player extends Phaser.GameObjects.Container {
             if (this.skillCooldown <= 0) EventBus.emit('skill-cooldown', { key: 'main', current: 0 });
             else if (time % 10 < delta) EventBus.emit('skill-cooldown', { key: 'main', current: this.skillCooldown });
         }
-        // ---------------------------------------------
 
         // --- LÓGICA DE DASH ---
         if (this.isDashing) {
@@ -131,7 +128,6 @@ export default class Player extends Phaser.GameObjects.Container {
             this.lastDirection = { x: velocityX, y: velocityY };
         }
 
-        // --- ACTIVACIÓN DE SKILLS (TECLADO) ---
         if (this.skillKeys.dash.isDown && this.cooldowns.dash <= 0 && (velocityX !== 0 || velocityY !== 0)) {
             this.performDash(velocityX, velocityY);
             return; 
@@ -175,7 +171,7 @@ export default class Player extends Phaser.GameObjects.Container {
     }
 
     performDash(dirX, dirY) {
-        if (!PLAYER_SKILLS || this.cooldowns.dash > 0) return;
+        if (!PLAYER_SKILLS.DASH || this.cooldowns.dash > 0) return;
         
         this.isDashing = true;
         this.dashTimer = PLAYER_SKILLS.DASH.DURATION;
@@ -186,79 +182,144 @@ export default class Player extends Phaser.GameObjects.Container {
         this.body.setVelocity(vec.x, vec.y);
         
         if (this.bodySprite) this.bodySprite.setAlpha(0.6);
-        if (SoundManager) SoundManager.playSound('dash'); // Sonido opcional
+        if (SoundManager) SoundManager.playSound('dash'); 
+    }
+
+    // --- LÓGICA GENÉRICA PARA EJECUTAR CUALQUIER SKILL (Q o E) ---
+    executeSkillLogic(config) {
+        if (!config) return;
+
+        const damage = gameState.playerStats.damage * config.DAMAGE_MULT;
+        const range = config.RANGE || 150;
+        const color = config.COLOR || 0xffffff;
+
+        // Efecto visual y Lógica según TYPE
+        if (config.TYPE === 'area_self') {
+            // Círculo alrededor del jugador (Guerrero Q, Mago Q)
+            const circle = this.scene.add.circle(this.x, this.y, 10, color, 0.5);
+            this.scene.tweens.add({ targets: circle, scale: range / 10, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
+            
+            if (this.enemies) {
+                this.enemies.children.iterate(e => {
+                    if (e && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= range) {
+                        e.takeDamage(damage);
+                        if(config.EFFECT === 'freeze') e.applyStatus({ type: 'freeze', val: 0.5, duration: 2000 });
+                    }
+                });
+            }
+
+        } else if (config.TYPE === 'line' || config.TYPE === 'cone') {
+            // Ataque direccional hacia el mouse (Guerrero E, Mago E)
+            const pointer = this.scene.input.activePointer;
+            const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
+            
+            const line = this.scene.add.rectangle(this.x, this.y, range, config.WIDTH || 50, color, 0.7);
+            line.setOrigin(0, 0.5);
+            line.rotation = angle;
+            this.scene.tweens.add({ targets: line, alpha: 0, scaleY: 0, duration: 200, onComplete: () => line.destroy() });
+
+            if (this.enemies) {
+                this.enemies.children.iterate(e => {
+                    if (e && e.active) {
+                        const dist = Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y);
+                        if (dist <= range) {
+                            const angleToEnemy = Phaser.Math.Angle.Between(this.x, this.y, e.x, e.y);
+                            let diff = Math.abs(angle - angleToEnemy);
+                            if (diff > Math.PI) diff = (Math.PI * 2) - diff;
+                            if (diff < 0.5) { // Cono de ~30 grados
+                                e.takeDamage(damage);
+                                if(config.EFFECT === 'stun') e.applyStatus({ type: 'stun', duration: 1500 });
+                            }
+                        }
+                    }
+                });
+            }
+
+        } else if (config.TYPE === 'projectile') {
+            // Disparo único potente (Arquero E)
+            const pointer = this.scene.input.activePointer;
+            const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
+            
+            // Creamos un proyectil "falso" o especial aquí, o usamos el sistema de proyectiles si es flexible
+            // Por simplicidad visual rápida:
+            const proj = this.scene.add.circle(this.x, this.y, 8, color, 1);
+            this.scene.physics.add.existing(proj);
+            const speed = config.SPEED || 600;
+            proj.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+            
+            // Timeout para destruir
+            this.scene.time.delayedCall(1000, () => proj.destroy());
+            
+            // Colisión manual simple
+            this.scene.physics.add.overlap(proj, this.enemies, (p, e) => {
+                if(e.active) {
+                    e.takeDamage(damage);
+                    p.destroy();
+                }
+            });
+
+        } else if (config.TYPE === 'area_cursor') {
+            // Lluvia de flechas en el mouse (Arquero Q)
+            const pointer = this.scene.input.activePointer;
+            const targetX = pointer.worldX;
+            const targetY = pointer.worldY;
+
+            const area = this.scene.add.circle(targetX, targetY, range, color, 0.3);
+            this.scene.tweens.add({ targets: area, alpha: 0, duration: 1000, onComplete: () => area.destroy() });
+
+            // Daño retardado (como caer flechas)
+            this.scene.time.delayedCall(500, () => {
+                if (this.enemies) {
+                    this.enemies.children.iterate(e => {
+                        if (e && e.active && Phaser.Math.Distance.Between(targetX, targetY, e.x, e.y) <= range) {
+                            e.takeDamage(damage);
+                        }
+                    });
+                }
+            });
+        }
     }
 
     performSkillQ() {
-        if (!PLAYER_SKILLS || this.cooldowns.q > 0) return;
+        // Verificar que existan las skills para esta clase
+        const classSkills = PLAYER_SKILLS[this.charClass];
+        if (!classSkills || !classSkills.Q) return;
         
-        this.cooldowns.q = PLAYER_SKILLS.SKILL_Q.COOLDOWN;
-        EventBus.emit('skill-cooldown', { key: 'q', current: this.cooldowns.q }); // Notificar inicio CD
+        if (this.cooldowns.q > 0) return;
 
-        const damage = gameState.playerStats.damage * PLAYER_SKILLS.SKILL_Q.DAMAGE_MULT;
-        const range = PLAYER_SKILLS.SKILL_Q.RANGE;
-
-        const circle = this.scene.add.circle(this.x, this.y, 10, PLAYER_SKILLS.SKILL_Q.COLOR, 0.5);
-        this.scene.tweens.add({
-            targets: circle, scale: range / 10, alpha: 0, duration: 300, onComplete: () => circle.destroy()
-        });
-
-        if (this.enemies) {
-            this.enemies.children.iterate(enemy => {
-                if (enemy && enemy.active && Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y) <= range) {
-                    enemy.takeDamage(damage);
-                    const angle = Phaser.Math.Angle.Between(this.x, this.y, enemy.x, enemy.y);
-                    if(enemy.body) enemy.body.setVelocity(Math.cos(angle) * 200, Math.sin(angle) * 200);
-                }
-            });
-        }
+        const config = classSkills.Q;
+        this.cooldowns.q = config.COOLDOWN;
+        EventBus.emit('skill-cooldown', { key: 'q', current: this.cooldowns.q });
+        
+        this.scene.showFloatingText(this.x, this.y - 40, config.NAME, "#ffffff");
+        this.executeSkillLogic(config);
     }
 
     performSkillE() {
-        if (!PLAYER_SKILLS || this.cooldowns.e > 0) return;
+        const classSkills = PLAYER_SKILLS[this.charClass];
+        if (!classSkills || !classSkills.E) return;
 
-        this.cooldowns.e = PLAYER_SKILLS.SKILL_E.COOLDOWN;
-        EventBus.emit('skill-cooldown', { key: 'e', current: this.cooldowns.e }); // Notificar inicio CD
+        if (this.cooldowns.e > 0) return;
 
-        const damage = gameState.playerStats.damage * PLAYER_SKILLS.SKILL_E.DAMAGE_MULT;
-        const range = PLAYER_SKILLS.SKILL_E.RANGE;
-        
-        const pointer = this.scene.input.activePointer;
-        const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
-        
-        const line = this.scene.add.rectangle(this.x, this.y, range, PLAYER_SKILLS.SKILL_E.WIDTH, PLAYER_SKILLS.SKILL_E.COLOR, 0.7);
-        line.setOrigin(0, 0.5);
-        line.rotation = angle;
-        this.scene.tweens.add({
-            targets: line, alpha: 0, scaleY: 0, duration: 200, onComplete: () => line.destroy()
-        });
+        const config = classSkills.E;
+        this.cooldowns.e = config.COOLDOWN;
+        EventBus.emit('skill-cooldown', { key: 'e', current: this.cooldowns.e });
 
-        if (this.enemies) {
-            this.enemies.children.iterate(enemy => {
-                if (enemy && enemy.active) {
-                    const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
-                    if (dist <= range) {
-                        const angleToEnemy = Phaser.Math.Angle.Between(this.x, this.y, enemy.x, enemy.y);
-                        let diff = Math.abs(angle - angleToEnemy);
-                        if (diff > Math.PI) diff = (Math.PI * 2) - diff;
-                        if (diff < 0.5) enemy.takeDamage(damage);
-                    }
-                }
-            });
-        }
+        this.scene.showFloatingText(this.x, this.y - 40, config.NAME, "#ffffff");
+        this.executeSkillLogic(config);
     }
 
-    // --- CAST SKILL (HABILIDAD PRINCIPAL / ESPACIO) ---
     castSkill() {
         if (this.skillCooldown > 0) return { success: false };
         const hero = getCurrentHero();
         if (!hero) return { success: false };
 
         this.skillCooldown = this.skillMaxCooldown;
-        EventBus.emit('skill-cooldown', { key: 'main', current: this.skillMaxCooldown }); // Notificar UI
+        EventBus.emit('skill-cooldown', { key: 'main', current: this.skillMaxCooldown });
 
         const stats = gameState.playerStats;
 
+        // Mantengo tu lógica original para la habilidad de ESPACIO
         if (this.charClass === 'guerrero') {
             const healAmount = stats.maxHp * 0.3;
             stats.hp = Math.min(stats.maxHp, stats.hp + healAmount);

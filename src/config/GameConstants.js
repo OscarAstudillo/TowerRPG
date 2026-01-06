@@ -1,5 +1,3 @@
-// src/config/GameConstants.js
-
 export const GAME_CONSTANTS = {
     // --- JUGADOR Y PROGRESIÓN ---
     PLAYER: {
@@ -99,36 +97,36 @@ export const GAME_CONSTANTS = {
     }
 };
 
-// --- HABILIDADES DEL JUGADOR (NUEVO) ---
+// --- HABILIDADES POR CLASE (NUEVO) ---
 export const PLAYER_SKILLS = {
-    DASH: {
-        DURATION: 200,      // Duración del impulso en ms
-        SPEED_MULT: 3.0,    // Multiplicador de velocidad
-        COOLDOWN: 2000      // 2 segundos
+    // Configuración Global
+    DASH: { DURATION: 200, SPEED_MULT: 3.0, COOLDOWN: 2000 },
+
+    // Habilidades Específicas
+    guerrero: {
+        Q: { NAME: 'Torbellino', TYPE: 'area_self', DAMAGE_MULT: 1.2, RANGE: 120, COOLDOWN: 4000, COLOR: 0xff0000 },
+        E: { NAME: 'Golpe Sísmico', TYPE: 'cone', DAMAGE_MULT: 2.0, RANGE: 200, WIDTH: 80, COOLDOWN: 8000, COLOR: 0x8b0000, EFFECT: 'stun' }
     },
-    SKILL_Q: {
-        NAME: 'Whirlwind',
-        DAMAGE_MULT: 1.5,   // 150% del daño base
-        RANGE: 150,         // Radio del área
-        COOLDOWN: 5000,     // 5 segundos
-        COLOR: 0x00ffff     // Color del efecto visual
+    mago: {
+        Q: { NAME: 'Nova de Hielo', TYPE: 'area_self', DAMAGE_MULT: 1.5, RANGE: 150, COOLDOWN: 6000, COLOR: 0x00ffff, EFFECT: 'freeze' },
+        E: { NAME: 'Rayo Arcano', TYPE: 'line', DAMAGE_MULT: 2.5, RANGE: 300, WIDTH: 50, COOLDOWN: 5000, COLOR: 0xff00ff }
     },
-    SKILL_E: {
-        NAME: 'Thrust',
-        DAMAGE_MULT: 2.5,   // 250% del daño base
-        RANGE: 250,         // Distancia frontal
-        WIDTH: 60,          // Ancho del ataque
-        COOLDOWN: 8000,     // 8 segundos
-        COLOR: 0xff00ff
+    arquero: {
+        Q: { NAME: 'Lluvia de Flechas', TYPE: 'area_cursor', DAMAGE_MULT: 1.0, RANGE: 150, COOLDOWN: 5000, COLOR: 0x00ff00 },
+        E: { NAME: 'Disparo Potente', TYPE: 'projectile', DAMAGE_MULT: 3.0, SPEED: 600, COOLDOWN: 7000, COLOR: 0xffff00 }
+    },
+    asesino: {
+        Q: { NAME: 'Danza de Dagas', TYPE: 'projectiles_ring', DAMAGE_MULT: 1.0, COUNT: 8, COOLDOWN: 4000, COLOR: 0x800080 },
+        E: { NAME: 'Paso Sombrío', TYPE: 'dash_attack', DAMAGE_MULT: 2.5, RANGE: 250, COOLDOWN: 6000, COLOR: 0x4b0082 }
     }
 };
 
-// --- HABILIDADES DE JEFES (NUEVO) ---
+// --- HABILIDADES DE JEFES ---
 export const BOSS_SKILLS = {
     AOE_SMASH: {
-        WARN_TIME: 1500,    // Tiempo de advertencia
-        RADIUS: 200,        // Radio de explosión
-        DAMAGE: 30,         // Daño base
-        COOLDOWN: 6000      // Frecuencia
+        WARN_TIME: 1500,
+        RADIUS: 200,    
+        DAMAGE: 30,     
+        COOLDOWN: 6000  
     }
 };
