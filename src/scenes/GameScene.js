@@ -35,7 +35,7 @@ export default class GameScene extends Phaser.Scene {
     init(data) {
         this.level = data.level || 1;
         this.biome = data.biome || 'forest';
-        this.isEndless = (this.biome === 'endless'); // Detectar si es modo infinito
+        this.isEndless = (this.biome === 'endless'); 
         this.difficultyMode = data.difficulty || 1; 
         this.config = data.config || {}; 
         
@@ -64,7 +64,6 @@ export default class GameScene extends Phaser.Scene {
         const modeMult = GAME_CONSTANTS.DIFFICULTY.MODE_MULTIPLIER[this.difficultyMode] || 1.0;
         this.levelDifficultyFactor = levelScaling * modeMult;
         
-        // En Endless, la dificultad base empieza en 1.0 y escala dinámicamente
         if (this.isEndless) this.levelDifficultyFactor = 1.0;
 
         this.spawnMult = 1;
@@ -77,6 +76,7 @@ export default class GameScene extends Phaser.Scene {
     create() {
         updatePlayerStats(); 
         
+        // Crear textura pixel si no existe
         if (!this.textures.exists('pixel')) {
             const graphics = this.make.graphics({x: 0, y: 0, add: false});
             graphics.fillStyle(0xffffff, 1);
@@ -84,6 +84,7 @@ export default class GameScene extends Phaser.Scene {
             graphics.generateTexture('pixel', 4, 4);
         }
 
+        // --- SISTEMA DE PARTÍCULAS MEJORADO ---
         this.createParticles(); 
 
         this.enemies = this.physics.add.group({ classType: Enemy, runChildUpdate: true });
@@ -113,10 +114,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.gameUI = new GameUI(this);
         EventBus.emit('gold-changed', this.coins);
-        
-        // --- CORRECCIÓN AQUÍ: Enviamos solo el valor numérico, no el objeto ---
         EventBus.emit('base-damaged', gameState.baseHp); 
-        
         EventBus.emit('tower-selected', this.selectedTowerIndex);
         
         const centerX = this.scale.width / 2;
@@ -129,51 +127,179 @@ export default class GameScene extends Phaser.Scene {
         
         this.setupInputs();
 
+        // Colisiones
         this.physics.add.overlap(this.enemies, this.projectiles, (e, p) => { 
-            if(e.active && p.active && !p.isHostile) { // Ignorar si es hostil
+            if(e.active && p.active && !p.isHostile) { 
                 if(p.hit) p.hit(e); 
                 else { e.takeDamage(p.damage||10); if(p.recycle) p.recycle(); else p.destroy(); }
             } 
         });
+        
         this.physics.add.overlap(this.player, this.loots, (p, l) => this.collectLoot(l));
 
-        // NUEVO: Proyectiles hostiles vs Jugador
+        // Proyectiles hostiles vs Jugador
         this.physics.add.overlap(this.player, this.projectiles, (player, proj) => {
             if (proj.active && proj.isHostile) {
                 proj.hit(player);
             }
         });
 
-
         this.startWaveTimer(20); 
         this.isSceneReady = true;
     }
 
     createParticles() {
-        this.explosionEmitter = this.add.particles(0, 0, 'pixel', {
-            speed: { min: 50, max: 300 },
+        // 1. SANGRE (Gravedad, rojo oscuro)
+        this.bloodEmitter = this.add.particles(0, 0, 'pixel', {
+            speed: { min: 50, max: 150 },
             angle: { min: 0, max: 360 },
-            scale: { start: 2, end: 0 },
+            scale: { start: 1.5, end: 0 },
             alpha: { start: 1, end: 0 },
-            lifespan: 600,
-            gravityY: 0,
-            emitting: false,
-            blendMode: 'ADD'
+            lifespan: 500,
+            gravityY: 300, // Caen al suelo
+            tint: 0xcc0000,
+            emitting: false
         }).setDepth(900);
 
-        this.hitEmitter = this.add.particles(0, 0, 'pixel', {
-            speed: { min: 20, max: 100 },
+        // 2. CRÍTICOS / EXPLOSIONES (Dorado/Fuego, expansión rápida)
+        this.critEmitter = this.add.particles(0, 0, 'pixel', {
+            speed: { min: 100, max: 400 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 2.5, end: 0 },
+            lifespan: 300,
+            blendMode: 'ADD',
+            tint: [0xffaa00, 0xffff00], // Amarillo a naranja
+            emitting: false
+        }).setDepth(901);
+
+        // 3. MAGIA / BUFFS (Flotan hacia arriba, azul/cian)
+        this.magicEmitter = this.add.particles(0, 0, 'pixel', {
+            speedY: { min: -50, max: -100 },
+            speedX: { min: -20, max: 20 },
+            scale: { start: 1, end: 0 },
+            lifespan: 800,
+            blendMode: 'ADD',
+            tint: 0x00ffff,
+            emitting: false
+        }).setDepth(902);
+
+        // 4. POLVO (Al caminar o impacto leve)
+        this.dustEmitter = this.add.particles(0, 0, 'pixel', {
+            speed: { min: 10, max: 50 },
             angle: { min: 0, max: 360 },
             scale: { start: 1, end: 0 },
-            lifespan: 300,
-            emitting: false,
-            blendMode: 'ADD'
-        }).setDepth(900);
+            alpha: { start: 0.5, end: 0 },
+            lifespan: 400,
+            tint: 0xaaaaaa,
+            emitting: false
+        }).setDepth(899);
     }
+
+    // --- MÉTODOS AUXILIARES DE EFECTOS ---
+    
+    // Llamar a este para sangre/daño físico
+    createHitEffect(x, y, color = 0xff0000) {
+        if (!this.bloodEmitter) return;
+        this.bloodEmitter.setPosition(x, y);
+        this.bloodEmitter.setParticleTint(color);
+        this.bloodEmitter.explode(8); // Pequeña explosión de 8 partículas
+    }
+
+    // Llamar a este para explosiones grandes o skills
+    createExplosion(x, y, color = 0xffa500) {
+        if (!this.critEmitter) return;
+        this.critEmitter.setPosition(x, y);
+        this.critEmitter.setParticleTint(color); 
+        this.critEmitter.explode(20); 
+        this.cameras.main.shake(150, 0.005); // Shake sutil
+    }
+
+    // --- TEXTO FLOTANTE MEJORADO (FÍSICA SIMULADA) ---
+    showFloatingText(x, y, message, type = 'normal', duration = 1000) { 
+        let color = '#ffffff';
+        let fontSize = '20px';
+        let stroke = '#000';
+        let strokeThick = 3;
+        let scaleStart = 1;
+        let scaleEnd = 1;
+        
+        switch(type) {
+            case 'crit': 
+                color = '#ffcc00'; fontSize = '36px'; strokeThick=6; 
+                scaleStart = 0.5; scaleEnd = 1.5; duration = 1500;
+                break;
+            case 'heal': 
+                color = '#00ff00'; fontSize = '22px'; 
+                break;
+            case 'gold': 
+                color = '#ffd700'; fontSize = '24px'; 
+                break;
+            case 'damage': 
+                color = '#ffffff'; 
+                break;
+        }
+
+        const text = this.add.text(x, y, message, { 
+            fontFamily: 'Cinzel', fontSize: fontSize, fontStyle: 'bold', 
+            color: color, stroke: stroke, strokeThickness: strokeThick 
+        }).setOrigin(0.5).setDepth(2000).setScale(scaleStart); 
+        
+        // Física simulada para el texto
+        const angle = Phaser.Math.Between(-20, 20) * (Math.PI / 180); 
+        const speed = type === 'crit' ? 250 : 120; // Más velocidad si es crítico
+        
+        // Velocidad inicial
+        let vx = Math.sin(angle) * speed * (Math.random() < 0.5 ? 1 : -1);
+        let vy = -speed; // Hacia arriba
+
+        this.tweens.addCounter({
+            from: 0, to: 100, duration: duration,
+            onUpdate: (tween) => {
+                const dt = 0.016; // Aproximación de delta time
+                
+                // Gravedad simple
+                vy += 800 * dt; 
+                
+                text.x += vx * dt;
+                text.y += vy * dt;
+
+                // Fade out al final
+                const progress = tween.getValue() / 100;
+                if (progress > 0.7) text.setAlpha(1 - ((progress - 0.7) * 3.3));
+                
+                // Efecto de escala para críticos (Pop)
+                if (type === 'crit' && progress < 0.2) {
+                    const s = Phaser.Math.Interpolation.Bezier([0.5, 2.0, 1.0], progress * 5);
+                    text.setScale(s);
+                }
+            },
+            onComplete: () => text.destroy()
+        });
+    }
+
+    showDamage(x, y, amount, isCrit) {
+        const type = isCrit ? 'crit' : 'damage';
+        let text = `${amount}`;
+        if (isCrit) text = `!${amount}!`;
+        
+        this.showFloatingText(x, y, text, type);
+        
+        // Shake extra si es crítico
+        if (isCrit) {
+            this.cameras.main.shake(100, 0.003);
+            this.createExplosion(x, y, 0xffcc00); // Chispas doradas
+        } else {
+            this.createHitEffect(x, y, 0xffffff); // Chispas blancas/sangre
+        }
+    }
+
+    // ... (El resto de métodos como setupInputs, spawnLoot, etc. se mantienen igual que tu versión anterior) ...
+    // Asegúrate de copiar/mantener el resto de tu lógica de juego (spawnEnemy, update, etc.)
+    // Para simplificar, he incluido las partes modificadas arriba.
+    // A continuación, el resto del archivo sin cambios lógicos mayores, solo integración.
 
     setupInputs() {
         this.input.keyboard.removeAllListeners(); 
-        
         this.input.keyboard.on('keydown-SPACE', () => this.triggerPlayerSkill());
         this.input.keyboard.on('keydown-ESC', () => this.togglePause());
         
@@ -195,22 +321,18 @@ export default class GameScene extends Phaser.Scene {
 
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (this.isPaused) return;
-            
             if (currentlyOver.length > 0) {
                 if (pointer.y > this.scale.height - 140) return; 
             }
-
             if (this.upgradeContainer && this.upgradeContainer.visible) {
                 const clickedOnUpgrade = currentlyOver.some(obj => 
                     obj === this.upgradeContainer || obj.parentContainer === this.upgradeContainer
                 );
                 const clickedOnTower = currentlyOver.some(obj => this.getTowerFromObject(obj) !== null);
-                
                 if (!clickedOnUpgrade && !clickedOnTower) {
                     this.closeUpgradeMenu();
                 }
             }
-            
             if (pointer.y > 100 && pointer.y < (this.scale.height - 140)) { 
                 if (this.player && this.player.setTarget) {
                     this.player.setTarget(pointer.x, pointer.y);
@@ -224,11 +346,9 @@ export default class GameScene extends Phaser.Scene {
         this.time.paused = false; 
         this.physics.resume();
         this.tweens.resumeAll();
-        
         if (this.spawnTimer) this.spawnTimer.remove();
         this.input.keyboard.removeAllListeners();
         this.input.removeAllListeners();
-
         EventBus.off('ui-select-tower');
         EventBus.off('ui-trigger-skill');
         EventBus.off('ui-start-wave');
@@ -372,26 +492,14 @@ export default class GameScene extends Phaser.Scene {
             type = 'coin_bag';
         } else {
             const matRoll = Math.random();
-            
-            // --- LÓGICA DE DROP: NORMAL vs ENDLESS ---
             if (this.isEndless) {
-                // Tier según oleada
-                if (this.currentWave <= 30) { // Tier 1
-                    type = matRoll < 0.5 ? 'wood' : 'copper';
-                } else if (this.currentWave <= 60) { // Tier 2
-                    type = matRoll < 0.5 ? 'cedar' : 'iron';
-                } else { // Tier 3 (61+)
-                    type = matRoll < 0.5 ? 'ebony' : 'mithril';
-                }
+                if (this.currentWave <= 30) { type = matRoll < 0.5 ? 'wood' : 'copper'; } 
+                else if (this.currentWave <= 60) { type = matRoll < 0.5 ? 'cedar' : 'iron'; } 
+                else { type = matRoll < 0.5 ? 'ebony' : 'mithril'; }
             } else {
-                // Lógica normal por dificultad seleccionada
-                if (this.difficultyMode === 1) {
-                    type = matRoll < 0.5 ? 'wood' : 'copper'; 
-                } else if (this.difficultyMode === 2) {
-                    type = matRoll < 0.5 ? 'cedar' : 'iron'; 
-                } else {
-                    type = matRoll < 0.5 ? 'ebony' : 'mithril'; 
-                }
+                if (this.difficultyMode === 1) { type = matRoll < 0.5 ? 'wood' : 'copper'; } 
+                else if (this.difficultyMode === 2) { type = matRoll < 0.5 ? 'cedar' : 'iron'; } 
+                else { type = matRoll < 0.5 ? 'ebony' : 'mithril'; }
             }
         }
         
@@ -444,7 +552,6 @@ export default class GameScene extends Phaser.Scene {
         this.waveActive = true;
         this.currentWave++;
         
-        // --- LÓGICA ENDLESS / NORMAL PARA BOSS FINAL ---
         this.isBossWave = false; 
         if (!this.isEndless) {
             this.isBossWave = (this.currentWave === this.totalWaves);
@@ -453,16 +560,15 @@ export default class GameScene extends Phaser.Scene {
         EventBus.emit('wave-changed', { current: this.currentWave, total: this.isEndless ? '∞' : this.totalWaves, isBoss: this.isBossWave });
         
         let baseCount = 8 + (this.currentWave * 2); 
-        if (this.isEndless) baseCount = 10 + Math.floor(this.currentWave * 0.5); // Escalado suave en endless
+        if (this.isEndless) baseCount = 10 + Math.floor(this.currentWave * 0.5); 
 
         let totalEnemies = Math.ceil(baseCount * this.spawnMult);
         
-        // --- LÓGICA DE SPAWN BOSSES EN ENDLESS ---
         let isSpecialWave = false;
         let specialType = null;
         if (this.isEndless) {
-            if (this.currentWave % 10 === 0) { isSpecialWave = true; specialType = 'boss'; totalEnemies = 1; } // Boss cada 10
-            else if (this.currentWave % 5 === 0) { isSpecialWave = true; specialType = 'mini'; totalEnemies = 5; } // MiniBoss cada 5
+            if (this.currentWave % 10 === 0) { isSpecialWave = true; specialType = 'boss'; totalEnemies = 1; } 
+            else if (this.currentWave % 5 === 0) { isSpecialWave = true; specialType = 'mini'; totalEnemies = 5; } 
         }
 
         let spawnDelay = 1000 - (this.currentWave * 50); 
@@ -479,7 +585,6 @@ export default class GameScene extends Phaser.Scene {
                 if (pathCount > 1) { if (this.currentWave === 1) targetPathIndex = 0; else if (this.currentWave === 2) targetPathIndex = 1; else targetPathIndex = spawned % pathCount; }
                 if (!this.paths[targetPathIndex]) targetPathIndex = 0;
                 
-                // Spawn especial de Endless
                 if (this.isEndless && isSpecialWave && spawned === totalEnemies - 1) {
                     this.spawnEndlessBoss(specialType);
                 } else {
@@ -502,12 +607,10 @@ export default class GameScene extends Phaser.Scene {
         let difficultyFactor = this.levelDifficultyFactor;
 
         if (this.isEndless) {
-            // Lógica Endless: Mezcla de biomas y escalado por %
-            let tierKey = 'easy'; // T1
-            if (this.currentWave > 60) tierKey = 'hard'; // T3
-            else if (this.currentWave > 30) tierKey = 'normal'; // T2
+            let tierKey = 'easy'; 
+            if (this.currentWave > 60) tierKey = 'hard'; 
+            else if (this.currentWave > 30) tierKey = 'normal'; 
 
-            // Escalado: 1% acumulativo por oleada
             difficultyFactor = Math.pow(1.01, this.currentWave);
 
             const biomes = ['forest', 'mountain', 'volcano'];
@@ -522,7 +625,6 @@ export default class GameScene extends Phaser.Scene {
             mobKey = possibleMobs[Math.floor(Math.random() * possibleMobs.length)];
 
         } else {
-            // Lógica Normal
             let tierIdx = 0; 
             if (this.currentWave >= 3) tierIdx = 1; 
             if (this.currentWave >= 5) tierIdx = 2;
@@ -571,7 +673,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     spawnBoss() {
-        if (this.isEndless) return; // En endless se maneja en startWave
+        if (this.isEndless) return; 
 
         this.bossSpawned = true; 
         const biomeConfig = BIOME_ENEMIES[this.biome]; 
@@ -584,7 +686,6 @@ export default class GameScene extends Phaser.Scene {
         
         let bossKey = 'slime'; 
 
-        // Determinar configuración según dificultad
         let diffKey = 'easy';
         if (this.difficultyMode === 2) diffKey = 'normal';
         if (this.difficultyMode === 3) diffKey = 'hard';
@@ -596,7 +697,6 @@ export default class GameScene extends Phaser.Scene {
             return;
         }
 
-        // Seleccionar Boss
         if (this.level === 5 || this.level === 10) { 
             if (difficultyData.bosses && difficultyData.bosses[this.level]) {
                 bossKey = difficultyData.bosses[this.level]; 
@@ -737,8 +837,6 @@ export default class GameScene extends Phaser.Scene {
     
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { /* Animacion opcional */ } }
     
-    createSpawnIndicator(x, y) { const marker = this.add.circle(x, y, 20, 0xff0000); this.tweens.add({ targets: marker, scale: 1.5, alpha: 0, duration: 1000, repeat: -1 }); this.add.text(x, y - 40, '⬇ INICIO', { fontSize: '16px', fontStyle: 'bold', color: '#ff0000', backgroundColor: '#000000' }).setOrigin(0.5); }
-    
     tryBuildTower(site) { 
         if (site.isOccupied) return; 
         const stats = TOWER_TYPES[this.selectedTowerType]; 
@@ -788,7 +886,6 @@ export default class GameScene extends Phaser.Scene {
     
     onEnemyLeaks(damage) { 
         gameState.baseHp -= damage; 
-        // --- CORRECCIÓN AQUÍ: Enviamos solo el número ---
         EventBus.emit('base-damaged', gameState.baseHp); 
         
         this.cameras.main.flash(200, 255, 0, 0); 
@@ -892,63 +989,6 @@ export default class GameScene extends Phaser.Scene {
         } catch (err) { console.warn("Error", err); } 
     }
     
-    createExplosion(x, y, color) {
-        if (!this.explosionEmitter) return;
-        this.explosionEmitter.setPosition(x, y);
-        this.explosionEmitter.setParticleTint(color); 
-        this.explosionEmitter.explode(20); 
-        this.cameras.main.shake(100, 0.005);
-    }
-
-    createHitEffect(x, y, color) {
-        if (!this.hitEmitter) return;
-        this.hitEmitter.setPosition(x, y);
-        this.hitEmitter.setParticleTint(color); 
-        this.hitEmitter.explode(5); 
-    }
-
-    showFloatingText(x, y, message, type = 'normal', duration = 800) { 
-        let color = '#ffffff';
-        let fontSize = '20px';
-        let stroke = '#000';
-        let strokeThick = 3;
-        
-        switch(type) {
-            case 'crit': color = '#ffaa00'; fontSize = '32px'; strokeThick=5; break;
-            case 'heal': color = '#00ff00'; break;
-            case 'gold': color = '#ffd700'; fontSize = '24px'; break;
-            case 'damage': color = '#ffffff'; break;
-        }
-
-        const text = this.add.text(x, y, message, { fontFamily: 'Cinzel', fontSize: fontSize, fontStyle: 'bold', color: color, stroke: stroke, strokeThickness: strokeThick }).setOrigin(0.5).setDepth(2000); 
-        
-        const angle = Phaser.Math.Between(-30, 30) * (Math.PI / 180); 
-        const speed = type==='crit' ? 150 : 80;
-        const vx = Math.sin(angle) * speed * (Math.random() < 0.5 ? 1 : -1);
-        const vy = -speed;
-
-        this.tweens.addCounter({
-            from: 0, to: 100, duration: 1000,
-            onUpdate: (tween) => {
-                const t = tween.getValue() / 100;
-                text.x += vx * 0.05; text.y += (vy * 0.05) + (2 * t);
-                if (t > 0.7) text.setAlpha(1 - ((t - 0.7) * 3));
-            },
-            onComplete: () => text.destroy()
-        });
-        
-        if (type === 'crit') {
-            text.setScale(0);
-            this.tweens.add({ targets: text, scale: 1.5, duration: 200, yoyo: true, hold: 200 });
-        }
-    }
-
-    showDamage(x, y, amount, isCrit) {
-        const type = isCrit ? 'crit' : 'damage';
-        const text = isCrit ? `¡${amount}!` : `${amount}`;
-        this.showFloatingText(x, y, text, type);
-    }
-
     spawnCoinEffect(startX, startY) {
         const coin = this.add.text(startX, startY, "🪙", { fontSize: '24px' }).setOrigin(0.5).setDepth(2000);
         const targetX = this.scale.width / 2; 

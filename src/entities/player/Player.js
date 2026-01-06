@@ -11,7 +11,7 @@ export default class Player extends Phaser.GameObjects.Container {
         scene.add.existing(this);
         scene.physics.add.existing(this);
         
-        this.charClass = charClass || 'guerrero'; // Default por si acaso
+        this.charClass = charClass || 'guerrero'; 
         this.enemies = enemiesGroup;
         this.projectiles = projectilesGroup;
         
@@ -35,11 +35,14 @@ export default class Player extends Phaser.GameObjects.Container {
         this.skillCooldown = 0;
         this.skillMaxCooldown = 5000; 
 
-        // --- VARIABLES DE ESTADO PARA SKILLS ---
+        // --- VARIABLES DE ESTADO ---
         this.isDashing = false;
         this.dashTimer = 0;
         this.cooldowns = { dash: 0, q: 0, e: 0 };
         this.lastDirection = { x: 1, y: 0 };
+        
+        // Efecto Ghost (Estela)
+        this.ghostTimer = 0;
 
         this.hpBarBg = scene.add.rectangle(0, -25, 40, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -25, 38, 4, 0x00ff00);
@@ -97,9 +100,17 @@ export default class Player extends Phaser.GameObjects.Container {
             else if (time % 10 < delta) EventBus.emit('skill-cooldown', { key: 'main', current: this.skillCooldown });
         }
 
-        // --- LÓGICA DE DASH ---
+        // --- LÓGICA DE DASH (CON JUICE) ---
         if (this.isDashing) {
             this.dashTimer -= delta;
+            
+            // Crear estela "fantasma"
+            this.ghostTimer += delta;
+            if (this.ghostTimer > 50) {
+                this.createGhostEffect();
+                this.ghostTimer = 0;
+            }
+
             if (this.dashTimer <= 0) {
                 this.isDashing = false;
                 if (this.bodySprite) this.bodySprite.setAlpha(1);
@@ -151,6 +162,15 @@ export default class Player extends Phaser.GameObjects.Container {
             else if (velocityX > 0) this.bodySprite.setFlipX(false);
         }
 
+        // Animación de caminata simple (bamboleo)
+        if (velocityX !== 0 || velocityY !== 0) {
+            if (this.bodySprite) {
+                this.bodySprite.rotation = Math.sin(time / 100) * 0.1; 
+            }
+        } else {
+            if (this.bodySprite) this.bodySprite.rotation = 0;
+        }
+
         if (stats.regenHp > 0) {
             stats.hp = Math.min(stats.maxHp, stats.hp + (stats.regenHp * delta / 1000));
         }
@@ -170,6 +190,21 @@ export default class Player extends Phaser.GameObjects.Container {
         }
     }
 
+    createGhostEffect() {
+        if (!this.bodySprite) return;
+        const ghost = this.scene.add.sprite(this.x, this.y, this.bodySprite.texture.key);
+        ghost.setTint(0x00ffff);
+        ghost.setAlpha(0.5);
+        ghost.setFlipX(this.bodySprite.flipX);
+        ghost.setDisplaySize(32, 32);
+        this.scene.tweens.add({
+            targets: ghost,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => ghost.destroy()
+        });
+    }
+
     performDash(dirX, dirY) {
         if (!PLAYER_SKILLS.DASH || this.cooldowns.dash > 0) return;
         
@@ -183,6 +218,12 @@ export default class Player extends Phaser.GameObjects.Container {
         
         if (this.bodySprite) this.bodySprite.setAlpha(0.6);
         if (SoundManager) SoundManager.playSound('dash'); 
+        
+        // Efecto de polvo al iniciar dash
+        if(this.scene.dustEmitter) {
+            this.scene.dustEmitter.setPosition(this.x, this.y + 10);
+            this.scene.dustEmitter.explode(10);
+        }
     }
 
     // --- LÓGICA GENÉRICA PARA EJECUTAR CUALQUIER SKILL (Q o E) ---
@@ -198,7 +239,8 @@ export default class Player extends Phaser.GameObjects.Container {
             // Círculo alrededor del jugador (Guerrero Q, Mago Q)
             const circle = this.scene.add.circle(this.x, this.y, 10, color, 0.5);
             this.scene.tweens.add({ targets: circle, scale: range / 10, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
-            
+            this.scene.cameras.main.shake(100, 0.005); // Shake de impacto
+
             if (this.enemies) {
                 this.enemies.children.iterate(e => {
                     if (e && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) <= range) {
@@ -240,17 +282,23 @@ export default class Player extends Phaser.GameObjects.Container {
             const pointer = this.scene.input.activePointer;
             const angle = Phaser.Math.Angle.Between(this.x, this.y, pointer.worldX, pointer.worldY);
             
-            // Creamos un proyectil "falso" o especial aquí, o usamos el sistema de proyectiles si es flexible
-            // Por simplicidad visual rápida:
+            // Recoil (Retroceso visual)
+            this.scene.tweens.add({
+                targets: this,
+                x: this.x - Math.cos(angle) * 10,
+                y: this.y - Math.sin(angle) * 10,
+                duration: 50,
+                yoyo: true
+            });
+
+            // Usamos un proyectil simple visualmente
             const proj = this.scene.add.circle(this.x, this.y, 8, color, 1);
             this.scene.physics.add.existing(proj);
             const speed = config.SPEED || 600;
             proj.body.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
             
-            // Timeout para destruir
             this.scene.time.delayedCall(1000, () => proj.destroy());
             
-            // Colisión manual simple
             this.scene.physics.add.overlap(proj, this.enemies, (p, e) => {
                 if(e.active) {
                     e.takeDamage(damage);
@@ -267,7 +315,6 @@ export default class Player extends Phaser.GameObjects.Container {
             const area = this.scene.add.circle(targetX, targetY, range, color, 0.3);
             this.scene.tweens.add({ targets: area, alpha: 0, duration: 1000, onComplete: () => area.destroy() });
 
-            // Daño retardado (como caer flechas)
             this.scene.time.delayedCall(500, () => {
                 if (this.enemies) {
                     this.enemies.children.iterate(e => {
@@ -281,7 +328,6 @@ export default class Player extends Phaser.GameObjects.Container {
     }
 
     performSkillQ() {
-        // Verificar que existan las skills para esta clase
         const classSkills = PLAYER_SKILLS[this.charClass];
         if (!classSkills || !classSkills.Q) return;
         
@@ -319,7 +365,6 @@ export default class Player extends Phaser.GameObjects.Container {
 
         const stats = gameState.playerStats;
 
-        // Mantengo tu lógica original para la habilidad de ESPACIO
         if (this.charClass === 'guerrero') {
             const healAmount = stats.maxHp * 0.3;
             stats.hp = Math.min(stats.maxHp, stats.hp + healAmount);
@@ -396,6 +441,14 @@ export default class Player extends Phaser.GameObjects.Container {
 
         if (target) {
             this.fireProjectile(target);
+            // Animación de disparo (escala +10%)
+            this.scene.tweens.add({
+                targets: this.bodySprite,
+                scale: 1.2,
+                duration: 50,
+                yoyo: true
+            });
+
             if (Math.random() * 100 < stats.doubleAttack) {
                 this.scene.time.delayedCall(100, () => {
                     if(target.active) this.fireProjectile(target);
@@ -430,15 +483,31 @@ export default class Player extends Phaser.GameObjects.Container {
         if (this.isDashing) return;
 
         const stats = gameState.playerStats;
+        
+        // Bloqueo
         if (Math.random() * 100 < stats.blockChance) {
             this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa");
             return;
         }
+        
         const mitigation = stats.defense * 0.5;
         const finalDamage = Math.max(1, amount - mitigation);
         stats.hp -= finalDamage;
-        this.scene.cameras.main.shake(50, 0.002);
+        
+        // --- JUICE: IMPACTO ---
+        this.scene.cameras.main.shake(100, 0.005); // Screen shake en golpe
         this.scene.showFloatingText(this.x, this.y, `-${Math.floor(finalDamage)}`, "#ff0000");
+        
+        // Flash rojo
+        if (this.bodySprite) {
+            this.bodySprite.setTint(0xff0000);
+            this.scene.time.delayedCall(100, () => {
+                if (this.bodySprite) this.bodySprite.setTint(0xffffff);
+            });
+        }
+
+        // Sangre del jugador
+        if(this.scene.createHitEffect) this.scene.createHitEffect(this.x, this.y, 0xff0000);
     }
 
     die() {
@@ -446,7 +515,7 @@ export default class Player extends Phaser.GameObjects.Container {
         this.visible = false;
         this.respawnTimer = 5000;
         this.scene.showFloatingText(this.x, this.y, "MUERTO (5s)", "#ff0000");
-        this.scene.cameras.main.flash(500, 255, 0, 0);
+        this.scene.cameras.main.flash(500, 255, 0, 0); // Pantallazo rojo
     }
 
     respawn() {
@@ -456,6 +525,8 @@ export default class Player extends Phaser.GameObjects.Container {
         this.x = this.scene.scale.width / 2;
         this.y = this.scene.scale.height / 2;
         this.scene.showFloatingText(this.x, this.y, "¡REVIVIDO!", "#00ff00");
+        
+        // Restaurar stats temporales si estaban activos
         if (this.originalStats.attackSpeed) gameState.playerStats.attackSpeed = this.originalStats.attackSpeed;
         if (this.originalStats.critChance) gameState.playerStats.critChance = this.originalStats.critChance;
         this.originalStats = {};

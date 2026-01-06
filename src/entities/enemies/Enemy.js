@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { ENEMY_DB } from '../../config/Enemies.js';
 import { GAME_CONSTANTS, BOSS_SKILLS } from '../../config/GameConstants.js'; 
-import { ENEMY_SKILLS } from '../../config/EnemySkills.js'; // Importar nuevas skills
+import { ENEMY_SKILLS } from '../../config/EnemySkills.js'; 
 
 export default class Enemy extends Phaser.GameObjects.Container {
     constructor(scene, path, levelDifficulty, typeKey = 'slime') {
@@ -31,7 +31,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.armor = this.baseArmor;
         this.baseSpeed = (data.speed || 1.0) / 10000; 
         
-        // ... (Resto de propiedades igual: coinReward, xpReward, isFlying...)
         const baseCoin = GAME_CONSTANTS.REWARDS ? GAME_CONSTANTS.REWARDS.COIN_BASE : 15;
         const baseXP = GAME_CONSTANTS.REWARDS ? GAME_CONSTANTS.REWARDS.XP_BASE : 10;
         this.coinReward = Math.floor(baseCoin * scaleFactor);
@@ -47,11 +46,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.skillTimer = 0;
         this.isCasting = false; 
 
-        // --- NUEVO: CARGAR SKILLS DE ENEMIGO COMÚN ---
-        this.skills = data.skills || []; // Array de strings ['SHOOT_ARROW', etc]
-        this.skillCooldowns = {}; // Control individual de CD
+        // --- CARGAR SKILLS ---
+        this.skills = data.skills || []; 
+        this.skillCooldowns = {}; 
 
-        // Colores
+        // Colores Base
         let color = 0xff0000;
         if (scene.biome === 'forest') color = 0x008000;   
         if (scene.biome === 'mountain') color = 0x8b4513; 
@@ -63,6 +62,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         this.originalColor = color; 
         const size = (this.maxHp > 2000 || this.isBoss) ? 45 : 20; 
+        this.baseScale = 1.0; // Referencia para efectos
 
         const textureKey = `enemy_${typeKey}`;
         if (scene.textures.exists(textureKey)) {
@@ -74,6 +74,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.sprite.setDisplaySize(size, size);
         this.add(this.sprite);
 
+        // Barra de vida
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 8, size + 10, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -size/2 - 8, size + 8, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
@@ -98,9 +99,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.updateDebuffs(delta);
         if (!this.active) return;
 
-        // --- IA DE BOSS (Existente) ---
+        // --- IA DE BOSS ---
         if (this.isBoss) {
-            // ... (Lógica Boss existente) ...
             const skillConfig = BOSS_SKILLS[this.typeKey] || BOSS_SKILLS['AOE_SMASH'];
             if (!this.isCasting) {
                 this.skillTimer += delta;
@@ -112,13 +112,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 if (skillConfig.TYPE !== 'projectile_barrage') return; 
             }
         } 
-        // --- IA DE ENEMIGO COMÚN (NUEVO) ---
+        // --- IA DE ENEMIGO COMÚN ---
         else if (this.skills.length > 0 && !this.isCasting && !this.statusEffects.stun.active) {
             this.updateCommonSkills(delta);
         }
 
         // --- MOVIMIENTO ---
-        // Si está casteando, normalmente se detiene (depende de la skill)
         if (!this.isCasting && !this.isShielded && !this.statusEffects.stun.active) {
             let speedMod = 1.0;
             if (this.statusEffects.slow.active) speedMod *= (1 - this.statusEffects.slow.factor);
@@ -133,6 +132,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             return;
         }
 
+        // Interpolación de camino
         const pathLen = this.path.length;
         const idx = this.follower.t * (pathLen - 1);
         const p1Idx = Math.floor(idx);
@@ -144,8 +144,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
             const segT = idx - p1Idx;
             this.x = Phaser.Math.Linear(p1.x, p2.x, segT);
             this.y = Phaser.Math.Linear(p1.y, p2.y, segT);
+            
+            // Rotación suave hacia la dirección (opcional, si el sprite tiene frente)
+            // if (p2.x > p1.x) this.sprite.setFlipX(false);
+            // else this.sprite.setFlipX(true);
         }
 
+        // Actualizar barra de vida
         const hpPct = Math.max(0, this.hp / this.maxHp);
         this.hpBar.width = (this.width + 8) * hpPct; 
         this.hpBar.setFillStyle(hpPct < 0.3 ? 0xff0000 : 0x00ff00);
@@ -158,7 +163,79 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.checkAttackPlayer(time);
     }
 
-    // --- LÓGICA DE SKILLS ENEMIGAS COMUNES ---
+    // --- MANEJO DE DAÑO Y IMPACTO VISUAL ---
+
+    takeTrueDamage(amount, color) { 
+        if (!this.active) return; 
+        this.hp -= amount; 
+        
+        // Efecto visual rápido
+        this.flashWhite();
+        
+        if (this.scene && this.scene.showFloatingText) {
+            this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(amount)}`, color); 
+        }
+        if (this.hp <= 0) this.die(true); 
+    }
+
+    takeDamage(amount) { 
+        if (this.isShielded) { 
+            if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); 
+            return; 
+        } 
+        
+        const reductionMult = 100 / (100 + this.armor); 
+        let dmg = Math.floor(amount * reductionMult); 
+        if (dmg < 1) dmg = 1; 
+        
+        this.hp -= dmg; 
+        
+        // --- JUICE: IMPACTO VISUAL ---
+        this.flashWhite(); // Parpadeo
+        
+        // Squash & Stretch (Aplastar y estirar)
+        if (this.sprite) {
+            this.scene.tweens.add({
+                targets: this.sprite,
+                scaleX: 1.3, // Se ensancha
+                scaleY: 0.7, // Se aplasta
+                duration: 50,
+                yoyo: true,
+                ease: 'Quad.easeOut'
+            });
+        }
+
+        // Sangre
+        if (this.scene.createHitEffect) {
+            this.scene.createHitEffect(this.x, this.y, this.originalColor); 
+        }
+
+        if (this.scene && this.scene.showFloatingText) { 
+            const isCrit = Math.random() > 0.8; 
+            this.scene.showFloatingText(this.x, this.y - 30, `-${dmg}`, isCrit ? 'crit' : 'damage'); 
+        } 
+        
+        if (this.hp <= 0) { 
+            this.die(true); 
+        } 
+    }
+
+    flashWhite() {
+        if (!this.sprite) return;
+        this.sprite.setTint(0xffffff);
+        this.scene.time.delayedCall(100, () => {
+            if (this.active && this.sprite) {
+                // Restaurar color original o estado alterado (congelado/quemado)
+                if (this.statusEffects.freeze.active) this.sprite.setTint(0x00ffff);
+                else if (this.statusEffects.burn.active) this.sprite.setTint(0xff4500);
+                else if (this.statusEffects.poison.active) this.sprite.setTint(0x00ff00);
+                else this.sprite.setTint(this.originalColor);
+            }
+        });
+    }
+
+    // ... (Métodos de Skills y Debuffs se mantienen igual, no los toques) ...
+    // --- SKILLS COMUNES ---
     updateCommonSkills(delta) {
         if (!this.scene.player || this.scene.player.isDead) return;
         const player = this.scene.player;
@@ -172,11 +249,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.skillCooldowns[skillKey] -= delta;
 
             if (this.skillCooldowns[skillKey] <= 0) {
-                // Verificar Rango
                 if (distToPlayer <= skillDef.range) {
                     this.executeCommonSkill(skillKey, skillDef);
                     this.skillCooldowns[skillKey] = skillDef.cooldown;
-                    return; // Ejecutar solo una skill por frame
+                    return; 
                 }
             }
         }
@@ -185,8 +261,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
     executeCommonSkill(key, def) {
         if (def.type === 'projectile') {
             this.isCasting = true;
-            
-            // Guardar posición objetivo EN ESTE MOMENTO (Skillshot)
             const targetX = this.scene.player.x;
             const targetY = this.scene.player.y;
 
@@ -194,14 +268,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 targets: this, scale: 1.2, duration: 200, yoyo: true,
                 onComplete: () => {
                     this.isCasting = false;
-                    // --- CORRECCIÓN DEL CRASH ---
                     if (!this.scene || !this.active) return; 
 
                     const proj = this.scene.projectiles.get(this.x, this.y);
                     if (proj) {
                         const dmg = Math.floor(this.damage * (def.damageMult || 1));
-                        
-                        // Crear un "Target Dummy" para que el proyectil vaya a esa coord fija
                         const fixedTarget = { x: targetX, y: targetY, active: true }; 
 
                         proj.fire(fixedTarget, {
@@ -210,8 +281,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
                             color: def.color,
                             type: 'enemy_arrow',
                             effect: def.effect,
-                            isSkillshot: true // Flag para que el proyectil no persiga
-                        }, true); // isHostile = true
+                            isSkillshot: true 
+                        }, true); 
 
                         if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡DISPARO!", "#aaaaaa");
                     }
@@ -221,7 +292,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.isCasting = true;
             this.scene.showFloatingText(this.x, this.y - 40, "¡CARGA!", "#ff0000");
             const angle = Phaser.Math.Angle.Between(this.x, this.y, this.scene.player.x, this.scene.player.y);
-            const speed = def.speed || 400;
             
             this.scene.tweens.add({
                 targets: this,
@@ -231,7 +301,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 ease: 'Cubic.out',
                 onComplete: () => {
                     this.isCasting = false;
-                    // Chequear colisión al final del dash
                     if (Phaser.Math.Distance.Between(this.x, this.y, this.scene.player.x, this.scene.player.y) < 50) {
                         const dmg = Math.floor(this.damage * (def.damageMult || 1.2));
                         this.scene.player.takeDamage(dmg);
@@ -239,18 +308,15 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 }
             });
         } else if (def.type === 'melee_buff') {
-            // Golpe fuerte (ya se maneja en checkAttackPlayer, pero podríamos potenciarlo)
             this.scene.showFloatingText(this.x, this.y - 40, "¡GOLPE!", "#ff0000");
-            // Aumentar daño temporalmente
             const originalDmg = this.damage;
             this.damage = Math.floor(this.damage * def.damageMult);
             this.scene.time.delayedCall(2000, () => { this.damage = originalDmg; });
         }
     }
 
-    // ... (El resto de métodos useBossSkill, etc. se mantienen igual)
+    // ... (Resto de Boss Skills, Debuffs, etc.)
     useBossSkill(config) {
-        // ... (Código Boss igual que antes) ...
         if (!this.scene || !this.scene.player) return;
         const player = this.scene.player;
         
@@ -415,8 +481,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
     }
 
     clearTint() { if (this.active && this.sprite) this.sprite.setTint(this.originalColor); }
-    takeTrueDamage(amount, color) { if (!this.active) return; this.hp -= amount; if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(amount)}`, color); if (this.hp <= 0) this.die(true); }
-    takeDamage(amount) { if (this.isShielded) { if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); return; } const reductionMult = 100 / (100 + this.armor); let dmg = Math.floor(amount * reductionMult); if (dmg < 1) dmg = 1; this.hp -= dmg; if (this.scene && this.scene.showFloatingText) { const isCrit = Math.random() > 0.8; this.scene.showFloatingText(this.x, this.y - 30, `-${dmg}`, isCrit ? 'crit' : 'damage'); } if (this.hp <= 0) { this.die(true); } else { this.scene.tweens.add({ targets: this, alpha: 0.5, yoyo: true, duration: 50 }); } }
     
     performHeal() { if (!this.scene || !this.scene.enemies) return; const healRange = 150; let healed = false; this.scene.enemies.children.iterate(e => { if (e !== this && e.active && Phaser.Math.Distance.Between(this.x, this.y, e.x, e.y) < healRange) { if (e.hp < e.maxHp) { e.hp = Math.min(e.maxHp, e.hp + 50); healed = true; } } }); if (healed && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "CURAR", "heal"); }
     
@@ -425,45 +489,62 @@ export default class Enemy extends Phaser.GameObjects.Container {
     reachBase() { if (this.isDead) return; const damageToBase = Math.max(1, Math.floor(this.damage * 0.5)); if (this.scene.onEnemyLeaks) this.scene.onEnemyLeaks(damageToBase); this.die(false); }
 
     die(killedByPlayer) {
-        // ... (Mantener lógica de drops que arreglamos antes) ...
         if (!this.scene) return;
         const scene = this.scene;
         
-        if (killedByPlayer) {
-            if (scene.onEnemyKilled) scene.onEnemyKilled(this);
-            
-            if (this.drops && this.drops.length > 0) {
-                const difficulty = scene.difficultyMode || 1;
+        // --- JUICE: MUERTE DRAMÁTICA ---
+        // En lugar de destroy() directo, hacemos animación
+        this.isDead = true; 
+        this.body.enable = false; // Desactivar física
+        this.hpBarBg.setVisible(false);
+        this.hpBar.setVisible(false);
 
-                this.drops.forEach(dropDef => {
-                    let [matKey, chance, min, max] = dropDef;
-                    
-                    if (difficulty === 2) { 
-                        if (matKey === 'copper') matKey = 'iron';
-                        if (matKey === 'wood') matKey = 'cedar';
-                        if (matKey === 'hide') matKey = 'leather_rigid';
-                        if (matKey === 'cloth_simple') matKey = 'cloth_fine';
-                    } 
-                    else if (difficulty === 3) { 
-                        if (matKey === 'copper') matKey = 'ingot_steel'; 
-                        if (matKey === 'wood') matKey = 'plank_ebony';
-                        if (matKey === 'hide') matKey = 'leather_dragon';
-                        if (matKey === 'cloth_simple') matKey = 'cloth_royal';
-                    }
+        // Explosión de partículas
+        if (scene.createExplosion) scene.createExplosion(this.x, this.y, this.originalColor);
 
-                    if (Math.random() < chance) {
-                        const qty = Phaser.Math.Between(min, max);
-                        scene.generateLoot(this.x, this.y, matKey, qty);
-                    }
-                });
+        // Tween de "colapso"
+        scene.tweens.add({
+            targets: this,
+            scale: 0,
+            angle: 360,
+            alpha: 0,
+            duration: 300,
+            onComplete: () => {
+                // Drop y lógica final
+                if (killedByPlayer) {
+                    if (scene.onEnemyKilled) scene.onEnemyKilled(this);
+                    this.dropLoot(scene);
+                }
+                this.destroy(); // AHORA SÍ SE DESTRUYE
+                if (scene.checkWaveStatus) scene.checkWaveStatus();
             }
-        } 
-        
-        this.destroy();
-        
-        if (scene.checkWaveStatus) {
-            scene.time.delayedCall(50, () => {
-                if (scene && scene.checkWaveStatus) scene.checkWaveStatus();
+        });
+    }
+
+    dropLoot(scene) {
+        if (this.drops && this.drops.length > 0) {
+            const difficulty = scene.difficultyMode || 1;
+
+            this.drops.forEach(dropDef => {
+                let [matKey, chance, min, max] = dropDef;
+                
+                if (difficulty === 2) { 
+                    if (matKey === 'copper') matKey = 'iron';
+                    if (matKey === 'wood') matKey = 'cedar';
+                    if (matKey === 'hide') matKey = 'leather_rigid';
+                    if (matKey === 'cloth_simple') matKey = 'cloth_fine';
+                } 
+                else if (difficulty === 3) { 
+                    if (matKey === 'copper') matKey = 'ingot_steel'; 
+                    if (matKey === 'wood') matKey = 'plank_ebony';
+                    if (matKey === 'hide') matKey = 'leather_dragon';
+                    if (matKey === 'cloth_simple') matKey = 'cloth_royal';
+                }
+
+                if (Math.random() < chance) {
+                    const qty = Phaser.Math.Between(min, max);
+                    scene.generateLoot(this.x, this.y, matKey, qty);
+                }
             });
         }
     }
