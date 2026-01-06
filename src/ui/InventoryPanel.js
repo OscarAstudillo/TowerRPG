@@ -13,7 +13,7 @@ export default class InventoryPanel {
         this.container = scene.add.container(0, 0).setVisible(false);
         this.category = 'all'; 
         this.page = 0;
-        this.itemsPerPage = 9; // 3x3 Grid
+        this.itemsPerPage = 9; 
 
          this.title = scene.add.text(width/2, height * 0.17, "MOCHILA", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.container.add(this.title);
@@ -54,7 +54,12 @@ export default class InventoryPanel {
             this.page = 0; 
             this.detailContainer.setVisible(false);
             this.refresh();
-            this.container.list.forEach(c => { if(c.setColor && c.text && c !== this.infoText && c !== this.pageText && c !== this.prevBtn && c !== this.nextBtn) c.setColor('#888'); });
+            // Reset visual simple
+            this.container.list.forEach(c => { 
+                if(c.type === 'Text' && c !== this.infoText && c !== this.pageText && c !== this.prevBtn && c !== this.nextBtn && c !== this.title) {
+                    c.setColor('#888'); 
+                }
+            });
             btn.setColor('#fff');
         });
         this.container.add(btn);
@@ -76,6 +81,11 @@ export default class InventoryPanel {
         else this.renderEquipment();
         
         if(this.scene.updateGoldText) this.scene.updateGoldText();
+    }
+
+    // Utilitario para formatear números a 1 decimal máximo
+    formatStat(val) {
+        return Math.round(val * 10) / 10;
     }
 
     renderEquipment() {
@@ -194,7 +204,6 @@ export default class InventoryPanel {
     getEquippedComparison(item) {
         if (item.type === 'tower_part') return null; 
 
-        // Buscar qué slot ocupa
         const slotMap = { 
             weapon: 'mainHand', staff: 'mainHand', bow: 'mainHand', dagger: 'mainHand', sword: 'mainHand',
             offhand: 'offHand', shield: 'offHand', 
@@ -205,12 +214,7 @@ export default class InventoryPanel {
         
         if (!targetSlot || !gameState.equipment[targetSlot]) return null;
 
-        return gameState.equipment[targetSlot]; // Devuelve el ítem equipado
-    }
-
-    // Función auxiliar para redondear a 1 decimal
-    formatStat(val) {
-        return Math.round(val * 10) / 10;
+        return gameState.equipment[targetSlot]; 
     }
 
     showItemDetail(item) {
@@ -225,6 +229,7 @@ export default class InventoryPanel {
 
         const titleName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
 
+        // Título del Item
         const title = this.scene.add.text(0, -220, titleName, { 
             fontFamily: 'Cinzel', fontSize: '20px', color: colorHex, align: 'center', wordWrap: {width: 320} 
         }).setOrigin(0.5, 0);
@@ -244,6 +249,7 @@ export default class InventoryPanel {
                     if (equippedItem && equippedItem.stats) {
                         const currentVal = equippedItem.stats[key] || 0;
                         const diff = val - currentVal;
+                        // Formatear diferencia
                         const formattedDiff = this.formatStat(Math.abs(diff));
                         
                         if (diff > 0.09) { 
@@ -255,10 +261,11 @@ export default class InventoryPanel {
                         }
                     }
 
-                    // Renderizar línea
                     const lineContainer = this.scene.add.container(0, currentY);
+                    // Nombre del Stat
                     const statLabel = this.scene.add.text(-150, 0, `${key.toUpperCase()}: ${formattedVal}`, { fontFamily: 'Roboto', fontSize: '14px', color: '#dddddd' });
-                    const diffLabel = this.scene.add.text(statLabel.width - 140, 0, diffText, { fontFamily: 'Roboto', fontSize: '14px', color: diffColor, fontStyle: 'bold' });
+                    // Diferencia (+/-)
+                    const diffLabel = this.scene.add.text(statLabel.width - 130, 0, diffText, { fontFamily: 'Roboto', fontSize: '14px', color: diffColor, fontStyle: 'bold' });
                     
                     lineContainer.add([statLabel, diffLabel]);
                     this.detailContainer.add(lineContainer);
@@ -307,7 +314,8 @@ export default class InventoryPanel {
             .setInteractive();
         
         this.detailContainer.addAt(bg, 0);
-        this.detailContainer.add([title]); // ¡TITULO AGREGADO AQUÍ!
+        // !! IMPORTANTE: Agregar título al contenedor
+        this.detailContainer.add(title);
         this.detailContainer.add([equipBtn, fuseBtn, sellBtn]);
     }
 
@@ -317,7 +325,7 @@ export default class InventoryPanel {
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);
-        return container;
+        return container; // IMPORTANTE: Devolver container
     }
 
     safeAddItemToInventory(item) {
@@ -457,7 +465,7 @@ export default class InventoryPanel {
         });
     }
 
-    // --- NUEVO: VENTANA DE CONFIRMACIÓN VISUAL ---
+    // --- CORRECCIÓN: FIX CRASH FUSION ---
     showFusionConfirmation(item2) {
         this.fusionListModal.setVisible(false);
         
@@ -470,37 +478,34 @@ export default class InventoryPanel {
         
         const title = this.scene.add.text(cx, cy - 170, "FUSIÓN", { fontFamily: 'Cinzel', fontSize: '32px', color: '#ffd700', fontStyle: 'bold' }).setOrigin(0.5);
         
-        // Iconos grandes
         const item1Icon = this.createBigIcon(cx - 150, cy, this.itemToFuse1);
         const item2Icon = this.createBigIcon(cx + 150, cy, item2);
         
-        // Flecha animada
         const arrow = this.scene.add.text(cx, cy, "➡", { fontSize: '50px', color: '#fff' }).setOrigin(0.5);
         this.scene.tweens.add({ targets: arrow, scale: 1.2, yoyo: true, repeat: -1, duration: 500 });
 
-        // Botones
-        const btnCancel = this.createActionBtn(cx - 120, cy + 150, "CANCELAR", 0x550000, () => {
+        // --- CORRECCIÓN AQUÍ: Guardar container en variable ---
+        const btnCancelContainer = this.createActionBtn(cx - 120, cy + 150, "CANCELAR", 0x550000, () => {
             modalContainer.destroy();
             this.fusionListModal.setVisible(true);
-        }).container;
+        });
         
-        const btnConfirm = this.createActionBtn(cx + 120, cy + 150, "¡FUSIONAR!", 0x005500, () => {
-            // Animación de Fusión
+        const btnConfirmContainer = this.createActionBtn(cx + 120, cy + 150, "¡FUSIONAR!", 0x005500, () => {
             this.scene.tweens.add({
                 targets: [item1Icon, item2Icon],
                 x: cx,
                 alpha: 0,
                 duration: 500,
                 onComplete: () => {
-                    // Flash
                     this.scene.cameras.main.flash(500, 255, 255, 0);
                     this.executeFusion(item2);
                     modalContainer.destroy();
                 }
             });
-        }).container;
+        });
 
-        modalContainer.add([overlay, panel, title, item1Icon, item2Icon, arrow, btnCancel, btnConfirm]);
+        // Agregamos btnCancelContainer directamente (createActionBtn ya devuelve container)
+        modalContainer.add([overlay, panel, title, item1Icon, item2Icon, arrow, btnCancelContainer, btnConfirmContainer]);
     }
 
     createBigIcon(x, y, item) {
@@ -508,10 +513,7 @@ export default class InventoryPanel {
         let color = RARITY[item.rarity] ? RARITY[item.rarity].color : 0xffffff;
         const bg = this.scene.add.rectangle(0, 0, 100, 100, 0x222222).setStrokeStyle(4, color);
         
-        // Icono (Placeholder texto o sprite)
-        let icon;
         const txt = this.scene.add.text(0, 0, item.name.substring(0, 2).toUpperCase(), { fontSize: '40px', fontStyle: 'bold' }).setOrigin(0.5);
-        
         const lvl = this.scene.add.text(0, 60, `+${item.enchant}`, { fontSize: '20px', color: '#00ff00' }).setOrigin(0.5);
         
         container.add([bg, txt, lvl]);
@@ -521,14 +523,12 @@ export default class InventoryPanel {
     executeFusion(item2) {
         const res = RPGSystem.fuseSpecificItems(this.itemToFuse1, item2);
         if (res.success) {
-            // Eliminar los viejos
             const inv = gameState.equipmentInventory;
             let idx = inv.findIndex(i => i.id === this.itemToFuse1.id);
             if (idx > -1) inv.splice(idx, 1);
             idx = inv.findIndex(i => i.id === item2.id);
             if (idx > -1) inv.splice(idx, 1);
 
-            // Agregar el nuevo
             this.safeAddItemToInventory(res.item);
             
             this.fusionListModal.setVisible(false);
