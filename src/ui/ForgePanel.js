@@ -29,7 +29,7 @@ export default class ForgePanel {
         this.createCatBtn(width * 0.2, catY, "ARMAS", 'weapon');
         this.createCatBtn(width * 0.4, catY, "ARMADURAS", 'armor');
         this.createCatBtn(width * 0.6, catY, "JOYAS", 'accessory');
-        this.createCatBtn(width * 0.8, catY, "TORRES", 'tower_part');
+        this.createCatBtn(width * 0.8, catY, "TORRES", 'tower_part'); // Botón de Ingeniería
 
         this.container.add([this.recipesContainer, this.detailContainer, this.forgeSubFilterContainer]);
     }
@@ -42,7 +42,12 @@ export default class ForgePanel {
             this.subFilter = 'all';
             this.detailContainer.setVisible(false);
             this.refresh();
-            this.container.list.forEach(c => { if(c.setColor && c !== this.recipesContainer && c !== this.forgeSubFilterContainer && c !== this.profText && c.text !== "FABRICAR" && c.text !== "FUSIONAR" && c !== this.title) c.setColor('#888'); });
+            // Reset color de botones
+            this.container.list.forEach(c => { 
+                if(c.setColor && c !== this.recipesContainer && c !== this.forgeSubFilterContainer && c !== this.profText && c.text !== "FABRICAR" && c.text !== "FUSIONAR" && c !== this.title) {
+                    c.setColor('#888'); 
+                }
+            });
             btn.setColor('#ffd700');
         });
         this.container.add(btn);
@@ -55,13 +60,18 @@ export default class ForgePanel {
         const p = gameState.professions;
         
         let activeProf = 'smithing';
-        if (this.category === 'accessory') activeProf = 'jewelcrafting';
-        if (this.category === 'tower_part') activeProf = 'engineering';
+        let profName = "Herrería";
+        
+        if (this.category === 'accessory') { activeProf = 'jewelcrafting'; profName = "Joyería"; }
+        if (this.category === 'tower_part') { activeProf = 'engineering'; profName = "Ingeniería"; }
+        if (this.category === 'weapon') { activeProf = 'weaponsmith'; profName = "Armero"; }
+        if (this.category === 'armor') { activeProf = 'armorsmith'; profName = "Armadura"; }
         
         const chance = RPGSystem.getProfessionChance(activeProf);
         const chancePct = (chance * 100).toFixed(1);
+        const level = p[activeProf]?.level || 1;
 
-        this.profText.setText(`Armas: ${p.weaponsmith?.level || 1} | Armaduras: ${p.armorsmith?.level || 1} | Joyas: ${p.jewelcrafting?.level || 1} \n Chance Encantamiento (+1 a +6): ${chancePct}%`);
+        this.profText.setText(`${profName}: Nivel ${level} | Chance Encantamiento (+1 a +6): ${chancePct}%`);
 
         this.forgeSubFilterContainer.removeAll(true);
         this.recipesContainer.removeAll(true);
@@ -71,16 +81,21 @@ export default class ForgePanel {
 
     renderCraftingUI() {
         let subs = [];
+        // Sub-filtros para cada categoría
         if (this.category === 'weapon') subs = [['TODAS','all'], ['ESPADAS','sword'], ['ARCOS','bow'], ['BASTONES','staff'], ['DAGAS','dagger']];
         else if (this.category === 'armor') subs = [['TODAS','all'], ['TELA','cloth'], ['CUERO','leather'], ['PLACAS','plate'], ['ESCUDOS','shield']];
+        // --- NUEVO: Sub-filtros para Ingeniería ---
+        else if (this.category === 'tower_part') subs = [['TODAS','all'], ['ARQUERO','archer'], ['CAÑON','cannon'], ['MAGO','mage']];
         
-        let subX = this.width * 0.2;
+        let subX = this.width * 0.15;
+        const gap = 110;
+        
         subs.forEach(s => {
             const btn = this.scene.add.text(subX, this.height * 0.28, s[0], { fontFamily: 'Roboto', fontSize: '14px', color: this.subFilter === s[1] ? '#fff' : '#666' })
                 .setInteractive({useHandCursor:true}).setOrigin(0.5);
             btn.on('pointerdown', () => { this.subFilter = s[1]; this.refresh(); });
             this.forgeSubFilterContainer.add(btn);
-            subX += 130;
+            subX += gap;
         });
 
         let startX = this.width * 0.15; 
@@ -88,10 +103,14 @@ export default class ForgePanel {
 
         const filtered = RECIPES.filter(r => {
             if (r.isLocked && (!gameState.unlockedRecipes || !gameState.unlockedRecipes.includes(r.id))) return false;
-            if (this.category === 'tower_part') return r.type === 'tower_part';
+            
+            if (this.category === 'tower_part') {
+                return r.type === 'tower_part' && (this.subFilter === 'all' || r.subType === this.subFilter);
+            }
             if (this.category === 'accessory') return r.type === 'accessory';
             if (this.category === 'weapon') return r.type === 'weapon' && (this.subFilter === 'all' || r.subType === this.subFilter);
             if (this.category === 'armor') return (r.type === 'armor' || r.type === 'offhand') && (this.subFilter === 'all' || r.subType === this.subFilter);
+            
             return false;
         });
 
@@ -180,7 +199,8 @@ export default class ForgePanel {
         const totalMult = tierMult * rarityMult;
 
         const subType = recipe.subType || recipe.type;
-        const archetype = GAME_CONSTANTS.BASE_STATS_RULES ? GAME_CONSTANTS.BASE_STATS_RULES[subType] : null; 
+        // CORRECCIÓN: Manejo de fallback para Arquetipos
+        const archetype = (GAME_CONSTANTS.BASE_STATS_RULES && GAME_CONSTANTS.BASE_STATS_RULES[subType]) ? GAME_CONSTANTS.BASE_STATS_RULES[subType] : null;
         
         if (archetype) {
             const val1 = Math.ceil(recipe.baseStats[archetype.primary] * totalMult);
@@ -191,8 +211,13 @@ export default class ForgePanel {
             statsStr += `• ${archetype.primary.toUpperCase()}: ${val1}\n`;
             statsStr += `• ${archetype.secondary.toUpperCase()}: ${val2}\n`;
         } else {
+            // Fallback genérico para Ingeniería o ítems sin arquetipo definido
             for (let k in recipe.baseStats) {
-                statsStr += `• ${k.toUpperCase()}: ${Math.ceil(recipe.baseStats[k] * totalMult)}\n`;
+                // Invertir lógica para AttackSpeed (menos es mejor/más rápido, así que dividimos por mult)
+                let val = Math.ceil(recipe.baseStats[k] * totalMult);
+                if (k === 'attackSpeed') val = Math.round(recipe.baseStats[k] / totalMult);
+                
+                statsStr += `• ${k.toUpperCase()}: ${val}\n`;
             }
         }
         this.statsText.setText(statsStr);
