@@ -184,22 +184,35 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
     executeCommonSkill(key, def) {
         if (def.type === 'projectile') {
-            // Disparar
-            this.isCasting = true; // Detener movimiento brevemente
+            this.isCasting = true;
+            
+            // Guardar posición objetivo EN ESTE MOMENTO (Skillshot)
+            const targetX = this.scene.player.x;
+            const targetY = this.scene.player.y;
+
             this.scene.tweens.add({
                 targets: this, scale: 1.2, duration: 200, yoyo: true,
                 onComplete: () => {
                     this.isCasting = false;
+                    // --- CORRECCIÓN DEL CRASH ---
+                    if (!this.scene || !this.active) return; 
+
                     const proj = this.scene.projectiles.get(this.x, this.y);
                     if (proj) {
                         const dmg = Math.floor(this.damage * (def.damageMult || 1));
-                        proj.fire(this.scene.player, {
+                        
+                        // Crear un "Target Dummy" para que el proyectil vaya a esa coord fija
+                        const fixedTarget = { x: targetX, y: targetY, active: true }; 
+
+                        proj.fire(fixedTarget, {
                             damage: dmg,
                             speed: def.speed,
                             color: def.color,
-                            type: 'enemy_arrow', // Tipo visual
-                            effect: def.effect
-                        }, true); // TRUE = Es Hostil
+                            type: 'enemy_arrow',
+                            effect: def.effect,
+                            isSkillshot: true // Flag para que el proyectil no persiga
+                        }, true); // isHostile = true
+
                         if(this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y - 40, "¡DISPARO!", "#aaaaaa");
                     }
                 }

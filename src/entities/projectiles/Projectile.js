@@ -39,6 +39,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.hitIds = [];
         this.startX = 0;
         this.startY = 0;
+        this.isSkillshot = false; // NUEVO
         
         // NUEVO: Flag para saber si daña al jugador
         this.isHostile = false; 
@@ -58,6 +59,7 @@ export default class Projectile extends Phaser.GameObjects.Container {
         this.resetValues();
         this.setActive(true);
         this.setVisible(true);
+        this.isSkillshot = options.isSkillshot || false; // LEER OPCIÓN
 
         this.sprite.setVisible(true);
         this.sprite.setTint(options.color || 0xffffff); // Soporte color personalizado
@@ -82,7 +84,6 @@ export default class Projectile extends Phaser.GameObjects.Container {
         }
 
         // Lógica de Movimiento (Igual que antes, pero adaptada)
-        // ... (Copio tu lógica existente de cannon, mage, tesla, etc. para mantener compatibilidad)
         if (this.type === 'cannon') {
             this.sprite.setScale(1.5);
             this.isParabolic = true;
@@ -119,10 +120,15 @@ export default class Projectile extends Phaser.GameObjects.Container {
             this.speed = options.speed || 700; // Usar velocidad de options si existe
         }
 
-        if (!this.isParabolic && this.target && this.target.active) {
-            const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
-            this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
-            this.rotation = angle;
+        // Si NO es parabólico, calculamos la trayectoria inicial
+        if (!this.isParabolic) {
+            // Si es Skillshot o Homing, calculamos el ángulo inicial
+            // (Si target es un objeto {x,y} fijo, funcionará igual)
+            if (this.target) {
+                const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
+                this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
+                this.rotation = angle;
+            }
         }
     }
 
@@ -163,8 +169,8 @@ export default class Projectile extends Phaser.GameObjects.Container {
 
         if (this.isParabolic) {
             // ... (Lógica parabólica igual) ...
-            // Solo actualizamos destino si el target sigue vivo
-            if (this.target && this.target.active) {
+            // Solo actualizamos destino si el target sigue vivo Y NO es skillshot (si es skillshot parabólico tipo granada, va a punto fijo)
+            if (!this.isSkillshot && this.target && this.target.active) {
                 this.destX = this.target.x;
                 this.destY = this.target.y;
             }
@@ -178,20 +184,26 @@ export default class Projectile extends Phaser.GameObjects.Container {
             if (t >= 1) { this.hit(null); }
         } else {
             // Movimiento directo
-            // Si no hay target o murió, sigue recto (para que se pueda esquivar)
-            // A diferencia de torres que reciclan, los proyectiles enemigos deben seguir viajando
-            if (!this.target || !this.target.active) {
-                // Sigue trayectoria actual
-            } else {
-                // Homing (Perseguir) ligero o directo
-                // Para esquivar, es mejor NO actualizar el ángulo constantemente si es skill de "skillshot"
-                // Pero por ahora dejémoslo teledirigido suave o directo
-                const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
-                this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
-                this.rotation = angle;
-                
-                if (Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y) < 20) {
-                    this.hit(this.target);
+            
+            // Si es Skillshot, NO hacemos nada aquí. 
+            // El proyectil ya tiene velocidad constante y dirección fija desde el fire().
+            // Solo verificamos colisión por distancia si physics falla
+            if (this.isSkillshot) {
+                // Opcional: Auto-destruir si se aleja mucho
+            } 
+            else {
+                // Si NO es Skillshot (es Homing/Persecución de torre)
+                if (!this.target || !this.target.active) {
+                    // Perdió target, sigue recto (comportamiento default)
+                } else {
+                    // Actualizar dirección hacia el enemigo que se mueve
+                    const angle = Phaser.Math.Angle.Between(this.x, this.y, this.target.x, this.target.y);
+                    this.scene.physics.velocityFromRotation(angle, this.speed, this.body.velocity);
+                    this.rotation = angle;
+                    
+                    if (Phaser.Math.Distance.Between(this.x, this.y, this.target.x, this.target.y) < 20) {
+                        this.hit(this.target);
+                    }
                 }
             }
         }
@@ -216,9 +228,20 @@ export default class Projectile extends Phaser.GameObjects.Container {
                 }
             } 
             // Single Target Hostil
-            else if (directTarget && directTarget.active && directTarget === this.scene.player) {
-                directTarget.takeDamage(this.damage);
-                if (this.scene.cameras.main) this.scene.cameras.main.shake(100, 0.002);
+            // Si es Skillshot, directTarget podría ser null al impactar (por overlap), así que usamos player directo
+            else {
+                const p = this.scene.player;
+                // Verificar si impactó al jugador (ya sea por overlap o distancia)
+                // Si viene de overlap, directTarget será el player.
+                const targetToHit = directTarget || p;
+                
+                if (targetToHit && targetToHit.active && targetToHit === this.scene.player) {
+                     // Doble check de distancia si no vino por colisión física
+                     if (directTarget || Phaser.Math.Distance.Between(this.x, this.y, targetToHit.x, targetToHit.y) < 30) {
+                        targetToHit.takeDamage(this.damage);
+                        if (this.scene.cameras.main) this.scene.cameras.main.shake(100, 0.002);
+                     }
+                }
             }
             this.recycle();
             return;
