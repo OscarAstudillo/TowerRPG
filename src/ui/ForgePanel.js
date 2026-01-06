@@ -29,7 +29,7 @@ export default class ForgePanel {
         this.createCatBtn(width * 0.2, catY, "ARMAS", 'weapon');
         this.createCatBtn(width * 0.4, catY, "ARMADURAS", 'armor');
         this.createCatBtn(width * 0.6, catY, "JOYAS", 'accessory');
-        this.createCatBtn(width * 0.8, catY, "TORRES", 'tower_part'); // Botón de Ingeniería
+        this.createCatBtn(width * 0.8, catY, "TORRES", 'tower_part'); 
 
         this.container.add([this.recipesContainer, this.detailContainer, this.forgeSubFilterContainer]);
     }
@@ -84,7 +84,6 @@ export default class ForgePanel {
         // Sub-filtros para cada categoría
         if (this.category === 'weapon') subs = [['TODAS','all'], ['ESPADAS','sword'], ['ARCOS','bow'], ['BASTONES','staff'], ['DAGAS','dagger']];
         else if (this.category === 'armor') subs = [['TODAS','all'], ['TELA','cloth'], ['CUERO','leather'], ['PLACAS','plate'], ['ESCUDOS','shield']];
-        // --- NUEVO: Sub-filtros para Ingeniería ---
         else if (this.category === 'tower_part') subs = [['TODAS','all'], ['ARQUERO','archer'], ['CAÑON','cannon'], ['MAGO','mage']];
         
         let subX = this.width * 0.15;
@@ -199,7 +198,6 @@ export default class ForgePanel {
         const totalMult = tierMult * rarityMult;
 
         const subType = recipe.subType || recipe.type;
-        // CORRECCIÓN: Manejo de fallback para Arquetipos
         const archetype = (GAME_CONSTANTS.BASE_STATS_RULES && GAME_CONSTANTS.BASE_STATS_RULES[subType]) ? GAME_CONSTANTS.BASE_STATS_RULES[subType] : null;
         
         if (archetype) {
@@ -211,12 +209,9 @@ export default class ForgePanel {
             statsStr += `• ${archetype.primary.toUpperCase()}: ${val1}\n`;
             statsStr += `• ${archetype.secondary.toUpperCase()}: ${val2}\n`;
         } else {
-            // Fallback genérico para Ingeniería o ítems sin arquetipo definido
             for (let k in recipe.baseStats) {
-                // Invertir lógica para AttackSpeed (menos es mejor/más rápido, así que dividimos por mult)
                 let val = Math.ceil(recipe.baseStats[k] * totalMult);
                 if (k === 'attackSpeed') val = Math.round(recipe.baseStats[k] / totalMult);
-                
                 statsStr += `• ${k.toUpperCase()}: ${val}\n`;
             }
         }
@@ -278,10 +273,25 @@ export default class ForgePanel {
             let msg = `¡FORJADO: ${result.item.name}!`;
             let color = '#00ff00';
             
+            // --- GAME JUICE: EFECTOS DE FORJA ---
+            const rarity = RARITY[result.item.rarity];
+            const baseColor = rarity.color;
+
+            // Flash blanco breve en el panel
+            const flash = this.scene.add.rectangle(0, 0, 450, 700, 0xffffff, 1).setAlpha(0.8);
+            this.detailContainer.add(flash);
+            this.scene.tweens.add({ targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy() });
+
+            // Partículas
+            this.spawnForgeParticles(0, 0, baseColor, result.enchantBonus > 0);
+
             if (result.enchantBonus > 0) {
                 msg = `¡CRÍTICO! ${result.item.name} +${result.enchantBonus}`;
                 color = '#ff00ff'; 
                 SoundManager.playSound('upgrade'); 
+                
+                // Shake si es crítico
+                this.scene.cameras.main.shake(150, 0.005);
             } else {
                 SoundManager.playSound('build');
             }
@@ -291,6 +301,30 @@ export default class ForgePanel {
 
         } else {
             if(this.scene.showCentralAlert) this.scene.showCentralAlert(result.error, '#ff0000');
+        }
+    }
+
+    spawnForgeParticles(x, y, color, isCrit) {
+        const particleCount = isCrit ? 30 : 15;
+        const speed = isCrit ? 300 : 150;
+        
+        for(let i=0; i<particleCount; i++) {
+            const p = this.scene.add.rectangle(x, y, isCrit ? 10 : 6, isCrit ? 10 : 6, color).setDepth(2100);
+            const angle = Phaser.Math.Between(0, 360) * (Math.PI/180);
+            const v = Phaser.Math.Between(50, speed);
+            
+            this.detailContainer.add(p); // Añadir al contenedor para que esté en el modal
+
+            this.scene.tweens.add({
+                targets: p,
+                x: x + Math.cos(angle) * v,
+                y: y + Math.sin(angle) * v,
+                alpha: 0,
+                scale: 0,
+                duration: 600,
+                ease: 'Quad.out',
+                onComplete: () => p.destroy()
+            });
         }
     }
 

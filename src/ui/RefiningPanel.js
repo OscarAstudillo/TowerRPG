@@ -267,28 +267,90 @@ export default class RefiningPanel {
         const result = RPGSystem.refineMaterial(this.selectedRecipe.id, this.selectedRarity, count);
 
         if (result.success) {
-            SoundManager.playSound('build');
+            // --- SONIDO DINÁMICO ---
+            // Si son muchos, sonido múltiple rápido
+            if (count > 1) {
+                // Simulación de "cascada"
+                let soundCount = Math.min(count, 5); // Máximo 5 sonidos para no saturar
+                for(let i=0; i<soundCount; i++) {
+                    this.scene.time.delayedCall(i * 100, () => SoundManager.playSound('build'));
+                }
+            } else {
+                SoundManager.playSound('build');
+            }
+
             SaveSystem.save(); 
-            
             this.updateDetailView(); 
             this.refresh(); 
             
-            // --- CORRECCIÓN AQUÍ: Usar nombre legible ---
-            // Buscamos la definición del material refinado para obtener su nombre real
             const refinedDef = REFINED_MATERIALS[this.selectedRecipe.output] || { name: this.selectedRecipe.output };
             const materialName = refinedDef.name;
+            const rData = RARITY[result.rarity];
 
             let msg = `¡Refinado Exitoso!\n+${result.totalProduced} ${materialName}`;
-            
-            if (result.doubleDrops > 0) {
-                this.showFloatingText(`¡${result.doubleDrops} DOBLES!`, 0xffff00, -50); 
-            }
-            
             this.showFloatingText(msg, 0xffffff);
+
+            // --- LLUVIA DE RECURSOS (JUICE) ---
+            const center = { x: this.width/2, y: this.height/2 };
+            // Lanzamos partículas visuales (iconos simples)
+            const particles = Math.min(result.totalProduced, 20); // Límite visual 20
+            for(let i=0; i<particles; i++) {
+                this.spawnResourceParticle(center.x, center.y, rData.color);
+            }
+
+            if (result.doubleDrops > 0) {
+                // Efecto extra para doble drop
+                this.scene.cameras.main.shake(100, 0.002);
+                this.showFloatingText(`¡${result.doubleDrops} DOBLES!`, 0xffff00, -50); 
+                // Explosión dorada
+                for(let i=0; i<10; i++) {
+                    this.spawnResourceParticle(center.x, center.y, 0xffff00, true);
+                }
+            }
             
         } else {
             SoundManager.playSound('ui_click'); 
         }
+    }
+
+    spawnResourceParticle(x, y, color, isDouble = false) {
+        // Crea un pequeño cuadrado o sprite que sale disparado
+        const size = isDouble ? 12 : 8;
+        const p = this.scene.add.rectangle(x, y, size, size, color).setDepth(2100);
+        p.setStrokeStyle(1, 0xffffff);
+
+        // Física simple
+        const angle = Phaser.Math.Between(0, 360) * (Math.PI/180);
+        const speed = Phaser.Math.Between(100, 300);
+        const targetX = x + Math.cos(angle) * speed;
+        const targetY = y + Math.sin(angle) * speed;
+
+        // Tween 1: Explosión hacia afuera
+        this.scene.tweens.add({
+            targets: p,
+            x: targetX,
+            y: targetY,
+            angle: 360,
+            duration: 500,
+            ease: 'Back.out',
+            onComplete: () => {
+                // Tween 2: Volar hacia la UI (Inventario, esquina sup derecha aprox)
+                // Ajusta estas coords si tu inventario está en otro lado
+                const invX = this.width - 50; 
+                const invY = 50;
+                
+                this.scene.tweens.add({
+                    targets: p,
+                    x: invX,
+                    y: invY,
+                    scale: 0.2,
+                    alpha: 0,
+                    duration: 400,
+                    ease: 'Quad.in',
+                    onComplete: () => p.destroy()
+                });
+            }
+        });
     }
 
     showFloatingText(msg, color, yOffset = 0) {
