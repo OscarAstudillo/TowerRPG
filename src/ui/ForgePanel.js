@@ -44,7 +44,7 @@ export default class ForgePanel {
             this.refresh();
             // Reset color de botones
             this.container.list.forEach(c => { 
-                if(c.setColor && c !== this.recipesContainer && c !== this.forgeSubFilterContainer && c !== this.profText && c.text !== "FABRICAR" && c.text !== "FUSIONAR" && c !== this.title) {
+                if(c.type === 'Text' && c !== this.title && c !== this.profText) {
                     c.setColor('#888'); 
                 }
             });
@@ -166,7 +166,7 @@ export default class ForgePanel {
             btnX += 50;
         });
 
-        // Contenedores de texto
+        // Contenedores
         this.statsText = this.scene.add.text(0, -200, "", { fontFamily: 'Roboto', fontSize: '15px', align: 'left', wordWrap: {width: 400}, lineHeight: 22 }).setOrigin(0.5, 0);
         this.possibleStatsText = this.scene.add.text(0, -60, "", { fontFamily: 'Roboto', fontSize: '13px', align: 'center', wordWrap: {width: 400}, color: '#aaa' }).setOrigin(0.5, 0);
         this.matsText = this.scene.add.text(0, 80, "", { fontFamily: 'Roboto', fontSize: '15px', align: 'center', lineHeight:24 }).setOrigin(0.5, 0);
@@ -189,7 +189,7 @@ export default class ForgePanel {
 
         this.modalTitle.setColor(hexColor);
         
-        let statsStr = `RAREZA: ${rarity.name} (x${rarity.mult.toFixed(2)})\n\n[STATS BASE]\n`;
+        let statsStr = `RAREZA: ${rarity.name} (x${rarity.mult.toFixed(2)})\n`;
         
         const tier = recipe.tier || 1;
         const tierMult = Math.pow(GAME_CONSTANTS.EQUIPMENT.TIER_MULTIPLIER_BASE, tier - 1);
@@ -273,24 +273,19 @@ export default class ForgePanel {
             let msg = `¡FORJADO: ${result.item.name}!`;
             let color = '#00ff00';
             
-            // --- GAME JUICE: EFECTOS DE FORJA ---
             const rarity = RARITY[result.item.rarity];
             const baseColor = rarity.color;
 
-            // Flash blanco breve en el panel
             const flash = this.scene.add.rectangle(0, 0, 450, 700, 0xffffff, 1).setAlpha(0.8);
             this.detailContainer.add(flash);
             this.scene.tweens.add({ targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy() });
 
-            // Partículas
             this.spawnForgeParticles(0, 0, baseColor, result.enchantBonus > 0);
 
             if (result.enchantBonus > 0) {
                 msg = `¡CRÍTICO! ${result.item.name} +${result.enchantBonus}`;
                 color = '#ff00ff'; 
                 SoundManager.playSound('upgrade'); 
-                
-                // Shake si es crítico
                 this.scene.cameras.main.shake(150, 0.005);
             } else {
                 SoundManager.playSound('build');
@@ -313,7 +308,7 @@ export default class ForgePanel {
             const angle = Phaser.Math.Between(0, 360) * (Math.PI/180);
             const v = Phaser.Math.Between(50, speed);
             
-            this.detailContainer.add(p); // Añadir al contenedor para que esté en el modal
+            this.detailContainer.add(p); 
 
             this.scene.tweens.add({
                 targets: p,

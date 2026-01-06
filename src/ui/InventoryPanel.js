@@ -230,15 +230,17 @@ export default class InventoryPanel {
         const titleName = item.enchant > 0 ? `${item.name} (+${item.enchant})` : item.name;
 
         // Título del Item
-        const title = this.scene.add.text(0, -220, titleName, { 
+        const title = this.scene.add.text(0, 0, titleName, { 
             fontFamily: 'Cinzel', fontSize: '20px', color: colorHex, align: 'center', wordWrap: {width: 320} 
         }).setOrigin(0.5, 0);
 
         // --- CONSTRUCCIÓN DE STATS CON COMPARADOR ---
-        let currentY = title.y + title.height + 25;
-        
+        let currentY = title.height + 25;
         const equippedItem = this.getEquippedComparison(item);
         
+        // Contenedor temporal para los stats para calcular altura
+        const statsContent = this.scene.add.container(0, 0);
+
         if (item.stats) {
             Object.entries(item.stats).forEach(([key, val]) => {
                 if (val !== 0) {
@@ -249,7 +251,6 @@ export default class InventoryPanel {
                     if (equippedItem && equippedItem.stats) {
                         const currentVal = equippedItem.stats[key] || 0;
                         const diff = val - currentVal;
-                        // Formatear diferencia
                         const formattedDiff = this.formatStat(Math.abs(diff));
                         
                         if (diff > 0.09) { 
@@ -261,18 +262,16 @@ export default class InventoryPanel {
                         }
                     }
 
-                    const lineContainer = this.scene.add.container(0, currentY);
-                    const statLabel = this.scene.add.text(-150, 0, `${key.toUpperCase()}: ${formattedVal}`, { fontFamily: 'Roboto', fontSize: '14px', color: '#dddddd' });
-                    const diffLabel = this.scene.add.text(statLabel.width - 130, 0, diffText, { fontFamily: 'Roboto', fontSize: '14px', color: diffColor, fontStyle: 'bold' });
+                    const statLabel = this.scene.add.text(-150, currentY, `${key.toUpperCase()}: ${formattedVal}`, { fontFamily: 'Roboto', fontSize: '14px', color: '#dddddd' });
+                    const diffLabel = this.scene.add.text(statLabel.width - 130, currentY, diffText, { fontFamily: 'Roboto', fontSize: '14px', color: diffColor, fontStyle: 'bold' });
                     
-                    lineContainer.add([statLabel, diffLabel]);
-                    this.detailContainer.add(lineContainer);
+                    statsContent.add([statLabel, diffLabel]);
                     currentY += 20;
                 }
             });
         } else {
             const noStats = this.scene.add.text(0, currentY, "Sin estadísticas", { fontFamily: 'Roboto', fontSize: '14px', color: '#aaa' }).setOrigin(0.5, 0);
-            this.detailContainer.add(noStats);
+            statsContent.add(noStats);
             currentY += 25;
         }
 
@@ -292,9 +291,9 @@ export default class InventoryPanel {
         const extraTxt = this.scene.add.text(0, currentY + 10, extraInfo, { 
             fontFamily: 'Roboto', fontSize: '13px', align: 'center', color: '#aaaaaa'
         }).setOrigin(0.5, 0);
-        this.detailContainer.add(extraTxt);
+        statsContent.add(extraTxt);
 
-        currentY = extraTxt.y + extraTxt.height + 40;
+        currentY += extraTxt.height + 40;
 
         // BOTONES
         const equipLabel = item.type === 'tower_part' ? "EQUIPAR (Torre)" : "EQUIPAR";
@@ -305,15 +304,45 @@ export default class InventoryPanel {
         
         currentY += 55;
         const sellBtnContainer = this.createActionBtn(0, currentY, "VENDER", 0x8b0000, () => this.actionSell(item));
+        
+        currentY += 50; // Padding final
 
-        const totalContentHeight = (currentY + 60) - (-250); 
-        const bg = this.scene.add.rectangle(0, -250 + (totalContentHeight / 2), panelWidth, totalContentHeight, 0x000000, 0.95)
+        // Calcular altura total dinámica
+        const totalHeight = currentY + 40;
+        
+        // Fondo dinámico
+        const bg = this.scene.add.rectangle(0, totalHeight/2 - 40, panelWidth, totalHeight, 0x000000, 0.95)
             .setStrokeStyle(3, item.rarity ? RARITY[item.rarity].color : 0xffffff)
             .setInteractive();
         
+        // RE-CENTRAR TODO EL CONTENIDO EN EL EJE Y
+        // Movemos el título arriba del todo relativo al fondo
+        title.setPosition(0, 40); 
+        // Movemos todo el contenido de stats y botones hacia abajo
+        // Pero como ya calculamos currentY acumulativo, mejor ajustamos el offset del detailContainer
+        // para que quede centrado verticalmente en la pantalla si es posible, o fijo arriba.
+        // En este caso, simplemente añadimos al contenedor.
+        
+        // Ajuste fino: movemos todo el contenido hacia arriba para que el título quede en el borde superior del BG
+        // El BG está centrado en (0, totalHeight/2), así que su top es -40.
+        // title.y debería ser 0 (relativo al top del bg + padding)
+        
         this.detailContainer.addAt(bg, 0);
-        // !! IMPORTANTE: Agregar todos los elementos al contenedor
-        this.detailContainer.add([title, equipBtnContainer, fuseBtnContainer, sellBtnContainer]);
+        
+        // Reposicionar título para que quede bien dentro del recuadro dinámico
+        title.y = 30; 
+        
+        // Ajustar posición de stats y botones restando un offset si quedaron muy abajo
+        // O simplemente dejar que fluyan.
+        // El problema es que currentY empezó en title.y + height... 
+        // Vamos a agrupar contenido y centrarlo.
+        
+        this.detailContainer.add(title);
+        this.detailContainer.add(statsContent);
+        this.detailContainer.add([equipBtnContainer, fuseBtnContainer, sellBtnContainer]);
+        
+        // Centrar el contenedor de detalle en la pantalla si es muy alto
+        // this.detailContainer.y = ... (ya está fijo en constructor)
     }
 
     createActionBtn(x, y, text, color, callback) {
@@ -322,7 +351,7 @@ export default class InventoryPanel {
         const txt = this.scene.add.text(0, 0, text, { fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold' }).setOrigin(0.5);
         bg.on('pointerdown', callback);
         container.add([bg, txt]);
-        return container; // IMPORTANTE: Devolver container
+        return container; 
     }
 
     safeAddItemToInventory(item) {
