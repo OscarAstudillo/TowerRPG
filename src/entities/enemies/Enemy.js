@@ -41,12 +41,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.drops = data.drops || [];
         this.leakDamage = (this.maxHp > 2000) ? 5 : 1; 
         
-        // --- IDENTIFICAR BOSS ---
         this.isBoss = (typeKey.includes('boss') || typeKey.includes('mini'));
         this.skillTimer = 0;
         this.isCasting = false; 
 
-        // --- CARGAR SKILLS ---
         this.skills = data.skills || []; 
         this.skillCooldowns = {}; 
 
@@ -62,7 +60,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
 
         this.originalColor = color; 
         const size = (this.maxHp > 2000 || this.isBoss) ? 45 : 20; 
-        this.baseScale = 1.0; // Referencia para efectos
+        this.baseScale = 1.0; 
 
         const textureKey = `enemy_${typeKey}`;
         if (scene.textures.exists(textureKey)) {
@@ -74,7 +72,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.sprite.setDisplaySize(size, size);
         this.add(this.sprite);
 
-        // Barra de vida
         this.hpBarBg = scene.add.rectangle(0, -size/2 - 8, size + 10, 6, 0x000000);
         this.hpBar = scene.add.rectangle(0, -size/2 - 8, size + 8, 4, 0x00ff00);
         this.add([this.hpBarBg, this.hpBar]);
@@ -99,7 +96,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.updateDebuffs(delta);
         if (!this.active) return;
 
-        // --- IA DE BOSS ---
         if (this.isBoss) {
             const skillConfig = BOSS_SKILLS[this.typeKey] || BOSS_SKILLS['AOE_SMASH'];
             if (!this.isCasting) {
@@ -112,12 +108,10 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 if (skillConfig.TYPE !== 'projectile_barrage') return; 
             }
         } 
-        // --- IA DE ENEMIGO COMÚN ---
         else if (this.skills.length > 0 && !this.isCasting && !this.statusEffects.stun.active) {
             this.updateCommonSkills(delta);
         }
 
-        // --- MOVIMIENTO ---
         if (!this.isCasting && !this.isShielded && !this.statusEffects.stun.active) {
             let speedMod = 1.0;
             if (this.statusEffects.slow.active) speedMod *= (1 - this.statusEffects.slow.factor);
@@ -132,7 +126,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
             return;
         }
 
-        // Interpolación de camino
         const pathLen = this.path.length;
         const idx = this.follower.t * (pathLen - 1);
         const p1Idx = Math.floor(idx);
@@ -144,13 +137,8 @@ export default class Enemy extends Phaser.GameObjects.Container {
             const segT = idx - p1Idx;
             this.x = Phaser.Math.Linear(p1.x, p2.x, segT);
             this.y = Phaser.Math.Linear(p1.y, p2.y, segT);
-            
-            // Rotación suave hacia la dirección (opcional, si el sprite tiene frente)
-            // if (p2.x > p1.x) this.sprite.setFlipX(false);
-            // else this.sprite.setFlipX(true);
         }
 
-        // Actualizar barra de vida
         const hpPct = Math.max(0, this.hp / this.maxHp);
         this.hpBar.width = (this.width + 8) * hpPct; 
         this.hpBar.setFillStyle(hpPct < 0.3 ? 0xff0000 : 0x00ff00);
@@ -163,49 +151,65 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.checkAttackPlayer(time);
     }
 
-    // --- MANEJO DE DAÑO Y IMPACTO VISUAL ---
-
     takeTrueDamage(amount, color) { 
         if (!this.active) return; 
         this.hp -= amount; 
-        
-        // Efecto visual rápido
         this.flashWhite();
-        
         if (this.scene && this.scene.showFloatingText) {
             this.scene.showFloatingText(this.x, this.y - 20, `-${Math.floor(amount)}`, color); 
         }
         if (this.hp <= 0) this.die(true); 
     }
 
-    takeDamage(amount) { 
+    // --- NUEVO: TAKE DAMAGE CON SINERGIAS ---
+    takeDamage(amount, type = 'physical') { 
         if (this.isShielded) { 
             if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); 
             return; 
         } 
         
+        // 1. SINERGIA: QUEBRAR (Congelado + Físico)
+        if (this.statusEffects.freeze.active && type === 'physical') {
+            amount *= 1.5; // +50% Daño
+            this.statusEffects.freeze.active = false; // Romper hielo
+            this.clearTint();
+            if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "¡QUEBRAR!", "#00ffff");
+            if (this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
+        }
+
+        // 2. SINERGIA: ELECTRO-CARGA (Veneno + Mágico/Rayo)
+        if (this.statusEffects.poison.active && type === 'magic') {
+            // Detonar todo el daño de veneno restante
+            // Estimamos daño restante: daño por tick * (tiempo restante / 1000)
+            // Simplificado: daño actual * 3
+            const poisonBurst = this.statusEffects.poison.damage * 3;
+            amount += poisonBurst;
+            
+            this.statusEffects.poison.active = false; // Consumir veneno
+            this.clearTint();
+            if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "¡SOBRECARGA!", "#7cfc00");
+            if (this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x7cfc00);
+        }
+
         const reductionMult = 100 / (100 + this.armor); 
         let dmg = Math.floor(amount * reductionMult); 
         if (dmg < 1) dmg = 1; 
         
         this.hp -= dmg; 
         
-        // --- JUICE: IMPACTO VISUAL ---
-        this.flashWhite(); // Parpadeo
+        this.flashWhite();
         
-        // Squash & Stretch (Aplastar y estirar)
         if (this.sprite) {
             this.scene.tweens.add({
                 targets: this.sprite,
-                scaleX: 1.3, // Se ensancha
-                scaleY: 0.7, // Se aplasta
+                scaleX: 1.3, 
+                scaleY: 0.7,
                 duration: 50,
                 yoyo: true,
                 ease: 'Quad.easeOut'
             });
         }
 
-        // Sangre
         if (this.scene.createHitEffect) {
             this.scene.createHitEffect(this.x, this.y, this.originalColor); 
         }
@@ -225,7 +229,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         this.sprite.setTint(0xffffff);
         this.scene.time.delayedCall(100, () => {
             if (this.active && this.sprite) {
-                // Restaurar color original o estado alterado (congelado/quemado)
                 if (this.statusEffects.freeze.active) this.sprite.setTint(0x00ffff);
                 else if (this.statusEffects.burn.active) this.sprite.setTint(0xff4500);
                 else if (this.statusEffects.poison.active) this.sprite.setTint(0x00ff00);
@@ -234,8 +237,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         });
     }
 
-    // ... (Métodos de Skills y Debuffs se mantienen igual, no los toques) ...
-    // --- SKILLS COMUNES ---
     updateCommonSkills(delta) {
         if (!this.scene.player || this.scene.player.isDead) return;
         const player = this.scene.player;
@@ -315,7 +316,6 @@ export default class Enemy extends Phaser.GameObjects.Container {
         }
     }
 
-    // ... (Resto de Boss Skills, Debuffs, etc.)
     useBossSkill(config) {
         if (!this.scene || !this.scene.player) return;
         const player = this.scene.player;
@@ -492,17 +492,13 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (!this.scene) return;
         const scene = this.scene;
         
-        // --- JUICE: MUERTE DRAMÁTICA ---
-        // En lugar de destroy() directo, hacemos animación
         this.isDead = true; 
-        this.body.enable = false; // Desactivar física
+        this.body.enable = false; 
         this.hpBarBg.setVisible(false);
         this.hpBar.setVisible(false);
 
-        // Explosión de partículas
         if (scene.createExplosion) scene.createExplosion(this.x, this.y, this.originalColor);
 
-        // Tween de "colapso"
         scene.tweens.add({
             targets: this,
             scale: 0,
@@ -510,12 +506,11 @@ export default class Enemy extends Phaser.GameObjects.Container {
             alpha: 0,
             duration: 300,
             onComplete: () => {
-                // Drop y lógica final
                 if (killedByPlayer) {
                     if (scene.onEnemyKilled) scene.onEnemyKilled(this);
                     this.dropLoot(scene);
                 }
-                this.destroy(); // AHORA SÍ SE DESTRUYE
+                this.destroy(); 
                 if (scene.checkWaveStatus) scene.checkWaveStatus();
             }
         });
