@@ -1,6 +1,7 @@
 import { gameState, getTowerBonuses } from '../config/GameState.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import { TOWER_TYPES } from '../config/TowerStats.js'; // Importamos los datos de las torres
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class TowersPanel {
     constructor(scene, x, y, width, height) {
@@ -9,6 +10,9 @@ export default class TowersPanel {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         this.towerViewPage = 0; // 0 = Básicas, 1 = Especiales
+
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
 
         this.title = scene.add.text(width/2, height * 0.17, "TORRES DISPONIBLES", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.container.add(this.title);
@@ -29,7 +33,18 @@ export default class TowersPanel {
         this.container.add(toggleBtn);
     }
 
-    show() { this.container.setVisible(true); this.refresh(); }
+    show() { 
+        this.container.setVisible(true); 
+        this.refresh(); 
+
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'towers', 
+            'GESTIÓN DE TORRES', 
+            'Personaliza tus defensas.\n\nAquí puedes ver la información de cada torre y sus evoluciones.\n\nAdemás, puedes equiparles ÍTEMS ESPECIALES (Partes de Torre) en los slots vacíos para aumentar su daño, rango o velocidad.'
+        );
+    }
+
     hide() { this.container.setVisible(false); }
 
     refresh() { 

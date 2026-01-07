@@ -1,9 +1,11 @@
+// src/ui/InventoryPanel.js
 import { gameState, RARITY, updatePlayerStats, canEquipItem, CLASS_RESTRICTIONS } from '../config/GameState.js';
 import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { ITEM_SETS } from '../config/ItemSets.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import SoundManager from '../systems/SoundManager.js';
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class InventoryPanel {
     constructor(scene, x, y, width, height) {
@@ -14,6 +16,9 @@ export default class InventoryPanel {
         this.category = 'all'; 
         this.page = 0;
         this.itemsPerPage = 9; 
+
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
 
          this.title = scene.add.text(width/2, height * 0.17, "MOCHILA", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.container.add(this.title);
@@ -65,7 +70,18 @@ export default class InventoryPanel {
         this.container.add(btn);
     }
 
-    show() { this.container.setVisible(true); this.refresh(); }
+    show() { 
+        this.container.setVisible(true); 
+        this.refresh(); 
+        
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'inventory', 
+            'GESTIÓN DE INVENTARIO', 
+            'Aquí puedes ver tu equipo, materiales y partes de torre.\n\nHaz clic en un ítem para ver detalles, EQUIPARLO o FUSIONARLO para mejorarlo.'
+        );
+    }
+    
     hide() { this.container.setVisible(false); }
 
     changePage(delta) {
@@ -315,34 +331,13 @@ export default class InventoryPanel {
             .setStrokeStyle(3, item.rarity ? RARITY[item.rarity].color : 0xffffff)
             .setInteractive();
         
-        // RE-CENTRAR TODO EL CONTENIDO EN EL EJE Y
-        // Movemos el título arriba del todo relativo al fondo
-        title.setPosition(0, 40); 
-        // Movemos todo el contenido de stats y botones hacia abajo
-        // Pero como ya calculamos currentY acumulativo, mejor ajustamos el offset del detailContainer
-        // para que quede centrado verticalmente en la pantalla si es posible, o fijo arriba.
-        // En este caso, simplemente añadimos al contenedor.
-        
-        // Ajuste fino: movemos todo el contenido hacia arriba para que el título quede en el borde superior del BG
-        // El BG está centrado en (0, totalHeight/2), así que su top es -40.
-        // title.y debería ser 0 (relativo al top del bg + padding)
-        
         this.detailContainer.addAt(bg, 0);
         
-        // Reposicionar título para que quede bien dentro del recuadro dinámico
         title.y = 30; 
-        
-        // Ajustar posición de stats y botones restando un offset si quedaron muy abajo
-        // O simplemente dejar que fluyan.
-        // El problema es que currentY empezó en title.y + height... 
-        // Vamos a agrupar contenido y centrarlo.
         
         this.detailContainer.add(title);
         this.detailContainer.add(statsContent);
         this.detailContainer.add([equipBtnContainer, fuseBtnContainer, sellBtnContainer]);
-        
-        // Centrar el contenedor de detalle en la pantalla si es muy alto
-        // this.detailContainer.y = ... (ya está fijo en constructor)
     }
 
     createActionBtn(x, y, text, color, callback) {
@@ -491,7 +486,6 @@ export default class InventoryPanel {
         });
     }
 
-    // --- NUEVO: VENTANA DE CONFIRMACIÓN VISUAL MEJORADA ---
     showFusionConfirmation(item2) {
         this.fusionListModal.setVisible(false);
         

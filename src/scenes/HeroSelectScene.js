@@ -1,7 +1,9 @@
-// src/scenes/HeroSelectScene.js
 import Phaser from 'phaser';
 import { gameState, initHero, updatePlayerStats } from '../config/GameState.js';
 import SaveSystem from '../systems/SaveSystem.js';
+import PanelTutorial from '../ui/PanelTutorial.js'; // <--- IMPORTAR (Ajustar ruta si necesario)
+
+// Nota: PanelTutorial está en src/ui/, así que subimos un nivel con '..' y entramos a 'ui'
 
 export default class HeroSelectScene extends Phaser.Scene {
     constructor() {
@@ -12,8 +14,15 @@ export default class HeroSelectScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
 
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(this); // <--- INSTANCIAR
+
         // --- VISUAL: FONDO ---
-        this.add.image(w/2, h/2, 'bg_menu').setDisplaySize(w, h).setAlpha(0.8);
+        if (this.textures.exists('bg_menu')) {
+            this.add.image(w/2, h/2, 'bg_menu').setDisplaySize(w, h).setAlpha(0.8);
+        } else {
+            this.add.rectangle(w/2, h/2, w, h, 0x111111);
+        }
 
         this.add.text(w / 2, 80, 'ELIGE TU HÉROE', {
             fontFamily: 'Cinzel', fontSize: '48px', color: '#ffd700', stroke: '#000', strokeThickness: 4
@@ -58,6 +67,16 @@ export default class HeroSelectScene extends Phaser.Scene {
             bg.on('pointerdown', () => this.selectHero(hData.id));
 
             container.add([bg, sprite, title, desc]);
+        });
+
+        // --- ACTIVAR TUTORIAL (Al final de create) ---
+        // Usamos un pequeño delay para que la transición de escena termine antes de mostrar el popup
+        this.time.delayedCall(500, () => {
+            this.tutorial.trigger(
+                'hero_select', 
+                'SELECCIÓN DE CLASE', 
+                '¡Bienvenido, Aventurero!\n\nCada clase tiene un estilo único:\n\n🛡️ GUERRERO: Resiste mucho daño.\n🔮 MAGO: Elimina grupos de enemigos.\n🏹 ARQUERO: Dispara muy rápido.\n🗡️ ASESINO: Elimina objetivos al instante.\n\n¡Elige con sabiduría!'
+            );
         });
     }
 

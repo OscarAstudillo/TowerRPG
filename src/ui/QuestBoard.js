@@ -3,6 +3,7 @@ import { RAW_MATERIALS, REFINED_MATERIALS } from '../config/Materials.js';
 import { RECIPES } from '../config/Recipes.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import SaveSystem from '../systems/SaveSystem.js';
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class QuestBoard {
     constructor(scene, x, y, width, height) {
@@ -11,6 +12,9 @@ export default class QuestBoard {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false).setDepth(2000);
         
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
+
         const blocker = scene.add.rectangle(width/2, height/2, width, height, 0x000000, 0.8).setInteractive();
         const bg = scene.add.rectangle(width/2, height/2, 800, 700, 0x222222).setStrokeStyle(4, 0xffd700);
         const title = scene.add.text(width/2, height/2 - 300, "TABLÓN DE MISIONES", { fontFamily: 'Cinzel', fontSize: '28px', fontStyle:'bold', color:'#ffd700' }).setOrigin(0.5);
@@ -28,6 +32,13 @@ export default class QuestBoard {
         RPGSystem.generateDailyQuests();
         this.refresh();
         this.container.setVisible(true);
+
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'quests', 
+            'TABLÓN DE MISIONES', 
+            '¡Completa objetivos diarios para ganar recompensas extra!\n\nCada día tendrás nuevas misiones. Si las completas, vuelve aquí y presiona "RECLAMAR" para obtener Oro, XP y Materiales raros.'
+        );
     }
 
     hide() {

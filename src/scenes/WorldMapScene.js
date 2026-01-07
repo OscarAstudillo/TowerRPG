@@ -1,10 +1,10 @@
-// src/scenes/WorldMapScene.js
 import Phaser from 'phaser';
 import { gameState } from '../config/GameState.js';
 import { BIOMES, LEVEL_CONFIG } from '../config/Levels.js';
 import { BIOME_ENEMIES, ENEMY_DB } from '../config/Enemies.js'; 
 import { RAW_MATERIALS } from '../config/Materials.js'; 
 import SoundManager from '../systems/SoundManager.js';
+import PanelTutorial from '../ui/PanelTutorial.js'; // <--- IMPORTAR
 
 const BIOME_LORE = {
     forest: "El Bosque Ancestral, hogar de criaturas que protegen la naturaleza con ferocidad. Se dice que los árboles susurran secretos de magia antigua.",
@@ -17,15 +17,17 @@ export default class WorldMapScene extends Phaser.Scene {
     constructor() {
         super('WorldMapScene');
         this.currentBiomeIndex = 0;
-        this.biomeKeys = Object.keys(BIOMES); // Incluye 'endless' si está en Levels.js
+        this.biomeKeys = Object.keys(BIOMES); 
         this.currentSelectedDifficulty = 1;
     }
 
     create() {
         this.cameras.main.fadeIn(500, 0, 0, 0);
-        
         const w = this.scale.width;
         const h = this.scale.height;
+
+        // Inicializar tutorial
+        this.tutorial = new PanelTutorial(this); // <--- INSTANCIAR
 
         this.bgImage = this.add.image(w/2, h/2, 'bg_forest')
             .setDisplaySize(w, h)
@@ -54,6 +56,15 @@ export default class WorldMapScene extends Phaser.Scene {
         backBtn.on('pointerdown', () => {
             SoundManager.playSound('ui_click');
             this.scene.start('MainMenuScene');
+        });
+
+        // --- ACTIVAR TUTORIAL (con pequeño delay) ---
+        this.time.delayedCall(500, () => {
+            this.tutorial.trigger(
+                'world_map', 
+                'MAPA DEL MUNDO', 
+                'Selecciona una zona usando las flechas laterales < >.\n\nElige la DIFICULTAD (Fácil, Normal, Difícil) y luego un NIVEL para jugar.\n\n¡Gana 3 estrellas en todos los niveles para desbloquear el modo ABISMO INFINITO!'
+            );
         });
     }
 
@@ -89,7 +100,7 @@ export default class WorldMapScene extends Phaser.Scene {
 
     trySelectDifficulty(diff) {
         const currentBiome = this.biomeKeys[this.currentBiomeIndex];
-        if (currentBiome === 'endless') return; // Bloquear cambio de dificultad en endless
+        if (currentBiome === 'endless') return; 
 
         if (diff > 1) {
             const prevDiff = diff - 1;
@@ -110,7 +121,7 @@ export default class WorldMapScene extends Phaser.Scene {
         this.currentSelectedDifficulty = diff;
         SoundManager.playSound('ui_click');
         this.updateDifficultyButtonsVisuals();
-        this.levelsContainer.removeAll(true); // Limpiar contenedor antes de recrear
+        this.levelsContainer.removeAll(true); 
         this.createLevelButtons(currentBiome);
         this.updateInfoPanelContent(currentBiome); 
     }

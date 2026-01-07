@@ -2,6 +2,7 @@ import { gameState, updatePlayerStats, getCurrentHero } from '../config/GameStat
 import { TALENTS } from '../config/Talents.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import SaveSystem from '../systems/SaveSystem.js';
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class TalentTree {
     constructor(scene, x, y, width, height) {
@@ -10,6 +11,9 @@ export default class TalentTree {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
+
         this.talentPointsText = scene.add.text(width/2, height * 0.18, "PUNTOS: 0", { fontFamily: 'Cinzel', fontSize: '24px', fontStyle: 'bold', color: '#ffd700' }).setOrigin(0.5);
         this.container.add(this.talentPointsText);
         
@@ -33,7 +37,18 @@ export default class TalentTree {
         this.container.add([upBtn, downBtn]);
     }
 
-    show() { this.container.setVisible(true); this.refresh(); }
+    show() { 
+        this.container.setVisible(true); 
+        this.refresh(); 
+
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'talents', 
+            'ÁRBOL DE TALENTOS', 
+            'A medida que tu Héroe sube de nivel, desbloqueas filas de talentos poderosos.\n\nEn cada nivel (10, 20, 30...) debes elegir UNO de dos caminos. ¡Elige sabiamente para definir tu estilo de juego!'
+        );
+    }
+
     hide() { this.container.setVisible(false); }
 
     refresh() { 
@@ -85,7 +100,7 @@ export default class TalentTree {
             updatePlayerStats(); 
             SaveSystem.save(); 
             this.refresh(); 
-            this.scene.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); 
+            if(this.scene.showCentralAlert) this.scene.showCentralAlert(`¡TALENTO APRENDIDO!`, '#00ff00'); 
         } 
     }
 }

@@ -99,6 +99,8 @@ export const initialState = {
 
     quests: { active: [], lastRefresh: 0 },
     heroes: {}, talents: [], completedLevels: {}, unlockedRecipes: [], activeSets: [],
+    // --- NUEVO: Registro de tutoriales vistos ---
+    tutorials: {},
     
     levelStars: {}, 
     biomeDifficulty: { forest: 1, mountain: 1, volcano: 1 },

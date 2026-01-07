@@ -5,6 +5,7 @@ import { GAME_CONSTANTS } from '../config/GameConstants.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import SaveSystem from '../systems/SaveSystem.js';
 import SoundManager from '../systems/SoundManager.js';
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class ForgePanel {
     constructor(scene, x, y, width, height) {
@@ -14,6 +15,9 @@ export default class ForgePanel {
         this.container = scene.add.container(0, 0).setVisible(false);
         this.category = 'weapon';
         this.subFilter = 'all';
+
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
 
         this.title = scene.add.text(width/2, height * 0.17, "FORJA DE EQUIPAMIENTO", { fontFamily: 'Cinzel', fontSize: '32px', fontStyle: 'bold', color: '#ffd700', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5);
         this.container.add(this.title);
@@ -53,7 +57,18 @@ export default class ForgePanel {
         this.container.add(btn);
     }
 
-    show() { this.container.setVisible(true); this.refresh(); }
+    show() { 
+        this.container.setVisible(true); 
+        this.refresh(); 
+
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'forge', 
+            'FORJA DE EQUIPAMIENTO', 
+            'Aquí puedes fabricar armas, armaduras y partes de torre.\n\n1. Selecciona una RECETA de la izquierda.\n2. Elige la RAREZA deseada (si tienes los materiales).\n3. Haz clic en FORJAR para crear el ítem.'
+        );
+    }
+
     hide() { this.container.setVisible(false); }
 
     refresh() {

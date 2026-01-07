@@ -1,5 +1,6 @@
 import { gameState } from '../config/GameState.js';
 import RPGSystem from '../systems/RPGSystem.js';
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class ProfessionsPanel {
     constructor(scene, x, y, width, height) {
@@ -8,6 +9,9 @@ export default class ProfessionsPanel {
         this.height = height;
         
         this.container = scene.add.container(0, 0).setVisible(false).setDepth(100);
+
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
 
         // Fondo Estilo RPG
         const bg = scene.add.rectangle(width/2, height/2, width * 0.9, height * 0.9, 0x0a0a0a, 0.95)
@@ -36,6 +40,13 @@ export default class ProfessionsPanel {
     show() {
         this.container.setVisible(true);
         this.refresh();
+
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'professions', 
+            'MAESTRÍA Y PROFESIONES', 
+            'Aquí puedes ver tu nivel en cada oficio.\n\nSubes de nivel al realizar acciones (forjar, refinar, etc.).\n\nA mayor nivel, ¡más probabilidad de crear objetos ÉPICOS o LEGENDARIOS!'
+        );
     }
 
     hide() {

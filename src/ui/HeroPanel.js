@@ -1,6 +1,7 @@
 import { gameState, updatePlayerStats, getCurrentHero, RARITY } from '../config/GameState.js';
 import RPGSystem from '../systems/RPGSystem.js';
 import SaveSystem from '../systems/SaveSystem.js';
+import PanelTutorial from './PanelTutorial.js'; // <--- IMPORTAR
 
 export default class HeroPanel {
     constructor(scene, x, y, width, height) {
@@ -9,6 +10,9 @@ export default class HeroPanel {
         this.height = height;
         this.container = scene.add.container(0, 0).setVisible(false);
         
+        // Inicializar el sistema de tutorial
+        this.tutorial = new PanelTutorial(scene); // <--- INSTANCIAR
+
         // ============================================================
         // 1. PANEL PRINCIPAL (IZQUIERDA) - STATS Y EQUIPO
         // ============================================================
@@ -120,7 +124,18 @@ export default class HeroPanel {
         this.statButtonsContainer.add([btn1, txt1, btn10, txt10]);
     }
 
-    show() { this.container.setVisible(true); this.refresh(); }
+    show() { 
+        this.container.setVisible(true); 
+        this.refresh(); 
+
+        // --- ACTIVAR TUTORIAL ---
+        this.tutorial.trigger(
+            'hero', 
+            'ESTADÍSTICAS DEL HÉROE', 
+            'Aquí puedes ver el poder de tu personaje y su equipamiento actual.\n\nUsa tus PUNTOS DE HABILIDAD para mejorar estadísticas como Daño, Vida o Velocidad en el panel derecho.'
+        );
+    }
+
     hide() { this.container.setVisible(false); }
 
     refresh() { 
@@ -211,19 +226,15 @@ export default class HeroPanel {
         this.pointsText.setText(`PUNTOS DE HABILIDAD: ${hero.statPoints}`); 
     }
 
-    // --- CORRECCIÓN CLAVE AQUÍ: Usar equipmentInventory ---
     safeAddItemToInventory(item) { 
         if (!item) return; 
         
-        // Inicializar si no existe
         if (!gameState.equipmentInventory) gameState.equipmentInventory = [];
         
-        // Asegurarnos que tenga ID único
         if (!item.id || item.id.startsWith("ITEM_")) {
              item.id = RPGSystem.getUniqueId();
         }
         
-        // Empujar al array correcto
         gameState.equipmentInventory.push(item); 
     }
 
@@ -260,5 +271,5 @@ export default class HeroPanel {
         btnClose.on('pointerdown', () => modal.destroy()); 
         modal.add([bg, title, info, btnUnequip, txtUnequip, btnClose]); 
         this.container.add(modal); 
-    }
+    } 
 }
