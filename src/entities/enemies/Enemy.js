@@ -161,31 +161,25 @@ export default class Enemy extends Phaser.GameObjects.Container {
         if (this.hp <= 0) this.die(true); 
     }
 
-    // --- NUEVO: TAKE DAMAGE CON SINERGIAS ---
     takeDamage(amount, type = 'physical') { 
         if (this.isShielded) { 
             if (this.scene && this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "BLOQUEO", "#aaaaaa"); 
             return; 
         } 
         
-        // 1. SINERGIA: QUEBRAR (Congelado + Físico)
         if (this.statusEffects.freeze.active && type === 'physical') {
-            amount *= 1.5; // +50% Daño
-            this.statusEffects.freeze.active = false; // Romper hielo
+            amount *= 1.5; 
+            this.statusEffects.freeze.active = false; 
             this.clearTint();
             if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "¡QUEBRAR!", "#00ffff");
             if (this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x00ffff);
         }
 
-        // 2. SINERGIA: ELECTRO-CARGA (Veneno + Mágico/Rayo)
         if (this.statusEffects.poison.active && type === 'magic') {
-            // Detonar todo el daño de veneno restante
-            // Estimamos daño restante: daño por tick * (tiempo restante / 1000)
-            // Simplificado: daño actual * 3
             const poisonBurst = this.statusEffects.poison.damage * 3;
             amount += poisonBurst;
             
-            this.statusEffects.poison.active = false; // Consumir veneno
+            this.statusEffects.poison.active = false; 
             this.clearTint();
             if (this.scene.showFloatingText) this.scene.showFloatingText(this.x, this.y, "¡SOBRECARGA!", "#7cfc00");
             if (this.scene.createExplosion) this.scene.createExplosion(this.x, this.y, 0x7cfc00);
@@ -302,6 +296,9 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 ease: 'Cubic.out',
                 onComplete: () => {
                     this.isCasting = false;
+                    // --- FIX CRITICO: Verificar si el enemigo y la escena siguen vivos ---
+                    if (!this.active || !this.scene || !this.scene.player) return;
+
                     if (Phaser.Math.Distance.Between(this.x, this.y, this.scene.player.x, this.scene.player.y) < 50) {
                         const dmg = Math.floor(this.damage * (def.damageMult || 1.2));
                         this.scene.player.takeDamage(dmg);
@@ -330,6 +327,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
             this.sprite.setTint(0x888888); 
             
             this.scene.time.delayedCall(config.WARN_TIME, () => {
+                if (!this.active) return; // Verificar activo
                 this.isShielded = false;
                 this.clearTint();
                 this.createExplosion(this.x, this.y, config.RADIUS, config.DAMAGE, config.COLOR);
@@ -358,6 +356,7 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 duration: config.WARN_TIME,
                 onComplete: () => {
                     indicator.destroy();
+                    if (!this.active) return; // Verificar activo antes de explotar
                     this.createExplosion(targetX, targetY, config.RADIUS, config.DAMAGE, config.COLOR);
                     this.isCasting = false;
                 }
@@ -368,12 +367,12 @@ export default class Enemy extends Phaser.GameObjects.Container {
                 delay: 300,
                 repeat: shots - 1,
                 callback: () => {
-                    if (!this.active) return;
+                    if (!this.active || !this.scene) return;
                     const angle = Phaser.Math.Angle.Between(this.x, this.y, player.x, player.y);
                     const proj = this.scene.add.circle(this.x, this.y, 8, config.COLOR, 1);
                     this.scene.physics.add.existing(proj);
                     proj.body.setVelocity(Math.cos(angle)*300, Math.sin(angle)*300);
-                    this.scene.time.delayedCall(2000, () => proj.destroy());
+                    this.scene.time.delayedCall(2000, () => { if(proj.active) proj.destroy(); });
                     this.scene.physics.add.overlap(proj, player, () => {
                         player.takeDamage(config.DAMAGE);
                         proj.destroy();
