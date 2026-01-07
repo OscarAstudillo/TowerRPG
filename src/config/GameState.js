@@ -61,8 +61,8 @@ export const initialState = {
 
     materials: {
         wood: { common: 900, uncommon: 0, rare: 0, epic: 0, legendary: 100, mythic: 0 },
-        copper: { common: 90, uncommon: 0, rare: 0, epic: 0, legendary: 100, mythic: 0 },
-        hide: { common: 90, uncommon: 0, rare: 0, epic: 0, legendary: 100, mythic: 0 },
+        copper: { common: 900, uncommon: 0, rare: 0, epic: 0, legendary: 100, mythic: 0 },
+        hide: { common: 900, uncommon: 0, rare: 0, epic: 0, legendary: 100, mythic: 0 },
         iron: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         coal: { common: 90, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
         mithril: { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0, mythic: 0 },
