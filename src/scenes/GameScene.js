@@ -1,3 +1,4 @@
+// src/scenes/GameScene.js
 import Phaser from 'phaser';
 import Player from '../entities/player/Player.js';
 import Enemy from '../entities/enemies/Enemy.js';
@@ -15,7 +16,6 @@ import { BIOME_ENEMIES } from '../config/Enemies.js';
 import SoundManager from '../systems/SoundManager.js'; 
 import { EventBus } from '../utils/EventBus.js'; 
 import GameUI from '../ui/GameUi.js';
-import GameTutorialManager from '../systems/GameTutorialManager.js'; // <--- IMPORTAR
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -146,17 +146,6 @@ export default class GameScene extends Phaser.Scene {
 
         this.startWaveTimer(20); 
         this.isSceneReady = true;
-
-        // --- INICIALIZAR TUTORIAL DE JUEGO ---
-        this.gameTutorial = new GameTutorialManager(this); // <--- INSTANCIAR
-
-        // Verificar si es el primer nivel y no se ha completado el tutorial
-        if (this.level === 1 && this.biome === 'forest') {
-            // Un pequeño delay para asegurar que la escena cargó visualmente antes de pausar
-            this.time.delayedCall(500, () => {
-                this.gameTutorial.start();
-            });
-        }
     }
 
     createParticles() {
@@ -846,48 +835,6 @@ export default class GameScene extends Phaser.Scene {
     
     sellTower() { const t = this.selectedTowerToUpgrade; if (t) { this.coins += Math.floor(t.totalInvestment * 0.7); EventBus.emit('gold-changed', this.coins); if (t.buildSite) t.buildSite.free(); t.destroy(); this.closeUpgradeMenu(); this.showFloatingText(t.x, t.y - 50, `+$${Math.floor(t.totalInvestment*0.7)}`, '#ffff00'); } }
     
-    createPauseMenu() { 
-        this.pauseContainer = this.add.container(640, 480).setDepth(20000).setVisible(false).setScrollFactor(0); 
-        const w = this.scale.width; 
-        const h = this.scale.height; 
-        this.pauseContainer.setPosition(w/2, h/2); 
-        const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.8).setInteractive(); 
-        const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700); 
-        const title = this.add.text(0, -100, "PAUSA", { fontFamily: 'Cinzel', fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5); 
-        const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true }); 
-        const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); 
-        resumeBtn.on('pointerdown', () => this.togglePause()); 
-        const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true }); 
-        const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); 
-        
-        exitBtn.on('pointerdown', () => { 
-            this.cleanUpScene(); 
-            this.scene.start('MainMenuScene'); 
-        }); 
-
-        this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); 
-    }
-    
-    togglePause() { 
-        this.isPaused = !this.isPaused; 
-        if (this.isPaused) { 
-            this.physics.pause(); 
-            this.tweens.pauseAll(); 
-            this.time.paused = true; 
-            if(this.enemies) this.enemies.runChildUpdate = false;
-            if(this.projectiles) this.projectiles.runChildUpdate = false;
-            this.pauseContainer.setVisible(true); 
-            this.children.bringToTop(this.pauseContainer); 
-        } else { 
-            this.physics.resume(); 
-            this.tweens.resumeAll(); 
-            this.time.paused = false; 
-            if(this.enemies) this.enemies.runChildUpdate = true;
-            if(this.projectiles) this.projectiles.runChildUpdate = true;
-            this.pauseContainer.setVisible(false); 
-        } 
-    }
-
     triggerPlayerSkill() { if (!this.player) return; const result = this.player.castSkill(); if (result.success) { /* Animacion opcional */ } }
     
     tryBuildTower(site) { 
@@ -1059,6 +1006,46 @@ export default class GameScene extends Phaser.Scene {
     }
 
     showLevelUpEffect() { const txt = this.add.text(this.scale.width/2, this.scale.height/2, "¡LEVEL UP!", { fontSize: '64px', fontStyle: 'bold', color: '#ffd700', stroke: '#fff', strokeThickness: 6 }).setOrigin(0.5).setDepth(3000).setScale(0); this.tweens.add({ targets: txt, scale: 1.5, duration: 500, yoyo: true, onComplete: () => txt.destroy() }); gameState.playerStats.hp = gameState.playerStats.maxHp; }
-  
+    
+    createPauseMenu() { 
+        this.pauseContainer = this.add.container(640, 480).setDepth(20000).setVisible(false).setScrollFactor(0); 
+        const w = this.scale.width; 
+        const h = this.scale.height; 
+        this.pauseContainer.setPosition(w/2, h/2); 
+        const bg = this.add.rectangle(0, 0, w, h, 0x000000, 0.8).setInteractive(); 
+        const panel = this.add.rectangle(0, 0, 400, 300, 0x222222).setStrokeStyle(4, 0xffd700); 
+        const title = this.add.text(0, -100, "PAUSA", { fontFamily: 'Cinzel', fontSize: '40px', fontStyle: 'bold', color: '#fff' }).setOrigin(0.5); 
+        const resumeBtn = this.add.rectangle(0, 0, 250, 50, 0x006400).setInteractive({ useHandCursor: true }); 
+        const resumeTxt = this.add.text(0, 0, "CONTINUAR", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); 
+        resumeBtn.on('pointerdown', () => this.togglePause()); 
+        const exitBtn = this.add.rectangle(0, 80, 250, 50, 0xaa0000).setInteractive({ useHandCursor: true }); 
+        const exitTxt = this.add.text(0, 80, "SALIR AL MENÚ", { fontFamily: 'Roboto', fontSize: '20px', fontStyle: 'bold', color:'#fff' }).setOrigin(0.5); 
+        
+        exitBtn.on('pointerdown', () => { 
+            this.cleanUpScene(); 
+            this.scene.start('MainMenuScene'); 
+        }); 
 
+        this.pauseContainer.add([bg, panel, title, resumeBtn, resumeTxt, exitBtn, exitTxt]); 
+    }
+    
+    togglePause() { 
+        this.isPaused = !this.isPaused; 
+        if (this.isPaused) { 
+            this.physics.pause(); 
+            this.tweens.pauseAll(); 
+            this.time.paused = true; 
+            if(this.enemies) this.enemies.runChildUpdate = false;
+            if(this.projectiles) this.projectiles.runChildUpdate = false;
+            this.pauseContainer.setVisible(true); 
+            this.children.bringToTop(this.pauseContainer); 
+        } else { 
+            this.physics.resume(); 
+            this.tweens.resumeAll(); 
+            this.time.paused = false; 
+            if(this.enemies) this.enemies.runChildUpdate = true;
+            if(this.projectiles) this.projectiles.runChildUpdate = true;
+            this.pauseContainer.setVisible(false); 
+        } 
+    }
 }
