@@ -15,9 +15,8 @@ export default class ResultScene extends Phaser.Scene {
         this.baseHp = data.baseHp || 0; 
         this.loot = data.loot || {};
         this.biome = data.biome || 'forest';
-        this.difficulty = data.difficulty || 1; // Necesario para reiniciar
+        this.difficulty = data.difficulty || 1; 
         
-        // Si es endless, no hay "siguiente nivel" estándar
         this.isEndless = (this.biome === 'endless');
     }
 
@@ -25,11 +24,9 @@ export default class ResultScene extends Phaser.Scene {
         const w = this.scale.width;
         const h = this.scale.height;
         
-        // Fondo semi-transparente con blur (simulado oscureciendo más)
         this.add.rectangle(w/2, h/2, w, h, 0x000000, 0.85).setInteractive();
 
-        // Panel Principal
-        const panelColor = this.success ? 0x111111 : 0x1a0000; // Negro o Rojo oscuro
+        const panelColor = this.success ? 0x111111 : 0x1a0000; 
         const strokeColor = this.success ? 0xffd700 : 0xff0000;
         
         const panel = this.add.graphics();
@@ -38,7 +35,6 @@ export default class ResultScene extends Phaser.Scene {
         panel.lineStyle(4, strokeColor, 1);
         panel.strokeRoundedRect(w/2 - 350, h/2 - 250, 700, 500, 20);
 
-        // Título
         const titleText = this.success ? "¡MISIÓN CUMPLIDA!" : "¡DERROTA!";
         this.add.text(w/2, h * 0.2, titleText, { 
             fontFamily: 'Cinzel', fontSize: '56px', fontStyle: 'bold', 
@@ -49,23 +45,19 @@ export default class ResultScene extends Phaser.Scene {
 
         if (this.success) {
             this.createVictoryContent(w, h);
-            SoundManager.playMusic('music_victory', false); // Asegúrate de tener este key o usa uno genérico
+            SoundManager.playMusic('music_victory', false); 
         } else {
             this.createDefeatContent(w, h);
-            // SoundManager.playSound('defeat'); // Opcional
         }
 
         this.createButtons(w, h);
     }
 
     createVictoryContent(w, h) {
-        // Estrellas Animadas
         let stars = 1;
         if (this.baseHp >= 20) stars = 3;
         else if (this.baseHp > 10) stars = 2;
         
-        // Guardar Progreso (Si no se hizo en GameScene)
-        // Nota: GameScene ya suele guardar, pero reforzamos por seguridad visual
         const starGroup = this.add.container(w/2, h * 0.32);
         const starSpacing = 80;
         
@@ -86,54 +78,62 @@ export default class ResultScene extends Phaser.Scene {
             starGroup.add(star);
         }
 
-        // Resumen Stats
         const statsY = h * 0.45;
         this.add.text(w/2 - 150, statsY, `Vida: ${this.baseHp}/20`, { fontFamily: 'Roboto', fontSize: '20px', color: '#fff' }).setOrigin(0.5);
         this.add.text(w/2, statsY, `Oro: +${this.gold}`, { fontFamily: 'Roboto', fontSize: '20px', color: '#ffd700' }).setOrigin(0.5);
         this.add.text(w/2 + 150, statsY, `XP: +${this.xp}`, { fontFamily: 'Roboto', fontSize: '20px', color: '#00ffff' }).setOrigin(0.5);
 
-        // --- SECCIÓN DE LOOT (2 COLUMNAS) ---
-        this.add.text(w/2, statsY + 50, "-- RECOMPENSAS --", { fontFamily: 'Cinzel', fontSize: '22px', color: '#aaa' }).setOrigin(0.5);
+        // --- SECCIÓN DE LOOT RESUMIDA POR RAREZA ---
+        this.add.text(w/2, statsY + 50, "-- MATERIALES OBTENIDOS --", { fontFamily: 'Cinzel', fontSize: '22px', color: '#aaa' }).setOrigin(0.5);
         
-        let lootItems = [];
+        // Agrupar loot por rareza
+        const lootSummary = {
+            common: { count: 0, color: RARITY.common.color },
+            uncommon: { count: 0, color: RARITY.uncommon.color },
+            rare: { count: 0, color: RARITY.rare.color },
+            epic: { count: 0, color: RARITY.epic.color },
+            legendary: { count: 0, color: RARITY.legendary.color },
+            mythic: { count: 0, color: RARITY.mythic.color }
+        };
+
+        let totalItems = 0;
         for (let matKey in this.loot) {
             const rarities = this.loot[matKey];
-            for (let rarityKey in rarities) {
-                const count = rarities[rarityKey];
-                if (count > 0) {
-                    const matDef = RAW_MATERIALS[matKey] || REFINED_MATERIALS[matKey];
-                    const name = matDef ? matDef.name : matKey;
-                    const rData = RARITY[rarityKey];
-                    const color = '#' + rData.color.toString(16).padStart(6,'0');
-                    
-                    lootItems.push({ text: `${count}x ${name} (${rData.name})`, color: color });
+            for (let rKey in rarities) {
+                const qty = rarities[rKey];
+                if (qty > 0 && lootSummary[rKey]) {
+                    lootSummary[rKey].count += qty;
+                    totalItems += qty;
                 }
             }
         }
 
-        if (lootItems.length === 0) {
+        if (totalItems === 0) {
             this.add.text(w/2, statsY + 90, "(Sin materiales extra)", { fontSize: '16px', color: '#555' }).setOrigin(0.5);
         } else {
-            const startLootY = statsY + 90;
-            const colWidth = 280;
-            const maxPerCol = 5; // Máximo 5 items por columna para que quepa
+            // Renderizar resumen horizontal
+            const startX = w/2 - 200;
+            const startY = statsY + 100;
+            let currentX = w/2 - (Object.keys(lootSummary).filter(k => lootSummary[k].count > 0).length * 40); 
 
-            lootItems.forEach((item, idx) => {
-                const col = Math.floor(idx / maxPerCol); // 0 o 1
-                const row = idx % maxPerCol;
-                
-                // Si hay muchos items, dividimos en 2 columnas centradas
-                let xPos = w/2;
-                if (lootItems.length > maxPerCol) {
-                    xPos = (w/2) - (colWidth/2) + (col * colWidth); 
-                }
-                
-                const yPos = startLootY + (row * 30);
-                
-                if (row < maxPerCol) { // Límite visual
-                    this.add.text(xPos, yPos, item.text, { 
-                        fontFamily: 'Roboto', fontSize: '16px', color: item.color 
+            Object.entries(lootSummary).forEach(([key, data]) => {
+                if (data.count > 0) {
+                    const colorHex = '#' + data.color.toString(16).padStart(6, '0');
+                    
+                    // Icono (Cuadrado de color)
+                    const bg = this.add.rectangle(currentX, startY, 60, 40, data.color).setStrokeStyle(1, 0xffffff);
+                    // Texto (Cantidad)
+                    const txt = this.add.text(currentX, startY, `x${data.count}`, { 
+                        fontFamily: 'Roboto', fontSize: '18px', fontStyle: 'bold', 
+                        color: '#000', stroke: '#fff', strokeThickness: 2 
                     }).setOrigin(0.5);
+
+                    // Etiqueta de rareza debajo (opcional, pequeña)
+                    this.add.text(currentX, startY + 30, key.toUpperCase().substring(0,3), { 
+                        fontSize: '10px', color: colorHex 
+                    }).setOrigin(0.5);
+
+                    currentX += 80; // Espaciado entre grupos
                 }
             });
         }
@@ -151,7 +151,6 @@ export default class ResultScene extends Phaser.Scene {
 
     createButtons(w, h) {
         const btnY = h - 140;
-        const btnGap = 220;
 
         // Botón: Menú Principal (Siempre visible)
         this.createBtn(w/2, btnY + 60, "MENÚ PRINCIPAL", 0x444444, () => {
@@ -191,7 +190,6 @@ export default class ResultScene extends Phaser.Scene {
 
         bg.on('pointerdown', () => {
             SoundManager.playSound('ui_click');
-            // Animación Click
             this.tweens.add({
                 targets: container, scale: 0.9, duration: 50, yoyo: true,
                 onComplete: callback
@@ -214,7 +212,6 @@ export default class ResultScene extends Phaser.Scene {
     }
 
     nextLevel() {
-        // Lógica simple: ID + 1 dentro del mismo bioma
         const nextId = this.levelId + 1;
         this.scene.start('GameScene', { 
             biome: this.biome, 
