@@ -38,16 +38,31 @@ export default class Tower extends Phaser.GameObjects.Container {
         this.add(this.rangeCircle);
 
         this.level = 1; 
-        this.maxLevel = 3; 
+        this.maxLevel = 5; // --- CAMBIO: AHORA EL MAX ES 5 ANTES DE EVOLUCIONAR ---
         this.isEvolved = false;
         this.evolutionKey = null; 
         this.lastAttackTime = 0; 
         this.upgradeCost = 0;
-        
+        this.attackSpeed = 1000; 
+        this.currentEffect = null;
+        this.currentAoE = 0;
+        this.doubleAttackChance = 0; 
+
         this.updateStats(); 
+
+        this.on('destroy', this.preDestroy, this);
+    }
+
+    preDestroy() {
+        if (this.scene) {
+            this.scene.tweens.killTweensOf(this);
+            this.scene.tweens.killTweensOf(this.baseSprite);
+        }
     }
 
     update(time, delta) {
+        if (!this.active) return; 
+
         if (time > this.lastAttackTime + this.attackSpeed) { 
             this.findTargetAndFire(time); 
         }
@@ -61,9 +76,13 @@ export default class Tower extends Phaser.GameObjects.Container {
         let maxProgress = -1;
         let enemyInRange = false;
 
-        this.enemies.children.iterate(enemy => {
+        if (this.enemies.getLength() === 0) return;
+
+        const enemies = this.enemies.getChildren();
+        for (let i = 0; i < enemies.length; i++) {
+            const enemy = enemies[i];
             if (enemy.active && !enemy.isDead) {
-                if ((this.typeKey === 'cannon' || this.typeKey === 'quake') && enemy.isFlying) return;
+                if ((this.typeKey === 'cannon' || this.typeKey === 'quake') && enemy.isFlying) continue;
 
                 const dist = Phaser.Math.Distance.Between(this.x, this.y, enemy.x, enemy.y);
                 if (dist <= this.range) {
@@ -74,7 +93,7 @@ export default class Tower extends Phaser.GameObjects.Container {
                     }
                 }
             }
-        });
+        }
 
         if (this.typeKey === 'quake' && enemyInRange) {
             this.fire(null); 
@@ -92,6 +111,9 @@ export default class Tower extends Phaser.GameObjects.Container {
 
     fire(target) {
         const fireProjectile = () => {
+            if (target && (!target.active || target.isDead)) return;
+            if (!this.active) return; 
+
             let projectileType = this.typeKey;
             if (this.evolutionKey === 'gatling') projectileType = 'archer'; 
 
@@ -108,21 +130,23 @@ export default class Tower extends Phaser.GameObjects.Container {
                 SoundManager.playSound(soundType);
 
                 let finalDamage = this.damage;
-                // --- CÁLCULO DE CRÍTICO ---
-                // Sniper o habilidad de torre pueden tener crítico
                 let isCrit = false;
                 if (this.evolutionKey === 'sniper' && Math.random() < 0.5) {
                     finalDamage *= 2; 
-                    isCrit = true; // Flag para visual
+                    isCrit = true; 
                 }
-                // --------------------------
+
+                let damageType = 'physical';
+                if (['mage', 'tesla', 'ice', 'fire'].includes(this.typeKey)) damageType = 'magic';
+                if (this.typeKey === 'poison') damageType = 'chemical';
 
                 p.fire(target, {
                     damage: finalDamage,
-                    isCrit: isCrit, // Pasamos el flag
+                    isCrit: isCrit, 
                     type: projectileType,
                     effect: this.currentEffect,
-                    aoe: this.currentAoE || 0
+                    aoe: this.currentAoE || 0,
+                    damageType: damageType 
                 });
             }
         };
@@ -130,7 +154,9 @@ export default class Tower extends Phaser.GameObjects.Container {
         fireProjectile();
         
         if (this.doubleAttackChance > 0 && Math.random() * 100 < this.doubleAttackChance && target) {
-            this.scene.time.delayedCall(150, fireProjectile); 
+            this.scene.time.delayedCall(150, () => {
+                if (this.active) fireProjectile();
+            }); 
         }
         
         const recoil = (this.evolutionKey==='gatling') ? 2 : 4;
