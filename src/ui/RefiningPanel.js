@@ -86,7 +86,7 @@ export default class RefiningPanel {
         this.tutorial.trigger(
             'refining', 
             'REFINERÍA DE MATERIALES', 
-            'Transforma tus materiales básicos en RECURSOS AVANZADOS.\n\nEjemplo: Convierte Troncos en Tablones para crear armas de mayor nivel.\n\n¡Sube tu nivel de Refinamiento para producir el doble de materiales!'
+            'Transforma tus materiales en RECURSOS AVANZADOS.\nEjemplo: Convierte Troncos en Tablones para crear armas de mayor nivel.\n¡Sube tu nivel de Refinamiento para producir el doble de materiales!'
         );
     }
     

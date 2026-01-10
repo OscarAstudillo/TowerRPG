@@ -618,9 +618,9 @@ function enrichMap(originalGrid) {
             // Si es pasto (0), mezcla aleatoriamente con 3, 4, 5
             if (newGrid[r][c] === 0) {
                 const rand = Math.random();
-                if (rand < 0.9) newGrid[r][c] = 0;      // 70% Pasto base
-                else if (rand < 0.95) newGrid[r][c] = 3; // 10% Pasto variante 1
-                else if (rand < 0.97) newGrid[r][c] = 4; // 10% Pasto variante 2
+                if (rand < 0.8) newGrid[r][c] = 0;      // 70% Pasto base
+                else if (rand < 0.90) newGrid[r][c] = 3; // 10% Pasto variante 1
+                else if (rand < 0.95) newGrid[r][c] = 4; // 10% Pasto variante 2
                 else newGrid[r][c] = 5;                 // 10% Pasto variante 3
             }
         }

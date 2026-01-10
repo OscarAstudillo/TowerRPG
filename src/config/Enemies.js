@@ -8,16 +8,16 @@ export const ENEMY_DB = {
     // ============================================================
     // BOSQUE
 // BOSQUE
-    slime: { name: "Slime", hp: 60, damage: 5, speed: 0.8, armor: 0, drops: [['scraps', 0.2, 1, 2]] },
+    slime: { name: "Slime", hp: 60, damage: 5, speed: 0.5, armor: 0, drops: [['scraps', 0.2, 1, 2]] },
     // Goblin ahora dispara flechas
-    goblin: { name: "Goblin", hp: 80, damage: 8, speed: 1.0, armor: 2, skills: ['SHOOT_ARROW'], drops: [['scraps', 0.2, 1, 2], ['copper', 0.05, 1, 1]] },
+    goblin: { name: "Goblin", hp: 80, damage: 8, speed: 0.7, armor: 2, skills: ['SHOOT_ARROW'], drops: [['scraps', 0.2, 1, 2], ['copper', 0.05, 1, 1]] },
     // Lobo ahora carga
-    wolf: { name: "Lobo", hp: 100, damage: 12, speed: 1.4, armor: 5, skills: ['DASH_ATTACK'], drops: [['hide', 0.2, 1, 2]] },
+    wolf: { name: "Lobo", hp: 100, damage: 12, speed: 0.9, armor: 5, skills: ['DASH_ATTACK'], drops: [['hide', 0.2, 1, 2]] },
     boar: { name: "Jabalí", hp: 150, damage: 10, speed: 0.7, armor: 10, drops: [['hide', 0.15, 1, 2], ['scraps', 0.05, 1, 1]] },
-    eagle: { name: "Águila", hp: 70, damage: 8, speed: 1.3, armor: 0, flying: true, drops: [['hide', 0.2, 1, 2]] }, 
+    eagle: { name: "Águila", hp: 70, damage: 8, speed: 0.9, armor: 0, flying: true, drops: [['hide', 0.2, 1, 2]] }, 
     ent: { name: "Ent Joven", hp: 300, damage: 15, speed: 0.5, armor: 20, skills: ['HEAVY_STRIKE'], drops: [['wood', 0.3, 1, 3], ['copper', 0.1, 1, 2]] },
     // Chamán cura
-    shaman: { name: "Chamán", hp: 120, damage: 15, speed: 0.8, armor: 2, healer: true, skills: ['HEAL_ALLY'], drops: [['cloth_simple', 0.2, 1, 1], ['scraps', 0.1, 1, 3]] },
+    shaman: { name: "Chamán", hp: 120, damage: 15, speed: 0.7, armor: 2, healer: true, skills: ['HEAL_ALLY'], drops: [['cloth_simple', 0.2, 1, 1], ['scraps', 0.1, 1, 3]] },
 
     // MONTAÑA
     bandit: { name: "Bandido", hp: 70, damage: 7, speed: 1.0, armor: 3, skills: ['SHOOT_ARROW'], drops: [['scraps', 0.2, 1, 3], ['copper', 0.1, 1, 2]] },

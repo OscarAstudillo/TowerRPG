@@ -41,7 +41,7 @@ export default class TowersPanel {
         this.tutorial.trigger(
             'towers', 
             'GESTIÓN DE TORRES', 
-            'Personaliza tus defensas.\n\nAquí puedes ver la información de cada torre y sus evoluciones.\n\nAdemás, puedes equiparles ÍTEMS ESPECIALES (Partes de Torre) en los slots vacíos para aumentar su daño, rango o velocidad.'
+            'Personaliza tu defensa.\nAquí puedes ver la información de cada torre y sus evoluciones.\n\nAdemás, puedes equiparles ÍTEMS ESPECIALES (Partes de Torre) en los slots vacíos para aumentar su daño, rango o velocidad.'
         );
     }
 

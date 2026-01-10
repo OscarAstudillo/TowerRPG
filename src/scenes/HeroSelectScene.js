@@ -74,7 +74,7 @@ export default class HeroSelectScene extends Phaser.Scene {
         this.time.delayedCall(500, () => {
             this.tutorial.trigger(
                 'hero_select', 
-                'SELECCIÓN DE CLASE', 
+                'SELECCIÓN DE CLASE\n\n', 
                 '¡Bienvenido, Aventurero!\n\nCada clase tiene un estilo único:\n\n🛡️ GUERRERO: Resiste mucho daño.\n🔮 MAGO: Elimina grupos de enemigos.\n🏹 ARQUERO: Dispara muy rápido.\n🗡️ ASESINO: Elimina objetivos al instante.\n\n¡Elige con sabiduría!'
             );
         });

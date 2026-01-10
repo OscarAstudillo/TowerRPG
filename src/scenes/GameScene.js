@@ -385,7 +385,7 @@ export default class GameScene extends Phaser.Scene {
                     else { graphics.fillStyle(this.theme.path, 1); graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE); }
                     if (col === 0) startPoints.push({c: col, r: row, x, y});
                 } else if (cell === 2) { 
-                    if (this.textures.exists('tile_0')) this.add.image(x, y, 'tile_0').setDisplaySize(TILE_SIZE, TILE_SIZE);
+                    if (this.textures.exists('tile_2')) this.add.image(x, y, 'tile_2').setDisplaySize(TILE_SIZE, TILE_SIZE);
                     else { graphics.fillStyle(this.theme.bg, 1); graphics.fillRect(col * TILE_SIZE + offsetX, row * TILE_SIZE + offsetY, TILE_SIZE, TILE_SIZE); }
                     const site = new BuildSite(this, x, y);
                     this.buildSites.add(site);
